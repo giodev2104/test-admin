@@ -1317,7 +1317,7 @@ function pintarDetalle() {
     <textarea data-msg-nuevo="${r.id}" maxlength="1000" rows="3" placeholder="Responder al cliente…"
       class="mt-3 w-full resize-y bg-base border border-line rounded-md px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:border-fx focus:outline-none">${esc(borradorMsg.get(r.id) || "")}</textarea>
     <div class="mt-2 flex items-center justify-between gap-2">
-      <span class="text-xs text-amber-300/80">Lo verá el cliente</span>
+      <span class="text-xs ${r.cliente_id ? "text-amber-300/80" : "text-slate-500"}">${r.cliente_id ? "Lo verá el cliente en su portal" : "Este caso no está vinculado a una cuenta del portal: el cliente no verá el chat"}</span>
       <button type="button" data-msg-add="${r.id}" class="rounded-md bg-fx hover:bg-fx2 disabled:opacity-60 text-[#1a1005] text-sm font-semibold px-3.5 py-1.5 transition-colors">Enviar respuesta</button>
     </div>`;
 
@@ -1348,7 +1348,7 @@ function pintarDetalle() {
     ${aviso}
     <div class="px-5 sm:px-6 py-5 space-y-6">
       <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        ${datoDetalle("Cliente", esc(r.usuario_discord || "Anónimo"))}
+        ${datoDetalle("Cliente", esc(r.usuario_discord || "Anónimo") + (r.cliente_id ? `<span class="block text-xs text-emerald-300">● Cuenta del portal del cliente</span>` : ""))}
         ${r.email ? datoDetalle("Correo", `<a class="text-fx hover:underline" href="mailto:${esc(r.email)}">${esc(r.email)}</a>`) : ""}
         ${r.telefono ? datoDetalle("Teléfono", `<a class="text-fx hover:underline" href="tel:${esc(r.telefono)}">${esc(r.telefono)}</a>`) : ""}
         ${r.dominio ? datoDetalle("Web", esc(r.dominio)) : ""}
