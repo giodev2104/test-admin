@@ -2,7 +2,8 @@
 --  Webcare · Instalación completa de la base de datos (proyecto nuevo)
 -- =====================================================================
 -- Crea todo lo que usan el panel del equipo (test-admin) y el portal del
--- cliente (test-cliente). Incluye ya lo de supabase_portal_cliente.sql.
+-- cliente (test-cliente). Los clientes NO usan Supabase Auth: sus cuentas
+-- están en la tabla "clientes" (ver el paso 7).
 -- Ejecútalo entero en Supabase > SQL Editor. Se puede repetir sin romper nada.
 --
 -- Después, para poder entrar en el panel (ver el paso 8 al final):
@@ -41,9 +42,9 @@ create table if not exists public.reportes (
   urgencia            double precision check (urgencia is null or urgencia between 0 and 1),
   eliminado_en        timestamptz,
   eliminado_por       text,
-  cliente_id          uuid references auth.users(id) on delete set null
+  cliente_id          uuid             -- cuenta del portal (tabla clientes, paso 7)
 );
-alter table public.reportes add column if not exists cliente_id uuid references auth.users(id) on delete set null;
+alter table public.reportes add column if not exists cliente_id uuid;
 create index if not exists reportes_cliente_id_idx on public.reportes (cliente_id);
 
 create table if not exists public.notas_caso (
@@ -88,14 +89,8 @@ returns boolean language sql stable security definer set search_path = public as
   select public.staff_usuario() is not null;
 $$;
 
-create or replace function public.caso_es_mio(caso bigint)
-returns boolean language sql stable security definer set search_path = public as $$
-  select exists (select 1 from public.reportes
-                 where id = caso and cliente_id = auth.uid() and eliminado_en is null);
-$$;
-
-revoke all on function public.staff_usuario(), public.es_staff(), public.caso_es_mio(bigint) from public;
-grant execute on function public.staff_usuario(), public.es_staff(), public.caso_es_mio(bigint) to authenticated;
+revoke all on function public.staff_usuario(), public.es_staff() from public;
+grant execute on function public.staff_usuario(), public.es_staff() to authenticated;
 
 -- 3) Seguridad (RLS) -----------------------------------------------------
 alter table public.staff          enable row level security;
@@ -115,21 +110,16 @@ grant select on public.actividad_caso to authenticated;  -- la escribe el trigge
 drop policy if exists "staff_lee_staff" on public.staff;
 create policy "staff_lee_staff" on public.staff for select to authenticated using (public.es_staff());
 
--- reportes: el staff ve y edita todo; el cliente solo ve y crea los suyos
+-- reportes: el staff ve y edita todo (los clientes entran por las funciones del paso 7)
 drop policy if exists "staff_lee_casos" on public.reportes;
 create policy "staff_lee_casos" on public.reportes for select to authenticated using (public.es_staff());
 drop policy if exists "staff_edita_casos" on public.reportes;
 create policy "staff_edita_casos" on public.reportes for update to authenticated
   using (public.es_staff()) with check (public.es_staff());
 
+-- (versión anterior: los clientes usaban Supabase Auth; se quitan esas políticas)
 drop policy if exists "cliente_ve_sus_casos" on public.reportes;
-create policy "cliente_ve_sus_casos" on public.reportes for select to authenticated
-  using (cliente_id = auth.uid() and eliminado_en is null);
 drop policy if exists "cliente_crea_sus_casos" on public.reportes;
-create policy "cliente_crea_sus_casos" on public.reportes for insert to authenticated
-  with check (cliente_id = auth.uid() and estado = 'Entrada de leads'
-              and tipo_reporte in ('Lead', 'Cambio', 'Incidencia', 'Duda')
-              and responsable_usuario is null and eliminado_en is null);
 
 -- notas internas: solo el staff (cada uno borra las suyas)
 drop policy if exists "staff_lee_notas" on public.notas_caso;
@@ -148,11 +138,8 @@ drop policy if exists "staff_escribe_chat" on public.mensajes_caso;
 create policy "staff_escribe_chat" on public.mensajes_caso for insert to authenticated
   with check (autor_tipo = 'staff' and autor = public.staff_usuario());
 drop policy if exists "cliente_lee_su_chat" on public.mensajes_caso;
-create policy "cliente_lee_su_chat" on public.mensajes_caso for select to authenticated
-  using (public.caso_es_mio(caso_id));
 drop policy if exists "cliente_escribe_su_chat" on public.mensajes_caso;
-create policy "cliente_escribe_su_chat" on public.mensajes_caso for insert to authenticated
-  with check (autor_tipo = 'usuario' and autor is null and public.caso_es_mio(caso_id));
+drop function if exists public.caso_es_mio(bigint);
 
 -- historial: solo el staff
 drop policy if exists "staff_lee_actividad" on public.actividad_caso;
@@ -199,9 +186,173 @@ end $$;
 select tablename, rowsecurity from pg_tables
 where schemaname = 'public' and tablename in ('staff', 'reportes', 'notas_caso', 'mensajes_caso', 'actividad_caso');
 
--- 7) Recordatorio: los administradores nuevos se crean desde el propio panel
---    (botón de "Equipo y administradores") con la función gestionar-staff,
---    que está en supabase/functions/gestionar-staff/index.ts.
+-- 7) Portal del cliente: cuentas en la tabla "clientes" (sin Supabase Auth) --
+--    El navegador del cliente no puede leer ni escribir ninguna tabla. Todo pasa
+--    por las funciones cliente_* de abajo, que comprueban su sesión (token).
+create extension if not exists pgcrypto with schema extensions;
+
+create table if not exists public.clientes (
+  id         uuid primary key default gen_random_uuid(),
+  email      text not null unique check (email = lower(email)),
+  nombre     text not null,
+  dominio    text,
+  clave_hash text not null,               -- contraseña cifrada con bcrypt
+  creado_en  timestamptz not null default now()
+);
+create table if not exists public.sesiones_cliente (
+  token_hash text primary key,             -- se guarda el hash, nunca el token
+  cliente_id uuid not null references public.clientes(id) on delete cascade,
+  creado_en  timestamptz not null default now(),
+  expira_en  timestamptz not null default now() + interval '30 days'
+);
+alter table public.clientes         enable row level security;
+alter table public.sesiones_cliente enable row level security;
+revoke all on public.clientes, public.sesiones_cliente from anon, authenticated;
+-- el equipo puede consultar los clientes (sin la contraseña)
+grant select (id, email, nombre, dominio, creado_en) on public.clientes to authenticated;
+drop policy if exists "staff_lee_clientes" on public.clientes;
+create policy "staff_lee_clientes" on public.clientes for select to authenticated using (public.es_staff());
+
+-- los casos del portal apuntan ahora a la tabla clientes
+alter table public.reportes drop constraint if exists reportes_cliente_id_fkey;
+update public.reportes set cliente_id = null
+  where cliente_id is not null and cliente_id not in (select id from public.clientes);
+alter table public.reportes add constraint reportes_cliente_id_fkey
+  foreign key (cliente_id) references public.clientes(id) on delete set null;
+
+-- Funciones internas (no se pueden llamar desde fuera)
+create or replace function public._cliente_de_token(p_token text)
+returns uuid language sql stable security definer set search_path = public, extensions as $$
+  select cliente_id from sesiones_cliente
+  where token_hash = encode(digest(coalesce(p_token, ''), 'sha256'), 'hex') and expira_en > now();
+$$;
+
+create or replace function public._cliente_sesion(p_cliente uuid)
+returns json language plpgsql security definer set search_path = public, extensions as $$
+declare t text := encode(gen_random_bytes(32), 'hex');
+begin
+  delete from sesiones_cliente where expira_en < now();
+  insert into sesiones_cliente (token_hash, cliente_id) values (encode(digest(t, 'sha256'), 'hex'), p_cliente);
+  return json_build_object('token', t);
+end $$;
+
+revoke all on function public._cliente_de_token(text), public._cliente_sesion(uuid) from public, anon, authenticated;
+
+-- Registro: crea la cuenta y, si eligió un plan, su lead en «Entrada de leads»
+create or replace function public.cliente_registrar(p_email text, p_clave text, p_nombre text, p_dominio text, p_plan text)
+returns json language plpgsql security definer set search_path = public, extensions as $$
+declare
+  e  text := lower(trim(coalesce(p_email, '')));
+  n  text := left(trim(coalesce(p_nombre, '')), 100);
+  d  text := nullif(left(trim(coalesce(p_dominio, '')), 200), '');
+  pl text := nullif(left(trim(coalesce(p_plan, '')), 100), '');
+  cid uuid;
+begin
+  if e !~ '^\S+@\S+\.\S+$' or length(e) > 200 then raise exception 'Escribe un correo válido.'; end if;
+  if n = '' then raise exception 'Escribe tu nombre.'; end if;
+  if length(coalesce(p_clave, '')) < 8 then raise exception 'La contraseña debe tener al menos 8 caracteres.'; end if;
+  if exists (select 1 from clientes where email = e) then raise exception 'Ya existe una cuenta con ese correo. Inicia sesión.'; end if;
+  insert into clientes (email, nombre, dominio, clave_hash) values (e, n, d, crypt(p_clave, gen_salt('bf')))
+    returning id into cid;
+  if pl is not null then
+    insert into reportes (tipo_reporte, titulo, descripcion, usuario_discord, email, dominio, plan, estado, cliente_id)
+    values ('Lead', 'Nuevo cliente · ' || pl,
+            'Se ha registrado desde el portal del cliente y ha elegido ' || pl || '.' || coalesce(' Web: ' || d, ''),
+            n, e, d, pl, 'Entrada de leads', cid);
+  end if;
+  return _cliente_sesion(cid);
+end $$;
+
+create or replace function public.cliente_entrar(p_email text, p_clave text)
+returns json language plpgsql security definer set search_path = public, extensions as $$
+declare c clientes;
+begin
+  select * into c from clientes where email = lower(trim(coalesce(p_email, '')));
+  if c.id is null or c.clave_hash <> crypt(coalesce(p_clave, ''), c.clave_hash) then
+    perform pg_sleep(0.5);                 -- frena los intentos a ciegas
+    raise exception 'Correo o contraseña incorrectos.';
+  end if;
+  return _cliente_sesion(c.id);
+end $$;
+
+create or replace function public.cliente_salir(p_token text)
+returns void language sql security definer set search_path = public, extensions as $$
+  delete from sesiones_cliente where token_hash = encode(digest(coalesce(p_token, ''), 'sha256'), 'hex');
+$$;
+
+-- Todo lo que ve el cliente: sus datos, sus casos y los mensajes de sus casos (no las notas internas)
+create or replace function public.cliente_datos(p_token text)
+returns json language plpgsql stable security definer set search_path = public, extensions as $$
+declare cid uuid := _cliente_de_token(p_token); c clientes;
+begin
+  if cid is null then raise exception 'SESION_CADUCADA'; end if;
+  select * into c from clientes where id = cid;
+  return json_build_object(
+    'cliente', json_build_object('id', c.id, 'email', c.email, 'nombre', c.nombre, 'dominio', c.dominio),
+    'casos', coalesce((select json_agg(x order by x.created_at desc) from (
+        select id, tipo_reporte, titulo, estado, plan, dominio, urgencia, created_at
+        from reportes where cliente_id = cid and eliminado_en is null) x), '[]'::json),
+    'mensajes', coalesce((select json_agg(x order by x.creado_en) from (
+        select m.id, m.caso_id, m.autor_tipo, m.autor, m.texto, m.creado_en
+        from mensajes_caso m join reportes r on r.id = m.caso_id
+        where r.cliente_id = cid and r.eliminado_en is null) x), '[]'::json));
+end $$;
+
+create or replace function public.cliente_crear_caso(p_token text, p_tipo text, p_titulo text, p_descripcion text, p_urgente boolean)
+returns json language plpgsql security definer set search_path = public, extensions as $$
+declare cid uuid := _cliente_de_token(p_token); c clientes; r reportes;
+begin
+  if cid is null then raise exception 'SESION_CADUCADA'; end if;
+  if p_tipo is null or p_tipo not in ('Cambio', 'Incidencia', 'Duda') then raise exception 'Tipo de solicitud no válido.'; end if;
+  if length(trim(coalesce(p_descripcion, ''))) = 0 then raise exception 'Cuéntanos qué necesitas.'; end if;
+  select * into c from clientes where id = cid;
+  insert into reportes (tipo_reporte, titulo, descripcion, usuario_discord, email, dominio, plan, estado, urgencia, cliente_id)
+  values (p_tipo, left(trim(coalesce(p_titulo, '')), 120), left(p_descripcion, 4000), c.nombre, c.email, c.dominio,
+          (select plan from reportes where cliente_id = cid and plan is not null order by created_at desc limit 1),
+          'Entrada de leads', case when p_urgente then 0.85 end, cid)
+  returning * into r;
+  return json_build_object('id', r.id, 'tipo_reporte', r.tipo_reporte, 'titulo', r.titulo, 'estado', r.estado,
+                           'plan', r.plan, 'dominio', r.dominio, 'urgencia', r.urgencia, 'created_at', r.created_at);
+end $$;
+
+create or replace function public.cliente_enviar_mensaje(p_token text, p_caso bigint, p_texto text)
+returns json language plpgsql security definer set search_path = public, extensions as $$
+declare cid uuid := _cliente_de_token(p_token); m mensajes_caso;
+begin
+  if cid is null then raise exception 'SESION_CADUCADA'; end if;
+  if not exists (select 1 from reportes where id = p_caso and cliente_id = cid and eliminado_en is null) then
+    raise exception 'No encontramos esa conversación.';
+  end if;
+  if length(trim(coalesce(p_texto, ''))) = 0 then raise exception 'Escribe un mensaje.'; end if;
+  insert into mensajes_caso (caso_id, autor_tipo, texto) values (p_caso, 'usuario', left(trim(p_texto), 2000))
+    returning * into m;
+  return json_build_object('id', m.id, 'caso_id', m.caso_id, 'autor_tipo', m.autor_tipo, 'autor', m.autor,
+                           'texto', m.texto, 'creado_en', m.creado_en);
+end $$;
+
+revoke all on function public.cliente_registrar(text, text, text, text, text), public.cliente_entrar(text, text),
+  public.cliente_salir(text), public.cliente_datos(text), public.cliente_crear_caso(text, text, text, text, boolean),
+  public.cliente_enviar_mensaje(text, bigint, text) from public;
+grant execute on function public.cliente_registrar(text, text, text, text, text), public.cliente_entrar(text, text),
+  public.cliente_salir(text), public.cliente_datos(text), public.cliente_crear_caso(text, text, text, text, boolean),
+  public.cliente_enviar_mensaje(text, bigint, text) to anon, authenticated;
+
+-- Cambiar la contraseña de un cliente (no hay correo de recuperación). Solo desde el SQL Editor:
+--   select public.cambiar_clave_cliente('cliente@correo.com', 'NuevaClave123');
+create or replace function public.cambiar_clave_cliente(p_email text, p_clave text)
+returns void language plpgsql security definer set search_path = public, extensions as $$
+declare cid uuid;
+begin
+  if length(coalesce(p_clave, '')) < 8 then raise exception 'La contraseña debe tener al menos 8 caracteres.'; end if;
+  update clientes set clave_hash = crypt(p_clave, gen_salt('bf')) where email = lower(trim(p_email)) returning id into cid;
+  if cid is null then raise exception 'No existe ningún cliente con ese correo.'; end if;
+  delete from sesiones_cliente where cliente_id = cid;   -- cierra sus sesiones abiertas
+end $$;
+revoke all on function public.cambiar_clave_cliente(text, text) from public, anon, authenticated;
+
+-- Recordatorio: los administradores nuevos se crean desde el propio panel
+-- (botón de "Equipo y administradores") con la función gestionar-staff,
+-- que está en supabase/functions/gestionar-staff/index.ts.
 
 -- 8) TU PRIMER ADMINISTRADOR (propietario) --------------------------------
 --    Antes crea el usuario en Authentication > Users (ver arriba), y luego
