@@ -7,11 +7,11 @@
 --
 -- Después, para poder entrar en el panel (ver el paso 8 al final):
 --   1. Authentication > Users > Add user > Create new user
---        Email:    TUUSUARIO@sweetdreams.test   (p. ej. gio@sweetdreams.test)
+--        Email:    TUUSUARIO@transis.test   (p. ej. gio@transis.test)
 --        Password: la que quieras
 --        Marca "Auto Confirm User"
 --   2. Ejecuta el INSERT del paso 8 con ese mismo usuario.
---   3. En el panel: Usuario = TUUSUARIO (sin @sweetdreams.test) y tu contraseña.
+--   3. En el panel: Usuario = TUUSUARIO (sin @transis.test) y tu contraseña.
 -- =====================================================================
 
 -- 1) Tablas -------------------------------------------------------------
@@ -207,5 +207,5 @@ where schemaname = 'public' and tablename in ('staff', 'reportes', 'notas_caso',
 --    Antes crea el usuario en Authentication > Users (ver arriba), y luego
 --    cambia "gio" por tu usuario y ejecuta solo esta línea:
 -- insert into public.staff (usuario, email, creado_por, es_dueno)
--- values ('gio', 'gio@sweetdreams.test', 'sistema', true)
+-- values ('gio', 'gio@transis.test', 'sistema', true)
 -- on conflict (usuario) do update set es_dueno = true;

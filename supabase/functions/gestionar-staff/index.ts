@@ -5,7 +5,7 @@
 // SUPABASE_URL, SUPABASE_ANON_KEY y SUPABASE_SERVICE_ROLE_KEY ya los pone Supabase.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
-const DOMINIO_STAFF = "sweetdreams.test"; // igual que en index.html
+const DOMINIO_STAFF = "transis.test"; // igual que en index.html
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
