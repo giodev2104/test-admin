@@ -302,8 +302,8 @@ const bonito = u => u.charAt(0).toUpperCase() + u.slice(1);
 let listaStaff = [];   // se actualiza al iniciar sesión
 let usuarioActual = null, soyDueno = false, quitando = null, quitarT = null;
 const COLS_STAFF = "usuario,email,creado_por,creado_en,es_dueno";
-const DUENOS_BORRAR = ["gio", "apocalypse"];     // solo ellos pueden borrar y restaurar casos
-const puedeBorrar = () => DUENOS_BORRAR.includes(usuarioActual);
+const DUENOS_BORRAR = ["gio", "apocalypse"];     // además de los propietarios (staff.es_dueno), pueden borrar y restaurar casos
+const puedeBorrar = () => soyDueno || DUENOS_BORRAR.includes(usuarioActual);
 const activos = () => reportes.filter(r => !r.eliminado_en);
 const eliminados = () => reportes.filter(r => r.eliminado_en);
 const ARCHIVO_MS = DIAS_ARCHIVO * 24 * 60 * 60 * 1000;
