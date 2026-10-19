@@ -1,0 +1,1740 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel del equipo · Webcare</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='8' y='8' width='48' height='48' rx='14' fill='%23f6a01a'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+  tailwind.config = { theme: { extend: {
+    fontFamily: { display: ['Inter', 'system-ui', 'sans-serif'], body: ['Inter', 'system-ui', 'sans-serif'] },
+    colors: { base: '#0a0c11', panel: '#10131a', raised: '#171b24', line: '#232837', fx: '#f6a01a', fx2: '#ffb84d', ok: '#22c55e', wa: '#f59e0b' }
+  } } };
+</script>
+<style>
+  body { font-family: Inter, system-ui, sans-serif; font-size: 14.5px; background: #0a0c11; color-scheme: dark; }
+  .font-display { letter-spacing: -.015em; }
+  .rail-btn { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; color: #6b7386; transition: background .15s, color .15s; }
+  .rail-btn:hover { color: #e8ebf2; background: #171b24; }
+  .rail-btn.on { color: #1a1005; background: #f6a01a; box-shadow: 0 6px 18px rgba(246,160,26,.3); }
+  .top-btn { height: 34px; min-width: 34px; padding: 0 8px; border-radius: 10px; display: grid; place-items: center; color: #8b93a7; font-size: 13px; border: 1px solid transparent; }
+  .top-btn:hover { color: #fff; background: #171b24; }
+  .sel { background: #0a0c11; border: 1px solid #232837; border-radius: 10px; padding: .45rem .7rem; font-size: 13px; color: #cbd5e1; }
+  .sel:focus { outline: none; border-color: #f6a01a; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; border: 1px solid; }
+  .mini { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 6px; border: 1px solid; white-space: nowrap; }
+  .sla { font-variant-numeric: tabular-nums; }
+  .scroll-fino { scrollbar-width: thin; scrollbar-color: #2a3042 transparent; }
+  .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+  .marca { display: inline-flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 700; letter-spacing: -.01em; color: #e8ebf2; }
+  .marca::before { content: ""; width: 10px; height: 10px; border-radius: 3px; background: #f6a01a; }
+  .marca small { font-size: 12px; font-weight: 500; color: #8b93a7; letter-spacing: 0; }
+  .bg-scene {
+    background: radial-gradient(800px 360px at 10% -10%, rgba(246,160,26,.07), transparent 70%);
+  }
+  .card { transition: border-color .2s, transform .2s, box-shadow .2s; }
+  .card:hover { border-color: rgba(var(--c), .55); box-shadow: 0 10px 30px -12px rgba(var(--c), .35); }
+  .card-wrap { cursor: grab; }
+  .card-wrap.drag-origen { opacity: .3; }
+  .grip { touch-action: none; cursor: grab; }
+  body.arrastrando, body.arrastrando * { cursor: grabbing !important; user-select: none !important; -webkit-user-select: none !important; }
+  .drag-ghost { position: fixed; left: 0; top: 0; z-index: 100; pointer-events: none; opacity: .95;
+    transform-origin: 20px 20px; box-shadow: 0 25px 50px -12px rgba(0,0,0,.7); }
+  .drag-ghost .card { border-color: #f6a01a; }
+  section[data-estado] { border-radius: 14px; transition: background .15s, box-shadow .15s; }
+  section[data-estado].drop-activa { background: rgba(246,160,26,.08); box-shadow: 0 0 0 2px #f6a01a; }
+  .campo { width: 100%; background: #0d0f1a; border: 1px solid #2a2f48; border-radius: .6rem; padding: .7rem .9rem; color: #e2e8f0; }
+  .campo::placeholder { color: #64748b; }
+  .campo:focus { outline: none; border-color: #f6a01a; box-shadow: 0 0 0 3px rgba(246,160,26,.18); }
+  :focus-visible { outline: 2px solid #f6a01a; outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body class="text-slate-200 min-h-screen">
+
+<div class="min-h-screen bg-scene flex">
+  <!-- ============ RAIL DE ICONOS ============ -->
+  <aside class="w-14 md:w-16 h-screen sticky top-0 shrink-0 bg-panel border-r border-line flex flex-col items-center py-3 gap-1 z-30">
+    <span class="w-9 h-9 rounded-xl bg-fx grid place-items-center mb-3 shadow-[0_6px_18px_rgba(246,160,26,.35)]" title="Webcare">
+      <span class="w-3.5 h-3.5 rounded-[4px] bg-[#1a1005]"></span>
+    </span>
+    <button type="button" data-ir="inicio" class="rail-btn" title="Inicio" aria-label="Inicio">
+      <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+    </button>
+    <button type="button" data-ir="casos" class="rail-btn" title="Pipeline CRM" aria-label="Pipeline CRM">
+      <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/></svg>
+    </button>
+    <button id="papelera-abrir" type="button" class="rail-btn relative" title="Papelera" aria-label="Papelera">
+      <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+      <span id="papelera-n" class="absolute -top-0.5 -right-0.5 text-[10px] text-slate-400"></span>
+    </button>
+    <button id="admin-abrir" type="button" class="rail-btn" title="Equipo y administradores" aria-label="Administradores">
+      <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
+    </button>
+    <button id="salir" type="button" class="rail-btn mt-auto" title="Cerrar sesión" aria-label="Cerrar sesión">
+      <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>
+    </button>
+  </aside>
+
+  <div class="flex-1 min-w-0 flex flex-col">
+    <!-- ============ BARRA SUPERIOR ============ -->
+    <div class="sticky top-0 z-20 bg-base/90 backdrop-blur border-b border-line/60 px-4 md:px-6 py-2.5 flex items-center gap-3">
+      <div class="relative flex-1 max-w-lg">
+        <svg viewBox="0 0 24 24" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input id="buscar" type="search" autocomplete="off" placeholder="Buscar casos, clientes, notas…" aria-label="Buscar casos"
+          class="w-full bg-panel border border-line rounded-xl pl-9 pr-16 py-2 text-sm text-slate-200 placeholder-slate-500 focus:border-fx focus:outline-none">
+        <kbd class="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-500 border border-line rounded px-1.5 py-0.5">Ctrl K</kbd>
+      </div>
+      <div class="ml-auto flex items-center gap-1.5">
+        <div id="live-box" class="hidden sm:flex items-center gap-2 text-xs text-slate-400 px-2">
+          <span id="live-dot" class="w-2 h-2 rounded-full bg-slate-500"></span><span id="live">Conectando…</span>
+        </div>
+        <button id="sonido-btn" type="button" class="top-btn"></button>
+        <button id="notif-btn" type="button" class="top-btn"></button>
+        <button type="button" data-ir="inicio" class="top-btn relative" title="Mensajes sin responder" aria-label="Mensajes sin responder">
+          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <span id="badge-msg" class="hidden absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold grid place-items-center"></span>
+        </button>
+        <span id="avatar" class="ml-1 w-8 h-8 rounded-full grid place-items-center text-sm font-bold text-[#1a1005] bg-gradient-to-br from-amber-300 to-orange-500" title=""></span>
+        <span id="quien" class="hidden lg:inline text-sm font-medium text-slate-300 pl-1"></span>
+      </div>
+    </div>
+
+    <main class="flex-1 p-4 md:p-6 w-full min-w-0">
+      <div id="error" class="hidden mb-6 rounded-lg border border-red-500/40 bg-red-500/10 text-red-200 text-sm px-4 py-3"></div>
+
+      <!-- ============ VISTA INICIO ============ -->
+      <div id="vista-inicio"></div>
+
+      <!-- ============ VISTA CASOS (PIPELINE) ============ -->
+      <div id="vista-casos" class="hidden">
+        <header class="flex flex-wrap items-start justify-between gap-3 mb-4">
+          <div>
+            <h1 id="titulo-vista" class="font-display text-2xl font-bold text-white leading-tight">Leads · Pipeline CRM</h1>
+            <p class="text-sm text-slate-500 mt-1">Haz clic en una tarjeta para ver y editar todos sus datos. Arrástrala para cambiar de etapa. Los clientes que se registran en el portal entran solos en «Entrada de leads».</p>
+          </div>
+          <span id="contador" class="text-xs text-slate-500 pt-2"></span>
+        </header>
+        <div class="flex flex-wrap items-center gap-2 mb-4 rounded-xl border border-line bg-panel/60 p-2">
+          <nav id="tabs" class="flex flex-wrap gap-1.5" aria-label="Filtrar por tipo"></nav>
+          <div class="ml-auto flex flex-wrap gap-2">
+            <select id="filtro-resp" aria-label="Filtrar por responsable" class="sel">
+              <option value="">Todos los responsables</option>
+              <option value="__mios">Mis casos</option>
+              <option value="__sin">Sin asignar</option>
+            </select>
+            <select id="orden" aria-label="Orden" class="sel">
+              <option value="prioridad">Orden: recomendado</option>
+              <option value="recientes">Orden: más recientes</option>
+            </select>
+          </div>
+        </div>
+        <div id="lista" class="flex gap-3 items-start overflow-x-auto scroll-fino pb-4"></div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<div id="confirmar" class="hidden fixed inset-0 z-[65] grid place-items-center bg-black/70 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="confirmar-titulo">
+  <div class="w-full max-w-sm rounded-xl border border-line bg-panel p-5 shadow-2xl">
+    <h2 id="confirmar-titulo" class="font-display text-xl font-bold text-white">¿Eliminar este caso?</h2>
+    <p id="confirmar-texto" class="mt-2 text-sm text-slate-300 break-words"></p>
+    <p class="mt-1 text-xs text-slate-500">Irá a la papelera y un propietario podrá restaurarlo.</p>
+    <div class="mt-5 flex justify-end gap-2">
+      <button id="confirmar-no" class="px-4 py-2 rounded-lg text-sm text-slate-300 hover:bg-raised">Cancelar</button>
+      <button id="confirmar-si" class="px-4 py-2 rounded-lg text-sm font-semibold bg-red-500 hover:bg-red-400 text-white">Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<div id="login" class="fixed inset-0 z-[70] bg-scene grid place-items-center p-4 overflow-y-auto" style="background-color:#0a0c11">
+  <form id="login-form" class="w-full max-w-sm rounded-2xl border border-line bg-panel/90 backdrop-blur p-6 sm:p-8 space-y-5" novalidate>
+    <div class="flex justify-center"><span class="marca">Webcare</span></div>
+    <div class="text-center">
+      <h1 class="font-display text-2xl font-bold text-white leading-none">Acceso del equipo</h1>
+      <p class="text-sm text-slate-400 mt-2">Inicia sesión para gestionar las solicitudes de los clientes.</p>
+    </div>
+    <div>
+      <label for="login-user" class="block text-sm font-medium text-slate-300 mb-1.5">Usuario</label>
+      <input id="login-user" class="campo" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+    </div>
+    <div>
+      <label for="login-pass" class="block text-sm font-medium text-slate-300 mb-1.5">Contraseña</label>
+      <div class="relative">
+        <input id="login-pass" type="password" class="campo pr-20" autocomplete="current-password" required>
+        <button id="login-ver" type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-white px-2 py-1">Mostrar</button>
+      </div>
+    </div>
+    <p id="login-error" class="hidden text-sm text-red-300"></p>
+    <div class="rounded-lg border border-fx/30 bg-fx/10 px-3.5 py-3 text-sm text-slate-300">
+      <p><span class="font-semibold text-white">¿Quieres probarlo?</span> Usa la cuenta demo:</p>
+      <p class="mt-1">Usuario <span class="font-semibold text-white">demo</span> · Contraseña <span class="font-semibold text-white">webcare2026</span></p>
+      <button id="login-demo" type="button" class="mt-2 text-xs font-medium text-fx hover:underline">Rellenar automáticamente</button>
+    </div>
+    <button id="login-btn" type="submit" class="w-full rounded-lg bg-fx hover:bg-fx2 disabled:opacity-60 text-[#1a1005] font-display text-base font-bold py-3 transition-colors">Entrar</button>
+  </form>
+</div>
+
+<div id="admin-modal" class="hidden fixed inset-0 z-[60] grid place-items-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="admin-titulo">
+  <div class="w-full max-w-md rounded-xl border border-line bg-panel p-5 sm:p-6 shadow-2xl">
+    <div class="flex items-start justify-between gap-3">
+      <h2 id="admin-titulo" class="font-display text-2xl font-bold text-white leading-none">Administradores</h2>
+      <button id="admin-cerrar" type="button" class="text-slate-400 hover:text-white p-1" aria-label="Cerrar">✕</button>
+    </div>
+    <ul id="admin-lista" class="mt-4 space-y-2"></ul>
+
+    <form id="admin-form" class="mt-5 pt-5 border-t border-line space-y-4" novalidate>
+      <h3 class="text-sm font-semibold text-slate-200">Añadir un administrador nuevo</h3>
+      <div>
+        <label for="admin-user" class="block text-xs font-medium text-slate-400 mb-1">Usuario</label>
+        <input id="admin-user" class="campo" maxlength="30" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="ej: maria">
+      </div>
+      <div>
+        <div class="flex justify-between items-baseline mb-1">
+          <label for="admin-pass" class="text-xs font-medium text-slate-400">Contraseña (mínimo 12 caracteres)</label>
+          <button id="admin-generar" type="button" class="text-xs text-fx hover:underline">Generar segura</button>
+        </div>
+        <div class="relative">
+          <input id="admin-pass" type="password" class="campo pr-20" autocomplete="new-password">
+          <button id="admin-ver" type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-white px-2 py-1">Mostrar</button>
+        </div>
+      </div>
+      <p id="admin-error" class="hidden text-sm text-red-300"></p>
+      <div id="admin-ok" class="hidden rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-200">
+        <p class="font-semibold">Administrador creado. Copia estos datos ahora:</p>
+        <p class="mt-1">Usuario: <span id="admin-ok-usuario" class="font-mono text-white"></span></p>
+        <p>Contraseña: <span id="admin-ok-clave" class="font-mono text-white break-all"></span></p>
+        <button id="admin-copiar" type="button" class="mt-2 rounded-md border border-emerald-500/40 px-3 py-1 text-xs hover:bg-emerald-500/20">Copiar</button>
+      </div>
+      <button id="admin-btn" type="submit" class="w-full rounded-lg bg-fx hover:bg-fx2 disabled:opacity-60 text-[#1a1005] font-display text-base font-bold py-2.5 transition-colors">Añadir administrador</button>
+    </form>
+  </div>
+</div>
+
+<div id="papelera-modal" class="hidden fixed inset-0 z-[55] grid place-items-center bg-black/70 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="papelera-titulo">
+  <div class="w-full max-w-2xl max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl border border-line bg-panel p-5 sm:p-6 shadow-2xl">
+    <div class="flex items-start justify-between gap-3">
+      <div>
+        <h2 id="papelera-titulo" class="font-display text-2xl font-bold text-white leading-none">Papelera</h2>
+        <p class="mt-1.5 text-xs text-slate-500">Casos eliminados. Haz clic en uno para ver su detalle.</p>
+      </div>
+      <button id="papelera-cerrar" type="button" class="text-slate-400 hover:text-white p-1" aria-label="Cerrar">✕</button>
+    </div>
+    <ul id="papelera-lista" class="mt-4 space-y-2"></ul>
+  </div>
+</div>
+
+<div id="detalle-modal" class="hidden fixed inset-0 z-[60] grid place-items-center bg-black/70 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="detalle-titulo">
+  <div id="detalle-cuerpo" class="w-full max-w-2xl max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl border border-line bg-panel shadow-2xl"></div>
+</div>
+
+<div id="toast" class="fixed bottom-5 right-5 bg-raised border border-line text-sm px-4 py-2.5 rounded-lg shadow-xl hidden z-50"></div>
+
+<script>
+// ================= CONFIGURACIÓN =================
+const SUPABASE_URL = "https://lpflycvomagkudyqsaug.supabase.co";
+const SUPABASE_KEY = "sb_publishable_LEkhPHD4mKJJFzIbPXBNeQ_e06arFQx";
+// Los administradores se guardan en la tabla "staff" de Supabase.
+// El correo de cada uno es  usuario@DOMINIO_STAFF  (debe coincidir con la función gestionar-staff y con supabase.sql).
+const DOMINIO_STAFF = "sweetdreams.test";
+const DIAS_ARCHIVO = 30;   // los casos resueltos hace más de estos días se ocultan
+// =================================================
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+let db = null, errorInicial = null;
+try {
+  const url = SUPABASE_URL.trim().replace(/\/+$/, "");
+  if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(url))
+    throw new Error("La URL de Supabase no es válida. Debe ser como https://abcdefgh.supabase.co (sin /rest/v1 ni nada detrás).");
+  if (typeof supabase === "undefined")
+    throw new Error("No se pudo cargar la librería de Supabase. Revisa tu conexión o desactiva el bloqueador de anuncios.");
+  db = supabase.createClient(url, SUPABASE_KEY.trim());
+} catch (e) { errorInicial = e.message; }
+
+function mostrarError(msg) {
+  $("error").innerHTML = "<strong>No se pudo conectar con Supabase.</strong><br>" + esc(msg);
+  $("error").classList.remove("hidden");
+  estadoConexion("Sin conexión", "bg-red-500");
+}
+
+// Etapas del pipeline (color de la columna y plazo SLA en horas; null = sin plazo)
+const ETAPAS = [
+  { e: "Entrada de leads",    c: "59,130,246",  sla: 2 },
+  { e: "Formulario enviado",  c: "34,197,94",   sla: 24 },
+  { e: "Formulario recibido", c: "245,158,11",  sla: 24 },
+  { e: "Interesado",          c: "249,115,22",  sla: 24 },
+  { e: "Propuesta enviada",   c: "217,70,239",  sla: 48 },
+  { e: "Seguimiento",         c: "234,179,8",   sla: 48 },
+  { e: "Aceptado",            c: "34,197,94",   sla: null },
+  { e: "Denegado",            c: "239,68,68",   sla: null }
+];
+const ESTADOS = ETAPAS.map(x => x.e), ESTADO0 = ESTADOS[0];
+const CERRADOS = ["Aceptado", "Denegado"], cerrado = e => CERRADOS.includes(e);
+const ESTADO_ESTILO = Object.fromEntries(ESTADOS.map(e => [e, {
+  on: e === "Aceptado" ? "bg-emerald-500 text-slate-950" : e === "Denegado" ? "bg-red-500 text-white" : "bg-fx text-[#1a1005]",
+  dot: "bg-fx" }]));
+const TIPOS = {
+  "Lead":       { rgb: "59,130,246",  badge: "bg-blue-500/15 text-blue-300 border-blue-500/40",       dot: "bg-blue-500" },
+  "Cambio":     { rgb: "34,197,94",   badge: "bg-emerald-500/15 text-emerald-300 border-emerald-500/40", dot: "bg-emerald-500" },
+  "Incidencia": { rgb: "239,68,68",   badge: "bg-red-500/15 text-red-300 border-red-500/40",          dot: "bg-red-500" },
+  "Duda":       { rgb: "250,204,21",  badge: "bg-yellow-400/15 text-yellow-300 border-yellow-400/40", dot: "bg-yellow-400" }
+};
+// Tipos antiguos (versión anterior del panel)
+const TIPO_ANTIGUO = { Queja: "Incidencia", Bug: "Incidencia", Sugerencia: "Cambio", Otro: "Cambio" };
+const tipoDe = r => TIPOS[r.tipo_reporte] ? r.tipo_reporte : (TIPO_ANTIGUO[r.tipo_reporte] || "Cambio");
+const VISTAS = [
+  { id: "Todos", label: "Todos", dot: "bg-slate-400" },
+  { id: "Lead", label: "Leads", dot: TIPOS.Lead.dot },
+  { id: "Cambio", label: "Cambios", dot: TIPOS.Cambio.dot },
+  { id: "Incidencia", label: "Incidencias", dot: TIPOS.Incidencia.dot },
+  { id: "Duda", label: "Dudas", dot: TIPOS.Duda.dot }
+];
+const SEMANA = 7 * 24 * 60 * 60 * 1000;
+
+let reportes = [], filtro = "Todos", orden = "prioridad", canal = null;
+let busqueda = "", verArchivados = false, editando = false;
+const abiertos = new Set();                       // tarjetas con las notas desplegadas
+const norm = t => String(t ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+const bonito = u => u.charAt(0).toUpperCase() + u.slice(1);
+let listaStaff = [];   // se actualiza al iniciar sesión
+let usuarioActual = null, soyDueno = false, quitando = null, quitarT = null;
+const COLS_STAFF = "usuario,email,creado_por,creado_en,es_dueno";
+const DUENOS_BORRAR = ["gio", "apocalypse"];     // solo ellos pueden borrar y restaurar casos
+const puedeBorrar = () => DUENOS_BORRAR.includes(usuarioActual);
+const activos = () => reportes.filter(r => !r.eliminado_en);
+const eliminados = () => reportes.filter(r => r.eliminado_en);
+const ARCHIVO_MS = DIAS_ARCHIVO * 24 * 60 * 60 * 1000;
+const resueltoHace = r => Date.now() - new Date(r.resuelto_en || r.created_at);
+let mensajes = [], mensajesIdx = new Map();      // chat público con el usuario (lo ve el usuario)
+const chatAbiertos = new Set(), borradorMsg = new Map();
+let notas = [], notasIdx = new Map();            // historial de notas por caso
+const borradorNota = new Map();                  // lo que se está escribiendo en cada caso
+const expandidas = new Set();                    // descripciones largas desplegadas
+let filtroResp = "", sonidoOn = true;
+const fechaCorta = d => new Date(d).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" });
+const coincideResp = r => !filtroResp || (filtroResp === "__sin" ? !r.responsable_usuario
+  : filtroResp === "__mios" ? r.responsable_usuario === usuarioActual : true);
+
+
+function toast(msg, ms = 3500) {
+  const t = $("toast");
+  t.textContent = msg; t.classList.remove("hidden");
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => t.classList.add("hidden"), ms);
+}
+
+function estadoConexion(texto, color) {
+  $("live").textContent = texto;
+  $("live-dot").className = "w-2 h-2 rounded-full " + color;
+}
+
+// ---------- Sonidos (se pueden silenciar con el botón de la campana) ----------
+let audioCtx = null;
+try { sonidoOn = localStorage.getItem("sonido") !== "off"; } catch (_) {}
+function actualizarSonidoBtn() {
+  const b = $("sonido-btn");
+  b.textContent = sonidoOn ? "🔔" : "🔕";
+  b.setAttribute("aria-pressed", String(sonidoOn));
+  b.setAttribute("aria-label", sonidoOn ? "Silenciar sonidos" : "Activar sonidos");
+  b.title = sonidoOn ? "Silenciar sonidos" : "Activar sonidos";
+}
+// pasos: [[frecuenciaInicial, frecuenciaFinal, inicioSeg, duracionSeg], ...]
+function tono(pasos, vol = 0.04) {
+  if (!sonidoOn) return;
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    const t0 = audioCtx.currentTime;
+    for (const [f1, f2, ini, dur] of pasos) {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = "sine";
+      o.frequency.setValueAtTime(f1, t0 + ini);
+      o.frequency.exponentialRampToValueAtTime(f2, t0 + ini + dur);
+      g.gain.setValueAtTime(0.0001, t0 + ini);
+      g.gain.exponentialRampToValueAtTime(vol, t0 + ini + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + ini + dur);
+      o.connect(g).connect(audioCtx.destination);
+      o.start(t0 + ini); o.stop(t0 + ini + dur + 0.02);
+    }
+  } catch (_) {}
+}
+const sonidoMover = () => tono([[520, 340, 0, 0.14]]);
+const sonidoNuevo = () => tono([[660, 660, 0, 0.12], [880, 880, 0.13, 0.2]], 0.05);
+
+// ---------- Datos ----------
+function indexarNotas() {
+  notasIdx = new Map();
+  for (const n of notas) {
+    if (!notasIdx.has(n.caso_id)) notasIdx.set(n.caso_id, []);
+    notasIdx.get(n.caso_id).push(n);
+  }
+}
+const notasDe = id => notasIdx.get(id) || [];
+// ---------- Historial de actividad ----------
+let actividad = [], actividadIdx = new Map();
+function indexarActividad() {
+  actividadIdx = new Map();
+  for (const a of actividad) {
+    if (!actividadIdx.has(a.caso_id)) actividadIdx.set(a.caso_id, []);
+    actividadIdx.get(a.caso_id).push(a);
+  }
+}
+const actividadDe = id => actividadIdx.get(id) || [];
+
+function indexarMensajes() {
+  mensajesIdx = new Map();
+  for (const m of mensajes) {
+    if (!mensajesIdx.has(m.caso_id)) mensajesIdx.set(m.caso_id, []);
+    mensajesIdx.get(m.caso_id).push(m);
+  }
+}
+const mensajesDe = id => mensajesIdx.get(id) || [];
+
+async function pedirDatos() {
+  const consulta = Promise.all([
+    db.from("reportes").select("*").order("created_at", { ascending: false }),
+    db.from("notas_caso").select("*").order("creado_en", { ascending: true }),
+    db.from("mensajes_caso").select("*").order("creado_en", { ascending: true }),
+    db.from("actividad_caso").select("*").order("creado_en", { ascending: true })
+  ]);
+  const espera = new Promise((_, rej) => setTimeout(() => rej(new Error("Supabase no responde (10 s). Revisa la URL y que el proyecto no esté pausado.")), 10000));
+  const [rep, not, msg, act] = await Promise.race([consulta, espera]);
+  if (rep.error) throw new Error(rep.error.message + (rep.error.code === "42501" || /permission|policy/i.test(rep.error.message) ? " No tienes permiso para leer los casos: comprueba que has iniciado sesión con un usuario del staff y que has ejecutado supabase.sql." : ""));
+  reportes = rep.data;
+  if (not.error) toast("No se pudieron cargar las notas: " + not.error.message + " (¿has ejecutado supabase_migracion.sql?)", 8000);
+  notas = not.error ? [] : not.data;
+  indexarNotas();
+  if (msg.error) toast("No se pudo cargar el chat: " + msg.error.message + " (¿has ejecutado supabase_migracion_2.sql?)", 8000);
+  if (act.error) toast("No se pudo cargar el historial: " + act.error.message + " (¿has ejecutado supabase_historial.sql?)", 8000);
+  actividad = act.error ? [] : act.data; indexarActividad();
+  mensajes = msg.error ? [] : msg.data;
+  indexarMensajes();
+}
+
+async function cargar() {
+  if (errorInicial) { mostrarError(errorInicial); return; }
+  try {
+    await pedirDatos();
+    $("error").classList.add("hidden");
+    render();
+    suscribir();
+  } catch (e) { mostrarError(e.message); }
+}
+
+// Vuelve a pedir los datos (tras una caída de conexión no llegan los cambios que pasaron mientras tanto)
+async function recargarDatos() {
+  try { await pedirDatos(); render(); }
+  catch (e) { toast("No se pudieron actualizar los casos: " + e.message, 6000); }
+}
+
+// ---------- Avisos de casos nuevos ----------
+const TITULO_BASE = document.title;
+let nuevosSinVer = 0;
+function actualizarTitulo() { document.title = (nuevosSinVer ? "(" + nuevosSinVer + ") " : "") + TITULO_BASE; }
+// ---------- Avisos del navegador (notificaciones del sistema) ----------
+let notifOn = false;
+try { notifOn = localStorage.getItem("notif") === "on"; } catch (_) {}
+const notifSoportado = () => "Notification" in window;
+function actualizarNotifBtn() {
+  const b = $("notif-btn");
+  if (!notifSoportado()) { b.classList.add("hidden"); return; }
+  const activo = notifOn && Notification.permission === "granted";
+  b.textContent = "🖥 Avisos";
+  b.style.color = activo ? "#f6a01a" : "";
+  b.style.borderColor = activo ? "rgba(246,160,26,.5)" : "";
+  b.setAttribute("aria-pressed", String(activo));
+  b.title = activo ? "Avisos del navegador activados (clic para desactivar)" : "Activar avisos del navegador cuando llegue un caso o mensaje";
+}
+function avisoSistema(titulo, cuerpo, id, forzar) {
+  if (!notifOn || !notifSoportado() || Notification.permission !== "granted") return;
+  if (!forzar && !(document.hidden || !document.hasFocus())) return;   // con el panel a la vista basta el aviso interno
+  try {
+    const n = new Notification(titulo, { body: cuerpo, tag: "panel-" + id, renotify: true, icon: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='8' y='8' width='48' height='48' rx='14' fill='%23f6a01a'/%3E%3C/svg%3E" });
+    n.onclick = () => { window.focus(); if (id) abrirDetalle(id); n.close(); };
+  } catch (_) {}
+}
+$("notif-btn").addEventListener("click", async () => {
+  if (!notifSoportado()) return;
+  if (Notification.permission === "denied") { toast("El navegador tiene bloqueados los avisos de esta página. Actívalos en el candado de la barra de direcciones.", 7000); return; }
+  if (Notification.permission !== "granted") {
+    const p = await Notification.requestPermission();
+    if (p !== "granted") { notifOn = false; actualizarNotifBtn(); toast("No se activaron los avisos del navegador."); return; }
+    notifOn = true;
+  } else notifOn = !notifOn;
+  try { localStorage.setItem("notif", notifOn ? "on" : "off"); } catch (_) {}
+  actualizarNotifBtn();
+  if (notifOn) { toast("Avisos del navegador activados"); avisoSistema("Avisos activados", "Te avisaremos de casos y mensajes nuevos.", 0, true); }
+});
+
+function avisarNuevo(r) {
+  avisoSistema("Nuevo caso #" + r.id, r.titulo || "Sin título", r.id);
+  toast("Nuevo caso #" + r.id + " · " + (r.titulo || "Sin título"), 6000);
+  sonidoNuevo();
+  if (document.hidden) { nuevosSinVer++; actualizarTitulo(); }
+}
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && nuevosSinVer) { nuevosSinVer = 0; actualizarTitulo(); }
+});
+
+function avisarMensaje(m) {
+  const rr = reportes.find(x => x.id === m.caso_id);
+  avisoSistema("Nuevo mensaje · caso #" + m.caso_id, (rr ? rr.usuario_discord : "Usuario") + ": " + String(m.texto || "").slice(0, 120), m.caso_id);
+  const r = reportes.find(x => x.id === m.caso_id);
+  toast("Nuevo mensaje de " + (r ? r.usuario_discord : "un usuario") + " en el caso #" + m.caso_id, 6000);
+  sonidoNuevo();
+  if (document.hidden) { nuevosSinVer++; actualizarTitulo(); }
+}
+
+// ---------- Tiempo real y reconexión ----------
+let suscritoAntes = false;
+function suscribir() {
+  if (canal) db.removeChannel(canal);
+  suscritoAntes = false;
+  canal = db.channel("reportes-live")
+    .on("postgres_changes", { event: "*", schema: "public", table: "reportes" }, p => {
+      if (p.eventType === "INSERT") {
+        if (!reportes.some(r => r.id === p.new.id)) { reportes.unshift(p.new); avisarNuevo(p.new); }
+      } else if (p.eventType === "UPDATE") {
+        reportes = reportes.map(r => r.id === p.new.id ? p.new : r);
+      } else if (p.eventType === "DELETE") {
+        reportes = reportes.filter(r => r.id !== p.old.id);
+      }
+      render();
+    })
+    .on("postgres_changes", { event: "*", schema: "public", table: "notas_caso" }, p => {
+      if (p.eventType === "INSERT") { if (!notas.some(n => n.id === p.new.id)) notas.push(p.new); }
+      else if (p.eventType === "DELETE") notas = notas.filter(n => n.id !== p.old.id);
+      indexarNotas(); render();
+    })
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "mensajes_caso" }, p => {
+      if (mensajes.some(m => m.id === p.new.id)) return;
+      mensajes.push(p.new); indexarMensajes();
+      if (p.new.autor_tipo === "usuario") avisarMensaje(p.new);
+      render();
+    })
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "actividad_caso" }, p => {
+      if (actividad.some(a => a.id === p.new.id)) return;
+      actividad.push(p.new); indexarActividad(); render();
+    })
+    .subscribe(st => {
+      if (st === "SUBSCRIBED") {
+        estadoConexion("En vivo", "bg-emerald-400");
+        if (suscritoAntes) recargarDatos();        // era una reconexión: ponemos todo al día
+        suscritoAntes = true;
+      } else estadoConexion("Reconectando…", "bg-amber-400");
+    });
+}
+window.addEventListener("offline", () => estadoConexion("Sin conexión", "bg-red-500"));
+window.addEventListener("online", () => { if (canal) { estadoConexion("Reconectando…", "bg-amber-400"); recargarDatos(); } });
+
+async function cambiarEstado(id, estado) {
+  const r = reportes.find(x => x.id === id);
+  if (!r || r.estado === estado) return;
+  const anterior = r.estado, anteriorRes = r.resuelto_en;
+  r.estado = estado;
+  r.resuelto_en = cerrado(estado) ? new Date().toISOString() : null;
+  render();
+  const { error } = await db.from("reportes").update({ estado, resuelto_en: r.resuelto_en }).eq("id", id);
+  if (error) { r.estado = anterior; r.resuelto_en = anteriorRes; render(); toast("No se pudo cambiar el estado: " + error.message); }
+  else toast("Caso #" + id + " marcado como " + estado);
+}
+
+// Guarda un campo suelto (responsable…) con la misma lógica optimista
+async function guardarCampo(id, campo, valor, aviso) {
+  const r = reportes.find(x => x.id === id);
+  if (!r) return;
+  const anterior = r[campo];
+  r[campo] = valor;
+  const { error } = await db.from("reportes").update({ [campo]: valor }).eq("id", id);
+  if (error) { r[campo] = anterior; render(); toast("No se pudo guardar: " + error.message); }
+  else if (aviso) toast(aviso);
+}
+
+async function eliminarCaso(id) {
+  if (!puedeBorrar()) { toast("Solo los propietarios pueden borrar casos."); return; }
+  const r = reportes.find(x => x.id === id);
+  if (!r) return;
+  const { data, error } = await db.from("reportes")
+    .update({ eliminado_en: new Date().toISOString(), eliminado_por: usuarioActual }).eq("id", id).select();
+  if (error) { toast("No se pudo eliminar: " + error.message + (/eliminado_/.test(error.message) ? " (¿has ejecutado supabase_papelera.sql?)" : ""), 8000); return; }
+  if (!data || !data.length) { toast("No se pudo eliminar el caso (revisa los permisos de la tabla en Supabase)."); return; }
+  reportes = reportes.map(x => x.id === id ? data[0] : x);
+  if (detalleId === id) cerrarDetalle();
+  render();
+  toast("Caso #" + id + " movido a la papelera");
+}
+
+// ---------- Chat con el cliente (lo que se escribe aquí lo ve el usuario) ----------
+const buscarCampo = sel => (detalleId !== null && $("detalle-cuerpo").querySelector(sel)) || document.querySelector(sel);
+
+async function agregarMensaje(id) {
+  const ta = buscarCampo(`textarea[data-msg-nuevo="${id}"]`);
+  const texto = (ta ? ta.value : (borradorMsg.get(id) || "")).trim();
+  if (!texto) return;
+  const btn = buscarCampo(`[data-msg-add="${id}"]`);
+  if (btn) btn.disabled = true;
+  const { data, error } = await db.from("mensajes_caso").insert({ caso_id: id, autor_tipo: "staff", autor: usuarioActual, texto }).select().single();
+  if (error) { if (btn) btn.disabled = false; toast("No se pudo enviar la respuesta: " + error.message); return; }
+  borradorMsg.delete(id);
+  if (!mensajes.some(m => m.id === data.id)) mensajes.push(data);
+  chatAbiertos.add(id); indexarMensajes(); editando = false; render();
+  toast("Respuesta enviada al cliente");
+}
+
+// ---------- Notas del staff (historial) ----------
+async function agregarNota(id) {
+  const ta = buscarCampo(`textarea[data-nota-nueva="${id}"]`);
+  const texto = (ta ? ta.value : (borradorNota.get(id) || "")).trim();
+  if (!texto) return;
+  const btn = buscarCampo(`[data-nota-add="${id}"]`);
+  if (btn) btn.disabled = true;
+  const { data, error } = await db.from("notas_caso").insert({ caso_id: id, autor: usuarioActual, texto }).select().single();
+  if (error) { if (btn) btn.disabled = false; toast("No se pudo guardar la nota: " + error.message); return; }
+  borradorNota.delete(id);
+  if (!notas.some(n => n.id === data.id)) notas.push(data);
+  abiertos.add(id); indexarNotas(); editando = false; render();
+  toast("Nota añadida");
+}
+
+async function borrarNota(id) {
+  if (!confirm("¿Borrar esta nota?")) return;
+  const { data, error } = await db.from("notas_caso").delete().eq("id", id).select();
+  if (error || !data || !data.length) { toast("No se pudo borrar la nota" + (error ? ": " + error.message : "")); return; }
+  notas = notas.filter(n => n.id !== id); indexarNotas(); render();
+  toast("Nota borrada");
+}
+
+let casoAEliminar = null;
+function pedirEliminar(id) {
+  if (!puedeBorrar()) { toast("Solo los propietarios pueden borrar casos."); return; }
+  const r = reportes.find(x => x.id === id);
+  if (!r) return;
+  casoAEliminar = id;
+  $("confirmar-texto").textContent = "#" + id + " · " + (r.titulo || "Sin título");
+  $("confirmar").classList.remove("hidden");
+  $("confirmar-no").focus();
+}
+function cerrarConfirmar() { casoAEliminar = null; $("confirmar").classList.add("hidden"); }
+$("confirmar-no").addEventListener("click", cerrarConfirmar);
+$("confirmar").addEventListener("click", e => { if (e.target === $("confirmar")) cerrarConfirmar(); });
+$("confirmar-si").addEventListener("click", () => { const id = casoAEliminar; cerrarConfirmar(); if (id !== null) eliminarCaso(id); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && casoAEliminar !== null) cerrarConfirmar(); });
+
+// ---------- Urgencia ----------
+const clamp01 = n => Math.min(1, Math.max(0, n));
+const urgenciaAuto = r => clamp01((Date.now() - new Date(r.created_at)) / SEMANA);
+// Valor fijado a mano: columna "urgencia" de Supabase (la misma para todo el staff)
+const urgenciaManual = r => typeof r.urgencia === "number" ? clamp01(r.urgencia) : null;
+const urgencia = r => urgenciaManual(r) ?? urgenciaAuto(r);
+
+async function fijarUrgencia(id, valor) {
+  const r = reportes.find(x => x.id === id);
+  if (!r) return;
+  const anterior = r.urgencia ?? null;
+  r.urgencia = valor;
+  const { error } = await db.from("reportes").update({ urgencia: valor }).eq("id", id);
+  if (error) { r.urgencia = anterior; render(); toast("No se pudo guardar la temperatura: " + error.message); }
+}
+
+function hace(ms) {
+  const m = Math.floor(ms / 60000), h = Math.floor(m / 60), d = Math.floor(h / 24);
+  if (d >= 1) return "Hace " + d + (d === 1 ? " día" : " días");
+  if (h >= 1) return "Hace " + h + (h === 1 ? " hora" : " horas");
+  return m < 1 ? "Ahora mismo" : "Hace " + m + " min";
+}
+
+function barraHTML(r, resuelto) {
+  const u = urgencia(r);
+  const manual = urgenciaManual(r) !== null;
+  const color = `hsl(${Math.round(210 * (1 - u))} 85% 55%)`;
+  const edad = Date.now() - new Date(r.created_at);
+  const texto = resuelto ? "Cerrado" : (edad >= SEMANA ? "Más de una semana sin resolver" : hace(edad));
+  const nivel = Math.round(u * 100);
+  return `
+    <div class="${resuelto ? "opacity-40" : ""}">
+      <div class="barra-urg py-2 -my-2 cursor-pointer select-none" style="touch-action:none" data-id="${r.id}"
+        role="slider" aria-label="Temperatura del caso" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${nivel}"
+        aria-valuetext="${nivel}% (frío a caliente)" tabindex="0">
+        <div class="pista relative h-2 rounded-full" style="background:linear-gradient(90deg,#3b82f6,#a855f7 50%,#ef4444)">
+          <span class="pulgar absolute top-1/2 w-5 h-5 rounded-full border-2 border-white shadow-lg cursor-grab"
+            style="left:${(u * 100).toFixed(1)}%;transform:translate(-50%,-50%);background:${color}"></span>
+        </div>
+      </div>
+      <div class="flex justify-between items-center text-xs text-slate-500 mt-2.5 gap-2">
+        <span class="text-blue-300">❄ Frío</span>
+        <span class="text-slate-300 text-center">${esc(texto)}${manual ? ` · <button data-reset-urg="${r.id}" class="underline text-slate-400 hover:text-white" title="Volver al cálculo automático por tiempo">auto</button>` : ""}</span>
+        <span class="text-red-300">Caliente 🔥</span>
+      </div>
+    </div>`;
+}
+
+// ---------- Render ----------
+function pruebasHTML(texto) {
+  const items = String(texto).split(/\s+/).filter(Boolean).map(t => {
+    try {
+      const u = new URL(t);
+      if (u.protocol === "http:" || u.protocol === "https:") {
+        return `<a href="${esc(u.href)}" target="_blank" rel="noopener noreferrer"
+          class="inline-flex items-center gap-2 bg-fx/10 text-fx border border-fx/30 hover:bg-fx/20 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors">
+          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>
+          Ver prueba</a>`;
+      }
+    } catch (_) {}
+    return `<span class="text-sm text-slate-400 break-all">${esc(t)}</span>`;
+  });
+  return `<div class="flex flex-wrap items-center gap-2">${items.join("")}</div>`;
+}
+
+// ---------- SLA y señales de cada caso ----------
+const HORA = 3600000;
+const SLA_H = Object.fromEntries(ETAPAS.filter(x => x.sla).map(x => [x.e, x.sla]));
+function inicioEstado(r) {
+  const cambios = actividadDe(r.id).filter(a => a.tipo === "estado" && a.nuevo === r.estado);
+  return cambios.length ? cambios[cambios.length - 1].creado_en : r.created_at;
+}
+function slaRestante(r) {
+  const e = ESTADOS.includes(r.estado) ? r.estado : ESTADO0;
+  if (!SLA_H[e]) return null;
+  return SLA_H[e] * HORA - (Date.now() - new Date(inicioEstado(r)));
+}
+function fmtSla(ms) {
+  const neg = ms < 0, t = Math.floor(Math.abs(ms) / 1000);
+  const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = t % 60;
+  return (neg ? "-" : "") + h + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+}
+const slaClase = ms => ms === null ? "mini sla bg-emerald-500/10 text-emerald-300 border-emerald-500/30"
+  : ms < 0 ? "mini sla bg-red-500 text-white border-red-500"
+  : ms < 6 * HORA ? "mini sla bg-amber-500/15 text-amber-300 border-amber-500/40"
+  : "mini sla bg-emerald-500/10 text-emerald-300 border-emerald-500/30";
+const slaTexto = ms => ms === null ? "✓ Cerrado" : (ms < 0 ? "⏱ " : "⏱ ") + fmtSla(ms);
+function slaBadge(r) { const ms = slaRestante(r); return `<span data-sla-id="${r.id}" class="${slaClase(ms)}">${slaTexto(ms)}</span>`; }
+setInterval(() => document.querySelectorAll("[data-sla-id]").forEach(el => {
+  const r = reportes.find(x => x.id === Number(el.dataset.slaId)); if (!r) return;
+  const ms = slaRestante(r); el.textContent = slaTexto(ms); el.className = slaClase(ms);
+}), 1000);
+
+const abierto = r => !r.eliminado_en && !cerrado(r.estado);
+const sinResponder = r => { const ms = mensajesDe(r.id); return ms.length && ms[ms.length - 1].autor_tipo === "usuario"; };
+const vencido = r => { const ms = slaRestante(r); return ms !== null && ms < 0; };
+const porVencer = r => { const ms = slaRestante(r); return ms !== null && ms >= 0 && ms < 6 * HORA; };
+const edadCorta = r => { const d = Math.floor((Date.now() - new Date(r.created_at)) / (24 * HORA)); return d >= 1 ? d + "d" : Math.max(1, Math.floor((Date.now() - new Date(r.created_at)) / HORA)) + "h"; };
+const inicial = t => esc(String(t || "?").trim().charAt(0).toUpperCase() || "?");
+const fechaDia = d => new Date(d).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" });
+
+function tarjeta(r) {
+  const tipo = TIPOS[tipoDe(r)];
+  const estado = ESTADOS.includes(r.estado) ? r.estado : ESTADO0;
+  const resuelto = cerrado(estado);
+  const ns = notasDe(r.id), ms = mensajesDe(r.id);
+  const venc = !resuelto && vencido(r), pide = !resuelto && sinResponder(r);
+  const u = urgencia(r);
+  const estadoChip = resuelto ? (estado === "Aceptado" ? `<span class="mini bg-emerald-500/10 text-emerald-300 border-emerald-500/30">✓ Aceptado</span>` : `<span class="mini bg-red-500/10 text-red-300 border-red-500/30">✕ Denegado</span>`)
+    : pide ? `<span class="mini bg-amber-500/15 text-amber-300 border-amber-500/40">● Sin responder</span>`
+    : !r.responsable_usuario ? `<span class="mini bg-violet-500/15 text-violet-300 border-violet-500/40">Sin asignar</span>`
+    : `<span class="mini bg-emerald-500/10 text-emerald-300 border-emerald-500/30">✓ Todo bajo control</span>`;
+  const resp = r.responsable_usuario;
+  return `
+  <article class="card relative overflow-hidden rounded-xl border ${venc ? "border-red-500/50 shadow-[0_0_0_1px_rgba(239,68,68,.2),0_10px_30px_-14px_rgba(239,68,68,.5)]" : "border-line"} bg-raised/80 p-3 pl-4 ${resuelto ? "opacity-60" : ""}" style="--c:${tipo.rgb}">
+    <span class="absolute left-0 top-0 bottom-0 w-1" style="background:rgb(${tipo.rgb})"></span>
+    <div class="flex items-center gap-1.5">
+      <span class="text-[11px] text-slate-500">${esc(fechaDia(r.created_at))}</span>
+      <span class="ml-auto mini ring-0 ${tipo.badge}">${esc(tipoDe(r))}</span>
+      <span class="mini bg-base text-slate-400 border-line">⏱ ${edadCorta(r)}</span>
+      <span class="grip text-slate-600 hover:text-slate-300" title="Arrastra para cambiar de estado" aria-hidden="true">
+        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
+      </span>
+      ${puedeBorrar() ? `<button data-borrar="${r.id}" title="Eliminar caso" aria-label="Eliminar caso #${esc(r.id)}" class="p-1 rounded-md text-slate-600 hover:text-red-300 hover:bg-red-500/15">
+        <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6l-1 14H6L5 6"/></svg></button>` : ""}
+    </div>
+    <h3 class="mt-2 text-[15px] font-semibold text-white leading-snug line-clamp-2">${esc(r.titulo || "Sin título")}</h3>
+    <ul class="mt-2 space-y-1 text-xs text-slate-400">
+      <li class="flex items-center gap-2 min-w-0"><svg viewBox="0 0 24 24" class="w-3.5 h-3.5 shrink-0 text-slate-500" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span class="truncate text-slate-200 font-medium">${esc(r.usuario_discord || "Anónimo")}</span></li>
+      ${r.telefono ? `<li class="flex items-center gap-2"><svg viewBox="0 0 24 24" class="w-3.5 h-3.5 shrink-0 text-slate-500" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg><span class="truncate">${esc(r.telefono)}</span></li>` : ""}
+      ${r.email ? `<li class="flex items-center gap-2"><svg viewBox="0 0 24 24" class="w-3.5 h-3.5 shrink-0 text-slate-500" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18v12H3zM3 7l9 7 9-7"/></svg><span class="truncate">${esc(r.email)}</span></li>` : ""}
+      <li class="flex items-center gap-2"><svg viewBox="0 0 24 24" class="w-3.5 h-3.5 shrink-0 text-slate-500" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="truncate">Últ. contacto: ${esc(fechaCorta(ms.length ? ms[ms.length - 1].creado_en : r.created_at))} · ${ms.length} msj · ${ns.length} notas</span></li>
+    </ul>
+    <p class="mt-2 text-xs text-slate-500 leading-relaxed line-clamp-2">${esc(r.descripcion || "Sin descripción.")}</p>
+    <div class="mt-2.5 flex items-center gap-2">
+      ${resp ? `<span class="w-5 h-5 rounded-full grid place-items-center text-[10px] font-bold text-[#1a1005] bg-gradient-to-br from-amber-300 to-orange-500">${inicial(resp)}</span><span class="text-xs text-slate-300">${esc(bonito(resp))}</span>`
+        : `<span class="text-xs text-slate-500">Sin responsable</span>`}
+      ${r.plan ? `<span class="mini bg-fx/10 text-fx border-fx/40">${esc(r.plan)}</span>` : ""}${r.dominio ? `<span class="text-[11px] text-slate-500 truncate">${esc(r.dominio)}</span>` : ""}
+      <span class="ml-auto h-1.5 w-16 rounded-full bg-base overflow-hidden" title="Temperatura ${Math.round(u * 100)}%"><span class="block h-full rounded-full" style="width:${Math.max(6, u * 100)}%;background:hsl(${Math.round(210 * (1 - u))} 85% 55%)"></span></span>
+    </div>
+    <div class="mt-3 pt-2.5 border-t border-line/70 flex items-center gap-2">${estadoChip}<span class="ml-auto">${slaBadge(r)}</span></div>
+  </article>`;
+}
+
+// ---------- Navegación ----------
+let vista = "inicio", dashAmbito = "yo";
+function irA(v) { vista = v; render(); scrollTo(0, 0); }
+
+function saludo() { const h = new Date().getHours(); return h < 13 ? "Buenos días" : h < 21 ? "Buenas tardes" : "Buenas noches"; }
+
+function itemCritico(r, extra) {
+  return `<li><button type="button" data-detalle="${r.id}" class="w-full flex items-center gap-2 text-left py-1.5 px-1 rounded-md hover:bg-raised">
+    <span class="min-w-0 flex-1"><span class="block text-[13px] font-medium text-slate-200 truncate">${esc(r.titulo || "Sin título")}</span>
+    <span class="block text-[11px] text-slate-500 truncate">#${esc(r.id)} · ${esc(r.usuario_discord || "Anónimo")}</span></span>${extra}</button></li>`;
+}
+
+function renderInicio() {
+  const base = activos().filter(abierto).filter(r => dashAmbito === "equipo" || r.responsable_usuario === usuarioActual || !r.responsable_usuario);
+  const prio = (a, b) => (vencido(b) - vencido(a)) || (sinResponder(b) - sinResponder(a)) || (urgencia(b) - urgencia(a));
+  const L = {
+    venc: base.filter(vencido).sort(prio),
+    resp: base.filter(sinResponder).sort(prio),
+    sin: base.filter(r => !r.responsable_usuario).sort(prio),
+    cal: base.filter(r => urgencia(r) >= 0.7).sort(prio),
+    pv: base.filter(porVencer).sort((a, b) => slaRestante(a) - slaRestante(b))
+  };
+  const mios = activos().filter(r => abierto(r) && r.responsable_usuario === usuarioActual).length;
+  const top = base.slice().sort(prio);
+  const sig = top[0];
+  const accion = r => sinResponder(r) ? "Responder" : !r.responsable_usuario ? "Asignar" : vencido(r) ? "Desbloquear" : "Resolver";
+
+  const mes = new Date(); mes.setDate(1); mes.setHours(0, 0, 0, 0);
+  const resMes = activos().filter(r => r.estado === "Aceptado" && new Date(r.resuelto_en || 0) >= mes);
+  const medioH = resMes.length ? Math.round(resMes.reduce((t, r) => t + (new Date(r.resuelto_en) - new Date(r.created_at)), 0) / resMes.length / HORA) : null;
+  const finMes = new Date(mes.getFullYear(), mes.getMonth() + 1, 0).getDate() - new Date().getDate();
+
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const agenda = [];
+  for (const r of activos()) {
+    if (new Date(r.created_at) >= hoy) agenda.push({ f: r.created_at, t: "Nuevo caso: " + (r.titulo || "Sin título"), c: "bg-sky-400", id: r.id });
+    for (const m of mensajesDe(r.id)) if (new Date(m.creado_en) >= hoy) agenda.push({ f: m.creado_en, t: (m.autor_tipo === "staff" ? bonito(m.autor || "Equipo") + " respondió" : (r.usuario_discord || "Cliente") + " escribió") + " · #" + r.id, c: m.autor_tipo === "staff" ? "bg-fx" : "bg-blue-400", id: r.id });
+    for (const a of actividadDe(r.id)) if (a.tipo === "estado" && new Date(a.creado_en) >= hoy) agenda.push({ f: a.creado_en, t: bonito(a.autor || "sistema") + " → " + a.nuevo + " · #" + r.id, c: a.nuevo === "Aceptado" ? "bg-emerald-400" : a.nuevo === "Denegado" ? "bg-red-400" : "bg-amber-400", id: r.id });
+  }
+  agenda.sort((a, b) => new Date(b.f) - new Date(a.f));
+
+  const chip = (n, txt, cls) => `<span class="chip ${cls}">${n} ${txt}</span>`;
+  const tarjetaZona = (titulo, sub, lista, color, icono, badge) => `
+    <div class="rounded-2xl border p-4 flex flex-col min-h-[260px] bg-panel" style="border-color:rgba(${color},.35);background:linear-gradient(160deg,rgba(${color},.08),transparent 45%),#10131a">
+      <div class="flex items-start justify-between">
+        <span class="w-8 h-8 rounded-lg grid place-items-center" style="background:rgba(${color},.15);color:rgb(${color})">${icono}</span>
+        <span class="min-w-[22px] h-[22px] px-1.5 rounded-full grid place-items-center text-[11px] font-bold text-white" style="background:rgb(${color})">${lista.length}</span>
+      </div>
+      <h3 class="mt-3 text-sm font-semibold text-white">${titulo}</h3>
+      <p class="text-[11px] text-slate-500">${sub}</p>
+      ${lista.length ? `<ul class="mt-3 flex-1 max-h-40 overflow-y-auto scroll-fino pr-1">${lista.slice(0, 20).map(r => itemCritico(r, badge(r))).join("")}</ul>`
+        : `<div class="flex-1 grid place-items-center text-center text-xs text-slate-500"><span><span class="block text-emerald-400 text-lg">✓</span>Sin alertas</span></div>`}
+      <button type="button" data-ir="casos" class="mt-3 flex items-center justify-between text-xs font-semibold" style="color:rgb(${color})">Ver todos los casos <span>›</span></button>
+    </div>`;
+  const ic = d => `<svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>`;
+  const bVenc = r => `<span class="mini bg-red-500 text-white border-red-500">Vencido</span>`;
+
+  $("vista-inicio").innerHTML = `
+  <section class="rounded-2xl border border-line p-5 md:p-6" style="background:radial-gradient(700px 220px at 100% 0,rgba(246,160,26,.10),transparent 70%),#10131a">
+    <div class="flex flex-wrap items-start gap-3">
+      <div class="min-w-0">
+        <div class="flex flex-wrap items-center gap-2.5">
+          <h1 class="font-display text-2xl md:text-3xl font-bold text-white">${saludo()}, ${esc(bonito(usuarioActual || ""))}</h1>
+          <span class="chip bg-fx/15 text-fx border-fx/40">${mios} asignado${mios === 1 ? "" : "s"} a ti</span>
+        </div>
+        <p class="text-sm text-slate-500 mt-1">Tu cuadro de mando de hoy. De un vistazo: qué arde, qué cerrar y a quién responder.</p>
+      </div>
+      <div class="ml-auto flex items-center gap-1 rounded-xl border border-line bg-base p-1">
+        <button type="button" data-ambito="yo" class="px-3 py-1.5 rounded-lg text-xs font-semibold ${dashAmbito === "yo" ? "bg-raised text-white" : "text-slate-500 hover:text-white"}">Yo</button>
+        <button type="button" data-ambito="equipo" class="px-3 py-1.5 rounded-lg text-xs font-semibold ${dashAmbito === "equipo" ? "bg-raised text-white" : "text-slate-500 hover:text-white"}">Equipo</button>
+      </div>
+    </div>
+    <div class="mt-4 flex flex-wrap gap-2">
+      ${chip(L.venc.length, "vencidos", "bg-red-500/10 text-red-300 border-red-500/40")}
+      ${chip(L.resp.length, "sin responder", "bg-amber-500/10 text-amber-300 border-amber-500/40")}
+      ${chip(L.sin.length, "sin asignar", "bg-violet-500/10 text-violet-300 border-violet-500/40")}
+      ${chip(L.cal.length, "calientes", "bg-orange-500/10 text-orange-300 border-orange-500/40")}
+      ${chip(L.pv.length, "por vencer", "bg-sky-500/10 text-sky-300 border-sky-500/40")}
+    </div>
+    <div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-line bg-base/70 px-4 py-3 text-sm">
+      <span class="w-2.5 h-2.5 rounded-full bg-fx"></span>
+      <span class="font-semibold text-white">Este mes</span>
+      <span class="text-slate-400">${resMes.length} aceptado${resMes.length === 1 ? "" : "s"}</span>
+      <span class="text-slate-400">${medioH === null ? "Sin tiempo medio todavía" : "Tiempo medio de resolución: " + medioH + " h"}</span>
+      <span class="ml-auto text-xs text-slate-500">Quedan ${finMes} día${finMes === 1 ? "" : "s"}</span>
+    </div>
+  </section>
+
+  ${sig ? `<section class="mt-5 flex flex-wrap items-center gap-3 rounded-2xl border border-fx/40 px-4 py-3" style="background:linear-gradient(90deg,rgba(246,160,26,.14),rgba(246,160,26,.03))">
+    <span class="w-9 h-9 rounded-full bg-fx grid place-items-center text-[#1a1005]">${ic("M13 2L3 14h8l-1 8 10-12h-8z")}</span>
+    <div class="min-w-0 flex-1"><p class="text-[11px] font-bold text-fx">Siguiente mejor acción</p>
+      <p class="text-sm font-semibold text-white truncate">${accion(sig)}: ${esc(sig.titulo || "Sin título")} · ${esc(sig.usuario_discord || "Anónimo")}</p></div>
+    <button type="button" data-detalle="${sig.id}" class="rounded-full bg-fx hover:bg-fx2 text-[#1a1005] text-sm font-bold px-4 py-2">Hacer ahora →</button>
+  </section>` : ""}
+
+  <section class="mt-6">
+    <div class="flex items-center gap-3 mb-3">
+      <span class="w-8 h-8 rounded-full bg-red-500/15 text-red-400 grid place-items-center">${ic("M12 3l10 18H2zM12 10v4M12 18h.01")}</span>
+      <div><h2 class="text-base font-semibold text-white">Zona crítica</h2><p class="text-xs text-slate-500">Lo que arde ahora mismo (${new Set([...L.venc, ...L.resp, ...L.sin, ...L.cal]).size})</p></div>
+    </div>
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      ${tarjetaZona("Vencidos", "Fuera de plazo de respuesta", L.venc, "239,68,68", ic("M12 2c1 4 6 6 6 12a6 6 0 0 1-12 0c0-3 2-5 3-7 1 2 2 3 3 3 0-3-1-5 0-8z"), bVenc)}
+      ${tarjetaZona("Sin responder", "El cliente espera respuesta", L.resp, "245,158,11", ic("M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"), r => vencido(r) ? bVenc(r) : `<span class="mini bg-amber-500/15 text-amber-300 border-amber-500/40">Nuevo</span>`)}
+      ${tarjetaZona("Sin asignar", "Nadie se ha hecho cargo", L.sin, "139,92,246", ic("M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0 .01"), r => `<span class="mini bg-violet-500/15 text-violet-300 border-violet-500/40">${edadCorta(r)}</span>`)}
+      ${tarjetaZona("Casos calientes", "Temperatura por encima del 70 %", L.cal, "249,115,22", ic("M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"), r => `<span class="mini bg-orange-500/15 text-orange-300 border-orange-500/40">${Math.round(urgencia(r) * 100)} %</span>`)}
+      ${tarjetaZona("Vencen pronto", "Menos de 6 h de plazo", L.pv, "14,165,233", ic("M12 8v4l3 2M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"), r => slaBadge(r))}
+    </div>
+  </section>
+
+  <section class="mt-6 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+    <div class="rounded-2xl border border-line bg-panel p-5">
+      <div class="flex items-start justify-between"><div><h2 class="text-base font-semibold text-white">Próximas actuaciones</h2><p class="text-xs text-slate-500">Top 5 unificado por urgencia</p></div><span class="text-fx">${ic("M13 2L3 14h8l-1 8 10-12h-8z")}</span></div>
+      ${top.length ? `<ul class="mt-3 divide-y divide-line/70">${top.slice(0, 5).map(r => `
+        <li class="flex items-center gap-3 py-3">
+          <span class="mini w-24 justify-center ${sinResponder(r) ? "bg-amber-500/15 text-amber-300 border-amber-500/40" : !r.responsable_usuario ? "bg-violet-500/15 text-violet-300 border-violet-500/40" : "bg-red-500/15 text-red-300 border-red-500/40"}">${accion(r).toUpperCase()}</span>
+          <span class="min-w-0 flex-1"><span class="block text-sm font-semibold text-slate-100 truncate">${esc(r.titulo || "Sin título")}</span>
+          <span class="block text-xs text-slate-500 truncate">${esc(r.usuario_discord || "Anónimo")} · ${esc(r.estado)} · temp ${Math.round(urgencia(r) * 100)} %</span></span>
+          ${slaBadge(r)}
+          <button type="button" data-detalle="${r.id}" class="text-xs font-semibold text-fx hover:underline">Abrir →</button>
+        </li>`).join("")}</ul>` : `<p class="mt-8 mb-6 text-center text-sm text-slate-500">No hay nada pendiente. Buen trabajo.</p>`}
+    </div>
+    <div class="rounded-2xl border border-line bg-panel p-5">
+      <div><h2 class="text-base font-semibold text-white">Actividad de hoy</h2><p class="text-xs text-slate-500">Casos nuevos, mensajes y cambios de estado</p></div>
+      ${agenda.length ? `<ol class="mt-3 space-y-1 max-h-80 overflow-y-auto scroll-fino pr-1">${agenda.slice(0, 30).map(a => `
+        <li><button type="button" data-detalle="${a.id}" class="w-full flex items-start gap-3 text-left rounded-md px-1 py-1.5 hover:bg-raised">
+          <span class="mt-1.5 w-2 h-2 rounded-full shrink-0 ${a.c}"></span>
+          <span class="min-w-0 text-sm text-slate-300 break-words">${esc(a.t)}<span class="block text-[11px] text-slate-500">${new Date(a.f).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}</span></span>
+        </button></li>`).join("")}</ol>` : `<p class="mt-10 text-center text-sm text-slate-500">Nada todavía hoy.</p>`}
+    </div>
+  </section>`;
+}
+
+function render() {
+  if ((drag && drag.activo) || deslizando || editando) { renderPendiente = true; return; }
+  $("vista-inicio").classList.toggle("hidden", vista !== "inicio");
+  $("vista-casos").classList.toggle("hidden", vista !== "casos");
+  document.querySelectorAll(".rail-btn[data-ir]").forEach(b => b.classList.toggle("on", b.dataset.ir === vista));
+  $("avatar").textContent = usuarioActual ? usuarioActual.charAt(0).toUpperCase() : "";
+  $("avatar").title = usuarioActual ? bonito(usuarioActual) : "";
+  const nResp = activos().filter(r => abierto(r) && sinResponder(r)).length;
+  $("badge-msg").textContent = nResp > 99 ? "99+" : nResp;
+  $("badge-msg").classList.toggle("hidden", !nResp);
+  $("badge-msg").classList.toggle("grid", !!nResp);
+
+  $("tabs").innerHTML = VISTAS.map(v => {
+    const n = v.id === "Todos" ? activos().length : activos().filter(r => tipoDe(r) === v.id).length;
+    const activa = v.id === filtro;
+    return `<button data-vista="${v.id}" aria-pressed="${activa}"
+      class="tab flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px] font-medium whitespace-nowrap transition-colors ${activa ? "bg-fx/15 text-white ring-1 ring-fx/40" : "text-slate-400 hover:text-white hover:bg-raised"}">
+      <span class="w-2 h-2 rounded-full ${v.dot}"></span>${v.label}<span class="text-xs ${activa ? "text-fx" : "text-slate-600"}">${n}</span></button>`;
+  }).join("");
+  $("titulo-vista").textContent = (filtro === "Todos" ? "Leads" : VISTAS.find(v => v.id === filtro).label) + " · Pipeline CRM";
+
+  const raw = busqueda.trim(), q = norm(raw.replace(/^#/, "")), porId = /^#\d+$/.test(raw);
+  const visibles = (filtro === "Todos" ? activos() : activos().filter(r => tipoDe(r) === filtro))
+    .filter(coincideResp)
+    .filter(r => !q || (porId ? String(r.id) === q
+      : norm([r.id, r.titulo, r.descripcion, r.usuario_discord, r.email, r.telefono, r.dominio, r.plan, r.tipo_reporte, r.responsable_usuario, notasDe(r.id).map(n => n.texto).join(" ")].join(" ")).includes(q)));
+  visibles.sort((a, b) => orden === "prioridad"
+    ? (vencido(b) - vencido(a)) || (urgencia(b) - urgencia(a)) || (new Date(a.created_at) - new Date(b.created_at))
+    : new Date(b.created_at) - new Date(a.created_at));
+  $("contador").textContent = visibles.length + " de " + activos().length;
+
+  const COL = Object.fromEntries(ETAPAS.map(x => [x.e, { color: x.c,
+    sub: x.sla ? "SLA " + (x.sla < 24 ? x.sla + " h" : x.sla / 24 + " d") + " · Orden recomendado" : (cerrado(x.e) ? "Se archivan a los " + DIAS_ARCHIVO + " días" : "Orden recomendado"),
+    vacio: "Suelta aquí" }]));
+  $("lista").innerHTML = ESTADOS.map(e => {
+    let items = visibles.filter(r => (ESTADOS.includes(r.estado) ? r.estado : ESTADO0) === e);
+    let viejos = 0;
+    if (cerrado(e) && !q) {
+      viejos = items.filter(r => resueltoHace(r) >= ARCHIVO_MS).length;
+      if (!verArchivados) items = items.filter(r => resueltoHace(r) < ARCHIVO_MS);
+    }
+    const botonArchivo = viejos > 0
+      ? `<button data-archivo type="button" class="w-full rounded-lg border border-dashed border-line text-xs text-slate-400 hover:text-white hover:bg-raised py-2.5 transition-colors">${verArchivados ? "Ocultar archivados (" + viejos + ")" : "Ver " + viejos + " archivados"}</button>`
+      : "";
+    const c = COL[e].color;
+    return `
+    <section class="min-w-0 shrink-0 w-[min(85vw,18.5rem)] self-stretch rounded-2xl bg-panel/70 border border-line p-2.5" style="border-top:3px solid rgb(${c})" aria-label="${e}" data-estado="${e}">
+      <div class="flex items-center gap-2.5 mb-3 px-1.5 pt-1">
+        <span class="w-2 h-2 rounded-full" style="background:rgb(${c})"></span>
+        <div class="min-w-0"><h2 class="text-xs font-bold text-white tracking-wide">${e.toUpperCase()}</h2><p class="text-[10.5px] text-slate-500">${COL[e].sub}</p></div>
+        <span class="ml-auto min-w-[22px] h-[22px] px-1.5 rounded-full grid place-items-center text-[11px] font-bold text-white" style="background:rgb(${c})">${items.length}</span>
+      </div>
+      <div class="flex flex-col gap-3 min-h-[8rem]">${items.length ? items.map(t => `<div class="card-wrap w-full" data-card-id="${t.id}">${tarjeta(t)}</div>`).join("")
+        : `<div class="w-full rounded-xl border border-dashed border-line/70 p-6 text-center text-xs text-slate-600">${q ? "Sin resultados." : COL[e].vacio}</div>`}${botonArchivo}</div>
+    </section>`;
+  }).join("");
+  if (vista === "inicio" && usuarioActual) renderInicio();
+  actualizarPapelera();
+  if (detalleId !== null) pintarDetalle();
+}
+
+document.addEventListener("click", e => {
+  const ir = e.target.closest("[data-ir]");
+  if (ir) { irA(ir.dataset.ir); return; }
+  const amb = e.target.closest("[data-ambito]");
+  if (amb) { dashAmbito = amb.dataset.ambito; render(); }
+}, true);
+$("orden").addEventListener("change", e => { orden = e.target.value; render(); });
+document.addEventListener("keydown", e => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); $("buscar").focus(); }
+});
+$("buscar").addEventListener("input", () => { if (vista !== "casos") { vista = "casos"; render(); } });
+
+
+// ---------- Arrastrar y soltar ----------
+let drag = null, renderPendiente = false, bloquearClick = false;
+
+function seccionBajo(x, y) {
+  const el = document.elementFromPoint(x, y);
+  return el ? el.closest("section[data-estado]") : null;
+}
+
+function marcarDestino(sec) {
+  document.querySelectorAll("section.drop-activa").forEach(s => { if (s !== sec) s.classList.remove("drop-activa"); });
+  if (sec) sec.classList.add("drop-activa");
+}
+
+function autoscroll() {
+  if (!drag || !drag.activo) return;
+  const m = 90, y = drag.y;
+  if (y < m) window.scrollBy(0, -Math.ceil((m - y) / 6));
+  else if (y > innerHeight - m) window.scrollBy(0, Math.ceil((y - (innerHeight - m)) / 6));
+  // desplazamiento horizontal dentro de la fila bajo el cursor
+  const fila = $("lista");
+  if (fila && fila.scrollWidth > fila.clientWidth) {
+    const r = fila.getBoundingClientRect();
+    if (drag.x < r.left + 60) fila.scrollLeft -= 12;
+    else if (drag.x > r.right - 60) fila.scrollLeft += 12;
+  }
+  drag.raf = requestAnimationFrame(autoscroll);
+}
+
+function moverGhost() {
+  drag.ghost.style.transform = `translate(${drag.x - drag.dx}px, ${drag.y - drag.dy}px) rotate(2deg)`;
+}
+
+function finArrastre(soltar) {
+  if (!drag) return;
+  const d = drag; drag = null;
+  document.removeEventListener("pointermove", onMove);
+  document.removeEventListener("pointerup", onUp);
+  document.removeEventListener("pointercancel", onCancel);
+  if (d.activo) {
+    cancelAnimationFrame(d.raf);
+    d.ghost.remove();
+    d.origen.classList.remove("drag-origen");
+    document.body.classList.remove("arrastrando");
+    marcarDestino(null);
+    bloquearClick = true; setTimeout(() => bloquearClick = false, 0);
+    if (soltar) {
+      const sec = seccionBajo(d.x, d.y);
+      if (sec) {
+        const r = reportes.find(x => x.id === d.id);
+        if (r && r.estado !== sec.dataset.estado) sonidoMover();
+        cambiarEstado(d.id, sec.dataset.estado);
+      }
+    }
+    if (renderPendiente) { renderPendiente = false; render(); }
+  }
+}
+
+function onMove(e) {
+  if (!drag) return;
+  drag.x = e.clientX; drag.y = e.clientY;
+  if (!drag.activo) {
+    if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 6) return;
+    const r = drag.origen.getBoundingClientRect();
+    drag.dx = drag.x0 - r.left; drag.dy = drag.y0 - r.top;
+    const g = drag.origen.cloneNode(true);
+    g.className = "drag-ghost"; g.style.width = r.width + "px";
+    document.body.appendChild(g);
+    drag.ghost = g; drag.activo = true;
+    drag.origen.classList.add("drag-origen");
+    document.body.classList.add("arrastrando");
+    getSelection()?.removeAllRanges();
+    drag.raf = requestAnimationFrame(autoscroll);
+  }
+  e.preventDefault();
+  moverGhost();
+  marcarDestino(seccionBajo(e.clientX, e.clientY));
+}
+const onUp = () => finArrastre(true);
+const onCancel = () => finArrastre(false);
+
+document.addEventListener("pointerdown", e => {
+  if (drag || e.button !== 0) return;
+  const wrap = e.target.closest(".card-wrap");
+  if (!wrap || e.target.closest("a, button, select, input, textarea, summary, .barra-urg")) return;
+  // En pantallas táctiles solo se arrastra desde el icono de agarre (para poder seguir haciendo scroll)
+  if (e.pointerType === "touch" && !e.target.closest(".grip")) return;
+  drag = { id: Number(wrap.dataset.cardId), origen: wrap, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, activo: false };
+  document.addEventListener("pointermove", onMove, { passive: false });
+  document.addEventListener("pointerup", onUp);
+  document.addEventListener("pointercancel", onCancel);
+});
+
+// ---------- Barra de temperatura (deslizable) ----------
+let deslizando = false;
+
+function valorDesdeX(pista, x) {
+  const r = pista.getBoundingClientRect();
+  return clamp01((x - r.left) / r.width);
+}
+function pintarBarra(barra, u) {
+  const pulgar = barra.querySelector(".pulgar");
+  pulgar.style.left = (u * 100).toFixed(1) + "%";
+  pulgar.style.background = `hsl(${Math.round(210 * (1 - u))} 85% 55%)`;
+  barra.setAttribute("aria-valuenow", Math.round(u * 100));
+}
+function terminarDeslizar() {
+  deslizando = false;
+  if (renderPendiente) { renderPendiente = false; render(); }
+}
+
+document.addEventListener("pointerdown", e => {
+  const barra = e.target.closest(".barra-urg");
+  if (!barra || e.button !== 0) return;
+  e.preventDefault();
+  const id = Number(barra.dataset.id), pista = barra.querySelector(".pista");
+  deslizando = true;
+  let u = valorDesdeX(pista, e.clientX);
+  pintarBarra(barra, u);
+  barra.setPointerCapture(e.pointerId);
+  const mover = ev => { u = valorDesdeX(pista, ev.clientX); pintarBarra(barra, u); };
+  const fin = () => {
+    barra.removeEventListener("pointermove", mover);
+    barra.removeEventListener("pointerup", fin);
+    barra.removeEventListener("pointercancel", fin);
+    fijarUrgencia(id, u);
+    terminarDeslizar(); render();
+  };
+  barra.addEventListener("pointermove", mover);
+  barra.addEventListener("pointerup", fin);
+  barra.addEventListener("pointercancel", fin);
+});
+
+// Teclado: flechas izquierda/derecha
+document.addEventListener("keydown", e => {
+  const barra = e.target.closest?.(".barra-urg");
+  if (!barra || (e.key !== "ArrowLeft" && e.key !== "ArrowRight")) return;
+  e.preventDefault();
+  const id = Number(barra.dataset.id), r = reportes.find(x => x.id === id);
+  if (!r) return;
+  fijarUrgencia(id, clamp01(urgencia(r) + (e.key === "ArrowRight" ? 0.05 : -0.05)));
+  render();
+  document.querySelector(`.barra-urg[data-id="${id}"]`)?.focus();
+});
+
+document.addEventListener("click", e => {
+  if (e.target.closest("[data-archivo]")) { verArchivados = !verArchivados; render(); return; }
+  const addM = e.target.closest("[data-msg-add]");
+  if (addM) { agregarMensaje(Number(addM.dataset.msgAdd)); return; }
+  const mas = e.target.closest("[data-mas]");
+  if (mas) { const id = Number(mas.dataset.mas); expandidas.has(id) ? expandidas.delete(id) : expandidas.add(id); render(); return; }
+  const addN = e.target.closest("[data-nota-add]");
+  if (addN) { agregarNota(Number(addN.dataset.notaAdd)); return; }
+  const delN = e.target.closest("[data-nota-borrar]");
+  if (delN) { borrarNota(Number(delN.dataset.notaBorrar)); return; }
+  if (e.target.closest("[data-cerrar-detalle]")) { cerrarDetalle(); return; }
+  const rest = e.target.closest("[data-restaurar]");
+  if (rest) { restaurarCaso(Number(rest.dataset.restaurar)); return; }
+  const ver = e.target.closest("[data-detalle]");
+  if (ver) { abrirDetalle(Number(ver.dataset.detalle)); return; }
+  const borrar = e.target.closest("[data-borrar]");
+  if (borrar) { pedirEliminar(Number(borrar.dataset.borrar)); return; }
+  const reset = e.target.closest("[data-reset-urg]");
+  if (reset) { fijarUrgencia(Number(reset.dataset.resetUrg), null); render(); return; }
+  if (bloquearClick) { e.preventDefault(); e.stopPropagation(); return; }
+  const tab = e.target.closest(".tab");
+  if (tab) { filtro = tab.dataset.vista; render(); return; }
+  // Clic en el cuerpo de una tarjeta (no en botones, listas, barra…) → detalle del caso
+  const tarj = e.target.closest(".card-wrap");
+  if (tarj && !e.target.closest("a, button, select, input, textarea, summary, details, label, .barra-urg, .grip") && !String(getSelection()).length) {
+    abrirDetalle(Number(tarj.dataset.cardId)); return;
+  }
+  const btn = e.target.closest(".estado-btn");
+  if (btn) cambiarEstado(Number(btn.dataset.id), btn.dataset.estado);
+});
+
+$("buscar").addEventListener("input", e => { busqueda = e.target.value; render(); });
+$("filtro-resp").addEventListener("change", e => { filtroResp = e.target.value; render(); });
+$("sonido-btn").addEventListener("click", () => {
+  sonidoOn = !sonidoOn;
+  try { localStorage.setItem("sonido", sonidoOn ? "on" : "off"); } catch (_) {}
+  actualizarSonidoBtn();
+  if (sonidoOn) sonidoNuevo();
+});
+actualizarSonidoBtn();
+
+document.addEventListener("change", e => {
+  const sel = e.target.closest?.("[data-resp]");
+  if (sel) {
+    const id = Number(sel.dataset.resp), v = sel.value || null;
+    guardarCampo(id, "responsable_usuario", v, v ? "Caso #" + id + " asignado a " + bonito(v) : "Caso #" + id + " sin responsable");
+    render();
+    return;
+  }
+});
+// Mientras se escribe una nota no se redibuja la página (se perdería lo escrito)
+document.addEventListener("focusin", e => { if (e.target.matches?.("textarea[data-nota-nueva], textarea[data-msg-nuevo]")) editando = true; });
+document.addEventListener("focusout", e => {
+  if (!e.target.matches?.("textarea[data-nota-nueva], textarea[data-msg-nuevo]")) return;
+  editando = false;
+  setTimeout(() => { if (renderPendiente && !editando) { renderPendiente = false; render(); } }, 0);
+});
+document.addEventListener("toggle", e => {
+  const d = e.target;
+  if (d.dataset && d.dataset.det) { const id = Number(d.dataset.det); d.open ? abiertos.add(id) : abiertos.delete(id); }
+  if (d.dataset && d.dataset.chatDet) { const id = Number(d.dataset.chatDet); d.open ? chatAbiertos.add(id) : chatAbiertos.delete(id); }
+}, true);
+
+// Borradores de notas y atajo Ctrl/Cmd + Enter para añadirlas
+document.addEventListener("input", e => {
+  const t = e.target.closest?.("textarea[data-nota-nueva]");
+  if (t) borradorNota.set(Number(t.dataset.notaNueva), t.value);
+});
+document.addEventListener("keydown", e => {
+  const t = e.target.closest?.("textarea[data-nota-nueva]");
+  if (t && e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); agregarNota(Number(t.dataset.notaNueva)); }
+});
+
+document.addEventListener("input", e => {
+  const t = e.target.closest?.("textarea[data-msg-nuevo]");
+  if (t) borradorMsg.set(Number(t.dataset.msgNuevo), t.value);
+});
+document.addEventListener("keydown", e => {
+  const t = e.target.closest?.("textarea[data-msg-nuevo]");
+  if (t && e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); agregarMensaje(Number(t.dataset.msgNuevo)); }
+});
+
+// ---------- Detalle del caso y papelera ----------
+let detalleId = null;
+const fechaLarga = d => new Date(d).toLocaleString("es-ES", { dateStyle: "long", timeStyle: "short" });
+
+async function restaurarCaso(id) {
+  if (!puedeBorrar()) { toast("Solo los propietarios pueden restaurar casos."); return; }
+  const { data, error } = await db.from("reportes").update({ eliminado_en: null, eliminado_por: null }).eq("id", id).select();
+  if (error) { toast("No se pudo restaurar: " + error.message, 6000); return; }
+  if (!data || !data.length) { toast("No se pudo restaurar el caso (revisa los permisos de la tabla en Supabase)."); return; }
+  reportes = reportes.map(x => x.id === id ? data[0] : x);
+  render();
+  toast("Caso #" + id + " restaurado");
+}
+
+function datoDetalle(titulo, html) {
+  return `<div class="rounded-lg bg-base border border-line px-3 py-2.5 min-w-0">
+    <dt class="text-xs text-slate-500">${titulo}</dt><dd class="mt-0.5 text-sm text-slate-200 break-words">${html}</dd></div>`;
+}
+
+// Une todo lo que ha pasado en un caso (cambios, notas y mensajes) en una sola línea de tiempo
+function eventosDe(r) {
+  const ev = [];
+  const acts = actividadDe(r.id);
+  for (const a of acts) {
+    const quien = a.autor && a.autor !== "sistema" && a.autor !== "formulario" ? bonito(a.autor) : "El sistema";
+    let t, c = "bg-slate-400";
+    if (a.tipo === "creado") { t = "Caso creado desde el formulario"; c = "bg-sky-400"; }
+    else if (a.tipo === "estado") { t = quien + " cambió el estado: " + (a.anterior || "—") + " → " + (a.nuevo || "—"); c = a.nuevo === "Aceptado" ? "bg-emerald-400" : a.nuevo === "Denegado" ? "bg-red-400" : "bg-fx"; }
+    else if (a.tipo === "responsable") t = a.nuevo ? quien + " asignó el caso a " + bonito(a.nuevo) : quien + " quitó el responsable" + (a.anterior ? " (era " + bonito(a.anterior) + ")" : "");
+    else if (a.tipo === "eliminado") { t = quien + " movió el caso a la papelera"; c = "bg-red-400"; }
+    else if (a.tipo === "restaurado") { t = quien + " restauró el caso"; c = "bg-emerald-400"; }
+    else t = quien + ": " + a.tipo;
+    ev.push({ f: a.creado_en, t, c });
+  }
+  if (!acts.some(a => a.tipo === "creado")) ev.push({ f: r.created_at, t: "Caso creado", c: "bg-sky-400" });
+  for (const n of notasDe(r.id)) ev.push({ f: n.creado_en, t: bonito(n.autor) + " añadió una nota", c: "bg-amber-400" });
+  for (const m of mensajesDe(r.id)) ev.push({ f: m.creado_en,
+    t: m.autor_tipo === "staff" ? bonito(m.autor || "staff") + " respondió al cliente" : (r.usuario_discord || "El cliente") + " escribió un mensaje",
+    c: m.autor_tipo === "staff" ? "bg-fx" : "bg-blue-400" });
+  return ev.sort((a, b) => new Date(b.f) - new Date(a.f));
+}
+function historialHTML(r) {
+  const ev = eventosDe(r);
+  return `<ol class="space-y-2.5 max-h-72 overflow-y-auto pr-1">${ev.map(e => `
+    <li class="flex items-start gap-3">
+      <span class="mt-1.5 w-2.5 h-2.5 rounded-full shrink-0 ${e.c}"></span>
+      <span class="min-w-0 text-sm text-slate-300 break-words">${esc(e.t)}<span class="block text-xs text-slate-500">${esc(fechaCorta(e.f))}</span></span>
+    </li>`).join("")}</ol>`;
+}
+
+function pintarDetalle() {
+  const r = reportes.find(x => x.id === detalleId);
+  if (!r) { cerrarDetalle(); return; }
+  const cuerpo = $("detalle-cuerpo"), scroll = cuerpo.scrollTop;
+  const tipo = TIPOS[tipoDe(r)];
+  const estado = ESTADOS.includes(r.estado) ? r.estado : ESTADO0;
+  const u = urgencia(r), nivel = Math.round(u * 100), manual = urgenciaManual(r) !== null;
+  const ns = notasDe(r.id), ms = mensajesDe(r.id);
+  const borrado = !!r.eliminado_en;          // un caso en la papelera solo se puede consultar
+  const ultimoMsg = ms[ms.length - 1];
+  const pideRespuesta = ultimoMsg && ultimoMsg.autor_tipo === "usuario";
+
+  // --- Estado (botones) ---
+  const estadoHTML = borrado ? "" : `
+    <div class="grid grid-cols-2 sm:grid-cols-4 w-full rounded-lg bg-base border border-line p-1 gap-1">${ESTADOS.map(e => `
+      <button type="button" data-id="${r.id}" data-estado="${e}" aria-pressed="${e === estado}"
+        class="estado-btn px-2 py-2 rounded-md text-xs font-medium transition-colors ${e === estado ? ESTADO_ESTILO[e].on : "text-slate-400 hover:text-white hover:bg-raised"}">${e}</button>`).join("")}
+    </div>`;
+
+  // --- Responsable ---
+  const responsableHTML = borrado
+    ? (r.responsable_usuario ? esc(bonito(r.responsable_usuario)) : '<span class="text-slate-500">Sin asignar</span>')
+    : `<select id="dresp-${r.id}" data-resp="${r.id}" aria-label="Responsable del caso"
+        class="w-full bg-panel border border-line rounded-md px-2 py-1.5 text-sm text-slate-200 focus:border-fx focus:outline-none">
+        <option value="">Sin asignar</option>
+        ${listaStaff.map(m => `<option value="${esc(m.usuario)}" ${m.usuario === r.responsable_usuario ? "selected" : ""}>${esc(bonito(m.usuario))}</option>`).join("")}
+      </select>`;
+
+  // --- Temperatura (deslizable si el caso está activo) ---
+  const temperatura = borrado ? `
+    <div class="relative h-2 rounded-full mt-1.5 mb-2" style="background:linear-gradient(90deg,#3b82f6,#a855f7 50%,#ef4444)">
+      <span class="absolute top-1/2 w-4 h-4 rounded-full border-2 border-white shadow-lg" style="left:${(u * 100).toFixed(1)}%;transform:translate(-50%,-50%);background:hsl(${Math.round(210 * (1 - u))} 85% 55%)"></span>
+    </div>
+    <span class="text-xs text-slate-400">${nivel}% · ${manual ? "fijada a mano" : "automática según el tiempo"}</span>`
+    : barraHTML(r, cerrado(estado));
+
+  // --- Notas internas ---
+  const listaNotas = ns.length ? `<ul class="space-y-2 max-h-64 overflow-y-auto">${ns.map(n => `
+      <li class="rounded-md bg-base border border-line px-3 py-2">
+        <div class="flex items-center gap-2 text-xs text-slate-400">
+          <span class="font-medium text-slate-200">${esc(bonito(n.autor))}</span><span>${esc(fechaCorta(n.creado_en))}</span>
+          ${(!borrado && n.autor === usuarioActual) ? `<button type="button" data-nota-borrar="${n.id}" class="ml-auto px-1 hover:text-red-300" aria-label="Borrar nota">✕</button>` : ""}
+        </div>
+        <p class="mt-1 text-sm text-slate-200 whitespace-pre-wrap break-words">${esc(n.texto)}</p>
+      </li>`).join("")}</ul>` : `<p class="text-sm text-slate-500">Todavía no hay notas.</p>`;
+  const formNota = borrado ? "" : `
+    <textarea data-nota-nueva="${r.id}" maxlength="1000" rows="3" placeholder="Añadir una nota interna (solo la ve el equipo)…"
+      class="mt-3 w-full resize-y bg-base border border-line rounded-md px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:border-fx focus:outline-none">${esc(borradorNota.get(r.id) || "")}</textarea>
+    <div class="mt-2 flex items-center justify-between gap-2">
+      <span class="text-xs text-slate-500">Ctrl + Enter para añadir</span>
+      <button type="button" data-nota-add="${r.id}" class="rounded-md bg-fx hover:bg-fx2 disabled:opacity-60 text-[#1a1005] text-sm font-semibold px-3.5 py-1.5 transition-colors">Añadir nota</button>
+    </div>`;
+
+  // --- Chat con el cliente ---
+  const listaChat = ms.length ? `<ul class="space-y-2 max-h-72 overflow-y-auto">${ms.map(m => `
+      <li class="rounded-md border px-3 py-2 ${m.autor_tipo === "staff" ? "bg-fx/10 border-fx/30" : "bg-base border-line"}">
+        <div class="text-xs text-slate-400"><span class="font-medium text-slate-200">${m.autor_tipo === "staff" ? esc(bonito(m.autor || "staff")) + " (Webcare)" : esc(r.usuario_discord || "Cliente")}</span> · ${esc(fechaCorta(m.creado_en))}</div>
+        <p class="mt-1 text-sm text-slate-200 whitespace-pre-wrap break-words">${esc(m.texto)}</p>
+      </li>`).join("")}</ul>` : `<p class="text-sm text-slate-500">El cliente aún no ha escrito.</p>`;
+  const formChat = borrado ? "" : `
+    <textarea data-msg-nuevo="${r.id}" maxlength="1000" rows="3" placeholder="Responder al cliente…"
+      class="mt-3 w-full resize-y bg-base border border-line rounded-md px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:border-fx focus:outline-none">${esc(borradorMsg.get(r.id) || "")}</textarea>
+    <div class="mt-2 flex items-center justify-between gap-2">
+      <span class="text-xs text-amber-300/80">Lo verá el cliente</span>
+      <button type="button" data-msg-add="${r.id}" class="rounded-md bg-fx hover:bg-fx2 disabled:opacity-60 text-[#1a1005] text-sm font-semibold px-3.5 py-1.5 transition-colors">Enviar respuesta</button>
+    </div>`;
+
+  const aviso = borrado ? `
+    <div class="mx-5 sm:mx-6 mt-5 flex flex-wrap items-center gap-3 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+      <span class="min-w-0">En la papelera · eliminado por <strong>${esc(bonito(r.eliminado_por || "desconocido"))}</strong> el ${esc(fechaLarga(r.eliminado_en))}</span>
+      ${puedeBorrar() ? `<button type="button" data-restaurar="${r.id}" class="ml-auto rounded-md bg-fx hover:bg-fx2 text-[#1a1005] text-xs font-semibold px-3 py-1.5 transition-colors">Restaurar caso</button>` : ""}
+    </div>` : "";
+
+  const pie = (!borrado && puedeBorrar()) ? `
+    <div class="px-5 sm:px-6 py-4 border-t border-line flex justify-end">
+      <button type="button" data-borrar="${r.id}" class="rounded-lg border border-red-500/40 text-red-300 hover:bg-red-500/15 text-sm px-3.5 py-2 transition-colors">Eliminar caso</button>
+    </div>` : "";
+
+  cuerpo.innerHTML = `
+    <div class="relative overflow-hidden rounded-t-xl">
+      <div class="absolute inset-0 pointer-events-none" style="background:radial-gradient(520px 160px at 0% 0%, rgba(${tipo.rgb},.14), transparent 70%)"></div>
+      <div class="relative px-5 sm:px-6 pt-5">
+        <div class="flex flex-wrap items-center gap-2.5">
+          <span class="px-3 py-1 rounded-full text-xs font-semibold ring-1 ${tipo.badge}">${esc(tipoDe(r))}</span>
+          <span class="px-3 py-1 rounded-full text-xs font-semibold ${ESTADO_ESTILO[estado].on}">${estado}</span>
+          <span class="text-xs text-slate-500">#${esc(r.id)}</span>
+          <button type="button" data-cerrar-detalle class="ml-auto text-slate-400 hover:text-white p-1" aria-label="Cerrar">✕</button>
+        </div>
+        <h2 id="detalle-titulo" class="font-display text-2xl font-bold text-white leading-tight mt-4 break-words">${esc(r.titulo || "Sin título")}</h2>
+      </div>
+    </div>
+    ${aviso}
+    <div class="px-5 sm:px-6 py-5 space-y-6">
+      <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        ${datoDetalle("Cliente", esc(r.usuario_discord || "Anónimo"))}
+        ${r.email ? datoDetalle("Correo", `<a class="text-fx hover:underline" href="mailto:${esc(r.email)}">${esc(r.email)}</a>`) : ""}
+        ${r.telefono ? datoDetalle("Teléfono", `<a class="text-fx hover:underline" href="tel:${esc(r.telefono)}">${esc(r.telefono)}</a>`) : ""}
+        ${r.dominio ? datoDetalle("Web", esc(r.dominio)) : ""}
+        ${r.plan ? datoDetalle("Plan / servicio", esc(r.plan)) : ""}
+        ${datoDetalle("Creado", esc(fechaLarga(r.created_at)) + `<span class="block text-xs text-slate-500">${esc(hace(Date.now() - new Date(r.created_at)))}</span>`)}
+        ${cerrado(estado) && r.resuelto_en ? datoDetalle("Cerrado", esc(fechaLarga(r.resuelto_en))) : ""}
+        ${datoDetalle("Responsable", responsableHTML)}
+      </dl>
+      ${borrado ? "" : `<section><h3 class="text-sm font-semibold text-slate-200 mb-2">Estado</h3>${estadoHTML}</section>`}
+      <section>
+        <h3 class="text-sm font-semibold text-slate-200 mb-2">Temperatura</h3>
+        ${temperatura}
+      </section>
+      <section>
+        <h3 class="text-sm font-semibold text-slate-200 mb-2">Descripción</h3>
+        <p class="text-slate-300 leading-relaxed whitespace-pre-wrap break-words max-w-[68ch]">${esc(r.descripcion || "Sin descripción.")}</p>
+      </section>
+      <section>
+        <h3 class="text-sm font-semibold text-slate-200 mb-2">Pruebas</h3>
+        ${r.pruebas ? pruebasHTML(r.pruebas) : '<p class="text-sm text-slate-500">Sin pruebas adjuntas.</p>'}
+      </section>
+      <section>
+        <h3 class="text-sm font-semibold text-slate-200 mb-2">Notas internas${ns.length ? ` <span class="text-fx">(${ns.length})</span>` : ""}</h3>
+        ${listaNotas}${formNota}
+      </section>
+      <section>
+        <h3 class="text-sm font-semibold text-slate-200 mb-2">Chat con el cliente${ms.length ? ` <span class="text-fx">(${ms.length})</span>` : ""}${pideRespuesta ? ' <span class="text-amber-300 text-xs font-normal">● sin responder</span>' : ""}</h3>
+        ${listaChat}${formChat}
+      </section>
+      <section>
+        <h3 class="text-sm font-semibold text-slate-200 mb-2">Historial</h3>
+        ${historialHTML(r)}
+      </section>
+    </div>
+    ${pie}`;
+  cuerpo.scrollTop = scroll;                 // al refrescar no salta al principio
+}
+
+function abrirDetalle(id) {
+  detalleId = id;
+  $("detalle-modal").classList.remove("hidden");
+  pintarDetalle();
+  const x = $("detalle-cuerpo").querySelector("[data-cerrar-detalle]"); if (x) x.focus();
+}
+function cerrarDetalle() { detalleId = null; $("detalle-modal").classList.add("hidden"); }
+
+function actualizarPapelera() {
+  const lista = eliminados().sort((a, b) => new Date(b.eliminado_en) - new Date(a.eliminado_en));
+  $("papelera-n").textContent = lista.length ? "(" + lista.length + ")" : "";
+  if ($("papelera-modal").classList.contains("hidden")) return;
+  $("papelera-lista").innerHTML = lista.length ? lista.map(r => {
+    const tipo = TIPOS[tipoDe(r)];
+    return `
+    <li class="flex items-center gap-2 rounded-lg bg-base border border-line">
+      <button type="button" data-detalle="${r.id}" class="flex-1 min-w-0 flex items-center gap-3 text-left px-3 py-2.5 rounded-lg hover:bg-raised/60 transition-colors">
+        <span class="w-2.5 h-2.5 rounded-full shrink-0 ${tipo.dot}"></span>
+        <span class="min-w-0">
+          <span class="block text-sm font-medium text-slate-200 truncate">#${esc(r.id)} · ${esc(r.titulo || "Sin título")}</span>
+          <span class="block text-xs text-slate-500 truncate">${esc(r.usuario_discord || "Anónimo")} · eliminado por ${esc(bonito(r.eliminado_por || "desconocido"))} el ${esc(fechaCorta(r.eliminado_en))}</span>
+        </span>
+      </button>
+      ${puedeBorrar() ? `<button type="button" data-restaurar="${r.id}" class="shrink-0 mr-2 rounded-md border border-line px-2.5 py-1 text-xs text-slate-300 hover:text-white hover:bg-raised transition-colors">Restaurar</button>` : ""}
+    </li>`;
+  }).join("") : `<li class="rounded-xl border border-dashed border-line p-8 text-center text-sm text-slate-500">La papelera está vacía.</li>`;
+}
+function abrirPapelera() { $("papelera-modal").classList.remove("hidden"); actualizarPapelera(); $("papelera-cerrar").focus(); }
+function cerrarPapelera() { $("papelera-modal").classList.add("hidden"); }
+
+$("papelera-abrir").addEventListener("click", abrirPapelera);
+$("papelera-cerrar").addEventListener("click", cerrarPapelera);
+$("papelera-modal").addEventListener("click", e => { if (e.target === $("papelera-modal")) cerrarPapelera(); });
+$("detalle-modal").addEventListener("click", e => { if (e.target === $("detalle-modal")) cerrarDetalle(); });
+// Escape cierra primero lo que esté más arriba (si el diálogo de confirmar está abierto, lo cierra él)
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape" || !$("confirmar").classList.contains("hidden")) return;
+  if (!$("detalle-modal").classList.contains("hidden")) cerrarDetalle();
+  else if (!$("papelera-modal").classList.contains("hidden")) cerrarPapelera();
+}, true);
+
+// ---------- Inicio de sesión ----------
+// (el usuario se convierte en correo con DOMINIO_STAFF; la pertenencia al staff se comprueba en la tabla "staff")
+
+function mostrarLogin() {
+  if (canal && db) { db.removeChannel(canal); canal = null; }
+  reportes = []; notas = []; indexarNotas(); mensajes = []; indexarMensajes(); actividad = []; indexarActividad(); render();
+  estadoConexion("Sesión cerrada", "bg-slate-500");
+  $("quien").textContent = "";
+  $("login-pass").value = "";
+  $("admin-modal").classList.add("hidden");
+  cerrarDetalle(); cerrarPapelera();
+  $("login").classList.remove("hidden");
+  $("login-user").focus();
+}
+
+async function entrar(session) {
+  if (!session) { mostrarLogin(); return; }
+  const { data, error } = await db.from("staff").select(COLS_STAFF).order("creado_en");
+  const yo = (data || []).find(x => x.email.toLowerCase() === String(session.user.email).toLowerCase());
+  if (error || !yo) {
+    await db.auth.signOut(); mostrarLogin();
+    errorLogin(error ? "No se pudo comprobar tu acceso: " + error.message : "Tu usuario no tiene acceso al panel.");
+    return;
+  }
+  listaStaff = data;
+  usuarioActual = yo.usuario; soyDueno = yo.es_dueno === true;
+  $("admin-abrir").classList.toggle("hidden", !soyDueno);      // solo los propietarios gestionan administradores
+  $("quien").textContent = bonito(yo.usuario);
+  $("login").classList.add("hidden");
+  cargar();
+}
+
+function errorLogin(msg) { $("login-error").textContent = msg; $("login-error").classList.remove("hidden"); }
+
+$("login-ver").addEventListener("click", () => {
+  const visible = $("login-pass").type === "text";
+  $("login-pass").type = visible ? "password" : "text";
+  $("login-ver").textContent = visible ? "Mostrar" : "Ocultar";
+});
+
+$("login-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  $("login-error").classList.add("hidden");
+  const usuario = $("login-user").value.trim().toLowerCase(), pw = $("login-pass").value;
+  if (usuario === DEMO_USUARIO && pw === DEMO_CLAVE) return entrarDemo();
+  if (errorInicial) return errorLogin("No hay conexión con Supabase. Puedes probar el panel con la cuenta demo.");
+  const email = /^[a-z0-9_.-]{3,30}$/.test(usuario) ? usuario + "@" + DOMINIO_STAFF : null;
+  if (!email || !pw) return errorLogin("Usuario o contraseña incorrectos.");
+  $("login-btn").disabled = true; $("login-btn").textContent = "Entrando…";
+  const { data, error } = await db.auth.signInWithPassword({ email, password: pw });
+  if (error) await new Promise(r => setTimeout(r, 800));        // pequeña pausa ante intentos fallidos
+  $("login-btn").disabled = false; $("login-btn").textContent = "Entrar";
+  if (error) return errorLogin("Usuario o contraseña incorrectos.");
+  await entrar(data.session);
+});
+
+$("login-demo").addEventListener("click", () => { $("login-user").value = DEMO_USUARIO; $("login-pass").value = DEMO_CLAVE; $("login-btn").focus(); });
+$("salir").addEventListener("click", () => { if (modoDemo) salirDemo(); else if (db) db.auth.signOut(); });
+
+// ---------- Administradores ----------
+function pintarAdmins() {
+  $("admin-lista").innerHTML = listaStaff.map(x => {
+    const dueno = x.es_dueno === true, yoMismo = x.usuario === usuarioActual;
+    const info = dueno ? "propietario" : (x.creado_por && x.creado_por !== "sistema" ? "añadido por " + bonito(x.creado_por) : "");
+    const accion = (dueno || yoMismo) ? "" : (quitando === x.usuario
+      ? `<button type="button" data-quitar="${esc(x.usuario)}" class="shrink-0 rounded-md bg-red-500 hover:bg-red-400 text-white text-xs font-semibold px-2.5 py-1">Confirmar</button>`
+      : `<button type="button" data-quitar="${esc(x.usuario)}" class="shrink-0 rounded-md text-slate-400 hover:text-red-300 hover:bg-red-500/15 text-xs px-2.5 py-1 transition-colors" title="Quitar administrador">Quitar</button>`);
+    return `
+    <li class="flex items-center gap-2 rounded-md bg-base border border-line px-3 py-2 text-sm">
+      <span class="font-medium text-slate-200">${esc(bonito(x.usuario))}</span>
+      <span class="ml-auto text-xs text-slate-500">${esc(info)}</span>${accion}
+    </li>`;
+  }).join("");
+}
+async function recargarStaff() {
+  const { data } = await db.from("staff").select(COLS_STAFF).order("creado_en");
+  if (data) { listaStaff = data; pintarAdmins(); render(); }
+}
+// Llama a la función enviando explícitamente el token de la sesión actual (se renueva solo si ha caducado)
+async function invocarStaff(body) {
+  const { data: { session } } = await db.auth.getSession();
+  if (!session) return { error: { name: "SinSesion", message: "Tu sesión ha caducado. Cierra sesión y vuelve a entrar." } };
+  return db.functions.invoke("gestionar-staff", { body, headers: { Authorization: "Bearer " + session.access_token } });
+}
+async function mensajeError(error) {
+  let msg = error.message;
+  try { const j = await error.context.json(); if (j && j.error) msg = j.error; } catch (_) {}
+  if (error.name === "FunctionsFetchError")
+    msg = "No se pudo contactar con la función gestionar-staff. Lo más probable es que no esté desplegada con ese nombre exacto o que falle al arrancar: revisa Edge Functions en Supabase.";
+  else if (error.context && error.context.status === 404) msg = "La función gestionar-staff no está desplegada en Supabase.";
+  return msg;
+}
+function abrirAdmin() {
+  pintarAdmins();
+  $("admin-error").classList.add("hidden"); $("admin-ok").classList.add("hidden");
+  $("admin-modal").classList.remove("hidden"); $("admin-user").focus();
+}
+function cerrarAdmin() {
+  $("admin-modal").classList.add("hidden");
+  $("admin-user").value = ""; $("admin-pass").value = ""; $("admin-pass").type = "password"; $("admin-ver").textContent = "Mostrar";
+  $("admin-ok").classList.add("hidden"); $("admin-ok-clave").textContent = "";
+  quitando = null; clearTimeout(quitarT);
+}
+function generarClave(n = 20) {
+  const L = "ABCDEFGHJKLMNPQRSTUVWXYZ", l = "abcdefghijkmnopqrstuvwxyz", d = "23456789", sy = "-_!#$%", todo = L + l + d + sy;
+  const azar = max => { const a = new Uint32Array(1), tope = Math.floor(4294967296 / max) * max; do { crypto.getRandomValues(a); } while (a[0] >= tope); return a[0] % max; };
+  for (;;) {
+    const c = Array.from({ length: n }, () => todo[azar(todo.length)]).join("");
+    if (/[A-Z]/.test(c) && /[a-z]/.test(c) && /\d/.test(c) && /[-_!#$%]/.test(c)) return c;
+  }
+}
+$("admin-abrir").addEventListener("click", abrirAdmin);
+$("admin-cerrar").addEventListener("click", cerrarAdmin);
+$("admin-modal").addEventListener("click", e => { if (e.target === $("admin-modal")) cerrarAdmin(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("admin-modal").classList.contains("hidden")) cerrarAdmin(); });
+$("admin-generar").addEventListener("click", () => {
+  $("admin-pass").value = generarClave(); $("admin-pass").type = "text"; $("admin-ver").textContent = "Ocultar";
+});
+$("admin-ver").addEventListener("click", () => {
+  const visible = $("admin-pass").type === "text";
+  $("admin-pass").type = visible ? "password" : "text"; $("admin-ver").textContent = visible ? "Mostrar" : "Ocultar";
+});
+$("admin-copiar").addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText("Usuario: " + $("admin-ok-usuario").textContent + "\nContraseña: " + $("admin-ok-clave").textContent); toast("Datos copiados"); }
+  catch (_) { toast("No se pudo copiar: selecciónalos y cópialos a mano"); }
+});
+$("admin-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const fallo = t => { $("admin-error").textContent = t; $("admin-error").classList.remove("hidden"); $("admin-ok").classList.add("hidden"); };
+  $("admin-error").classList.add("hidden");
+  const usuario = $("admin-user").value.trim().toLowerCase(), password = $("admin-pass").value;
+  if (!/^[a-z0-9_.-]{3,30}$/.test(usuario)) return fallo("El usuario debe tener entre 3 y 30 caracteres: letras sin tildes, números, punto, guion o guion bajo.");
+  if (password.length < 12) return fallo("La contraseña debe tener al menos 12 caracteres.");
+  if (listaStaff.some(x => x.usuario === usuario)) return fallo("Ese usuario ya existe.");
+  $("admin-btn").disabled = true; $("admin-btn").textContent = "Creando…";
+  const { error } = await invocarStaff({ accion: "crear", usuario, password });
+  $("admin-btn").disabled = false; $("admin-btn").textContent = "Añadir administrador";
+  if (error) return fallo("No se pudo crear: " + await mensajeError(error));
+  await recargarStaff();
+  $("admin-ok-usuario").textContent = usuario; $("admin-ok-clave").textContent = password; $("admin-ok").classList.remove("hidden");
+  $("admin-user").value = ""; $("admin-pass").value = ""; $("admin-pass").type = "password"; $("admin-ver").textContent = "Mostrar";
+  toast("Administrador " + bonito(usuario) + " añadido");
+});
+
+// Quitar administrador: primer clic pide confirmación (4 s), segundo clic lo quita
+$("admin-lista").addEventListener("click", async e => {
+  const b = e.target.closest("[data-quitar]");
+  if (!b) return;
+  const usuario = b.dataset.quitar;
+  if (quitando !== usuario) {
+    quitando = usuario; clearTimeout(quitarT);
+    quitarT = setTimeout(() => { quitando = null; pintarAdmins(); }, 4000);
+    pintarAdmins(); return;
+  }
+  clearTimeout(quitarT); quitando = null;
+  b.disabled = true; b.textContent = "Quitando…";
+  $("admin-error").classList.add("hidden"); $("admin-ok").classList.add("hidden");
+  const { error } = await invocarStaff({ accion: "borrar", usuario });
+  if (error) {
+    pintarAdmins();
+    $("admin-error").textContent = "No se pudo quitar: " + await mensajeError(error); $("admin-error").classList.remove("hidden");
+    return;
+  }
+  await recargarStaff();
+  toast("Administrador " + bonito(usuario) + " eliminado");
+});
+
+async function iniciar() {
+  actualizarNotifBtn();
+  $("live-box").classList.remove("hidden");
+  render();
+  if (errorInicial) { mostrarError(errorInicial); mostrarLogin(); return; }
+  db.auth.onAuthStateChange(ev => { if (ev === "SIGNED_OUT" && !modoDemo) mostrarLogin(); });
+  const { data } = await db.auth.getSession();
+  entrar(data.session);
+}
+
+// ---------- Modo demo (sin Supabase) ----------
+// Usuario: demo · Contraseña: webcare2026
+// Todo funciona en memoria: los cambios se pierden al cerrar sesión o recargar la página.
+const DEMO_USUARIO = "demo", DEMO_CLAVE = "webcare2026";
+let dbReal = db, modoDemo = false;
+DUENOS_BORRAR.push(DEMO_USUARIO);
+
+function crearDemoDb() {
+  const ahora = Date.now(), hace = (h) => new Date(ahora - h * 3600000).toISOString();
+  const T = {
+    staff: [
+      { usuario: "demo", email: "demo@" + DOMINIO_STAFF, creado_por: "sistema", creado_en: hace(900), es_dueno: true },
+      { usuario: "marcos", email: "marcos@" + DOMINIO_STAFF, creado_por: "demo", creado_en: hace(800), es_dueno: false },
+      { usuario: "lucia", email: "lucia@" + DOMINIO_STAFF, creado_por: "demo", creado_en: hace(700), es_dueno: false }
+    ],
+    reportes: [
+      { id: 1052, tipo_reporte: "Lead", titulo: "Nuevo cliente · Web Profesional", descripcion: "Se ha registrado desde el portal y ha elegido el paquete Web Profesional.", usuario_discord: "Jorge Reyes", email: "jreyes@globaltis.com", telefono: "+34 916 651 232", dominio: "globaltis.com", plan: "Web Profesional", pruebas: "", estado: "Entrada de leads", created_at: hace(5), responsable_usuario: null },
+      { id: 1051, tipo_reporte: "Lead", titulo: "Nuevo cliente · Mantenimiento Pro", descripcion: "Quiere pasar su web actual a nuestro mantenimiento.", usuario_discord: "Gladys Calero", email: "gladys@calero.es", telefono: "672 676 253", dominio: "calero.es", plan: "Mantenimiento Pro", pruebas: "", estado: "Entrada de leads", created_at: hace(1), responsable_usuario: null },
+      { id: 1049, tipo_reporte: "Lead", titulo: "Tienda online para su marca de ropa", descripcion: "Envió el formulario de la web pidiendo presupuesto para una tienda.", usuario_discord: "Ali Hadj", email: "yasijuan6@gmail.com", telefono: "632 920 643", dominio: "", plan: "Tienda Online", pruebas: "", estado: "Formulario enviado", created_at: hace(30), responsable_usuario: "demo" },
+      { id: 1048, tipo_reporte: "Incidencia", titulo: "El formulario de contacto no envía", descripcion: "Desde ayer, al pulsar «Enviar» en la página de contacto se queda cargando y no llega ningún correo.", usuario_discord: "Laura Luz", email: "laura@panaderialuz.es", telefono: "611 223 344", dominio: "panaderialuz.es", plan: "Mantenimiento Pro", pruebas: "", estado: "Formulario recibido", created_at: hace(3), responsable_usuario: null, urgencia: 0.85 },
+      { id: 1047, tipo_reporte: "Cambio", titulo: "Añadir botón de WhatsApp", descripcion: "Nos gustaría que los clientes pudieran escribirnos por WhatsApp desde cualquier página.", usuario_discord: "Javier Sol", email: "javier@clinicadentalsol.es", telefono: "699 812 004", dominio: "clinicadentalsol.es", plan: "Mantenimiento B\u00e1sico", pruebas: "", estado: "Interesado", created_at: hace(20), responsable_usuario: "marcos" },
+      { id: 1045, tipo_reporte: "Lead", titulo: "Rediseño completo + SEO", descripcion: "Le enviamos propuesta de Web Profesional con Pro + SEO.", usuario_discord: "Emilio José Caluroso", email: "emilio@caluroso.es", telefono: "630 006 882", dominio: "caluroso.es", plan: "Pro + SEO", pruebas: "", estado: "Propuesta enviada", created_at: hace(50), responsable_usuario: "lucia" },
+      { id: 1042, tipo_reporte: "Cambio", titulo: "Cambiar horario en Contacto", descripcion: "A partir de noviembre abrimos los sábados de 9:00 a 14:00.", usuario_discord: "Laura Luz", email: "laura@panaderialuz.es", telefono: "611 223 344", dominio: "panaderialuz.es", plan: "Mantenimiento Pro", pruebas: "", estado: "Seguimiento", created_at: hace(30), responsable_usuario: "demo" },
+      { id: 1036, tipo_reporte: "Incidencia", titulo: "Error 500 al subir productos", descripcion: "Al añadir un producto con foto, la tienda da un error 500.", usuario_discord: "Marta Verde", email: "marta@tiendaverde.com", telefono: "654 112 908", dominio: "tiendaverde.com", plan: "Mantenimiento Pro", pruebas: "", estado: "Seguimiento", created_at: hace(90), responsable_usuario: "demo" },
+      { id: 1040, tipo_reporte: "Duda", titulo: "¿Cómo cambio la contraseña del correo?", descripcion: "No sé dónde se cambia la contraseña del buzón hola@.", usuario_discord: "Sergio Vega", email: "sergio@talleresvega.es", telefono: "685 129 418", dominio: "talleresvega.es", plan: "Mantenimiento B\u00e1sico", pruebas: "", estado: "Entrada de leads", created_at: hace(40), responsable_usuario: null },
+      { id: 1038, tipo_reporte: "Lead", titulo: "Web Esencial para estudio de yoga", descripcion: "Aceptó la propuesta y pagó el 50 %.", usuario_discord: "Iván Pasmar", email: "ivan@pasmar.es", telefono: "641 964 508", dominio: "pasmar.es", plan: "Web Esencial", pruebas: "", estado: "Aceptado", created_at: hace(120), resuelto_en: hace(110), responsable_usuario: "marcos" },
+      { id: 1035, tipo_reporte: "Lead", titulo: "Tienda online de cerámica", descripcion: "No sigue adelante por presupuesto.", usuario_discord: "Nuria Gulkuri", email: "nuria@ceramicas.es", telefono: "685 737 210", dominio: "", plan: "Tienda Online", pruebas: "", estado: "Denegado", created_at: hace(150), resuelto_en: hace(140), responsable_usuario: "lucia" }
+    ],
+    notas_caso: [
+      { id: 1, caso_id: 1045, autor: "lucia", texto: "Las imágenes de producto pesan más de 2 MB cada una. Propongo comprimirlas y ofrecer el extra de optimización.", creado_en: hace(40) }
+    ],
+    mensajes_caso: [
+      { id: 1, caso_id: 1048, autor_tipo: "usuario", autor: null, texto: "Hola, ¿podéis mirarlo hoy? Estamos perdiendo pedidos.", creado_en: hace(2) },
+      { id: 2, caso_id: 1042, autor_tipo: "usuario", autor: null, texto: "¡Gracias por cogerlo tan rápido!", creado_en: hace(25) },
+      { id: 4, caso_id: 1036, autor_tipo: "usuario", autor: null, texto: "¿Hay novedades? Necesito subir el catálogo nuevo esta semana.", creado_en: hace(5) },
+      { id: 3, caso_id: 1042, autor_tipo: "staff", autor: "demo", texto: "A ti, Laura. Lo dejamos publicado esta tarde.", creado_en: hace(24) }
+    ],
+    actividad_caso: []
+  };
+  let seq = 5000;
+  const canales = [];
+  const emitir = (tabla, evento, fila) => setTimeout(() => canales.forEach(c => c.h
+    .filter(x => x.tabla === tabla && (x.evento === "*" || x.evento === evento))
+    .forEach(x => x.fn({ eventType: evento, new: fila, old: fila }))), 0);
+
+  class Consulta {
+    constructor(t) { this.t = t; this.op = "select"; this.f = []; this.una = false; }
+    select() { return this; } order() { return this; }
+    eq(k, v) { this.f.push([k, v]); return this; }
+    single() { this.una = true; return this; }
+    update(v) { this.op = "update"; this.v = v; return this; }
+    insert(v) { this.op = "insert"; this.v = v; return this; }
+    delete() { this.op = "delete"; return this; }
+    ejecutar() {
+      const filas = T[this.t] || [], ok = r => this.f.every(([k, v]) => r[k] === v);
+      let out = [];
+      if (this.op === "select") {
+        out = filas.filter(ok).map(r => ({ ...r }));
+        if (this.t === "reportes") out.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      } else if (this.op === "update") {
+        T[this.t] = filas.map(r => {
+          if (!ok(r)) return r;
+          const n = { ...r, ...this.v };
+          if (this.t === "reportes") {
+            for (const [c, tipo] of [["estado", "estado"], ["responsable_usuario", "responsable"]])
+              if (c in this.v && r[c] !== this.v[c]) T.actividad_caso.push({ id: ++seq, caso_id: r.id, tipo, anterior: r[c], nuevo: this.v[c], autor: usuarioActual, creado_en: new Date().toISOString() });
+            if ("eliminado_en" in this.v) T.actividad_caso.push({ id: ++seq, caso_id: r.id, tipo: this.v.eliminado_en ? "eliminado" : "restaurado", autor: usuarioActual, creado_en: new Date().toISOString() });
+          }
+          out.push({ ...n }); return n;
+        });
+        if (this.t === "reportes") { actividad = T.actividad_caso.map(a => ({ ...a })); indexarActividad(); }
+      } else if (this.op === "insert") {
+        const r = { id: ++seq, creado_en: new Date().toISOString(), ...this.v };
+        filas.push(r); out = [{ ...r }];
+        if (this.t === "mensajes_caso" && r.autor_tipo === "staff") setTimeout(() => {
+          const m = { id: ++seq, caso_id: r.caso_id, autor_tipo: "usuario", autor: null, texto: "¡Perfecto, muchas gracias! (respuesta automática de la demo)", creado_en: new Date().toISOString() };
+          T.mensajes_caso.push(m); emitir("mensajes_caso", "INSERT", { ...m });
+        }, 4000);
+      } else if (this.op === "delete") {
+        out = filas.filter(ok).map(r => ({ ...r })); T[this.t] = filas.filter(r => !ok(r));
+      }
+      return { data: this.una ? (out[0] ?? null) : out, error: null };
+    }
+    then(a, b) { return Promise.resolve(this.ejecutar()).then(a, b); }
+  }
+
+  // Simula un caso nuevo que llega a los 25 segundos de entrar
+  setTimeout(() => {
+    if (!modoDemo) return;
+    const r = { id: 1053, tipo_reporte: "Lead", titulo: "Nuevo cliente · Mantenimiento Básico", descripcion: "Se acaba de registrar desde el portal del cliente.", usuario_discord: "Ana Martín", email: "ana@estudioyoga.es", telefono: "604 313 097", dominio: "estudioyoga.es", plan: "Mantenimiento Básico", pruebas: "", estado: "Entrada de leads", created_at: new Date().toISOString(), responsable_usuario: null };
+    T.reportes.push(r); emitir("reportes", "INSERT", { ...r });
+  }, 25000);
+
+  return {
+    from: t => new Consulta(t),
+    channel: () => {
+      const c = { h: [], on(_, cfg, fn) { this.h.push({ tabla: cfg.table, evento: cfg.event, fn }); return this; },
+        subscribe(cb) { canales.push(this); setTimeout(() => { cb("SUBSCRIBED"); estadoConexion("Modo demo", "bg-amber-400"); }, 50); return this; } };
+      return c;
+    },
+    removeChannel: c => { const i = canales.indexOf(c); if (i >= 0) canales.splice(i, 1); },
+    auth: {
+      signOut: async () => { salirDemo(); return { error: null }; },
+      getSession: async () => ({ data: { session: { user: { email: "demo@" + DOMINIO_STAFF }, access_token: "demo" } } })
+    },
+    functions: { invoke: async (_, { body }) => {
+      if (body.accion === "crear") T.staff.push({ usuario: body.usuario, email: body.usuario + "@" + DOMINIO_STAFF, creado_por: usuarioActual, creado_en: new Date().toISOString(), es_dueno: false });
+      if (body.accion === "borrar") T.staff = T.staff.filter(x => x.usuario !== body.usuario);
+      return { data: { ok: true }, error: null };
+    } }
+  };
+}
+
+function entrarDemo() {
+  modoDemo = true; dbReal = db; db = crearDemoDb();
+  errorInicial = null; $("error").classList.add("hidden");
+  entrar({ user: { email: "demo@" + DOMINIO_STAFF } });
+  toast("Modo demo: los cambios no se guardan en Supabase", 5000);
+}
+function salirDemo() {
+  if (!modoDemo) return;
+  if (canal) { db.removeChannel(canal); canal = null; }
+  modoDemo = false; db = dbReal; errorInicial = errorDemoAntes;
+  mostrarLogin();
+}
+let errorDemoAntes = errorInicial;
+
+// ---------- Arranque ----------
+iniciar();
+setInterval(render, 60000);
+</script>
+</body>
+</html>
