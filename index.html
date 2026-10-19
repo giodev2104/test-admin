@@ -172,11 +172,6 @@
       </div>
     </div>
     <p id="login-error" class="hidden text-sm text-red-300"></p>
-    <div class="rounded-lg border border-fx/30 bg-fx/10 px-3.5 py-3 text-sm text-slate-300">
-      <p><span class="font-semibold text-white">¿Quieres probarlo?</span> Usa la cuenta demo:</p>
-      <p class="mt-1">Usuario <span class="font-semibold text-white">demo</span> · Contraseña <span class="font-semibold text-white">webcare2026</span></p>
-      <button id="login-demo" type="button" class="mt-2 text-xs font-medium text-fx hover:underline">Rellenar automáticamente</button>
-    </div>
     <button id="login-btn" type="submit" class="w-full rounded-lg bg-fx hover:bg-fx2 disabled:opacity-60 text-[#1a1005] font-display text-base font-bold py-3 transition-colors">Entrar</button>
   </form>
 </div>
@@ -1472,8 +1467,7 @@ $("login-form").addEventListener("submit", async e => {
   e.preventDefault();
   $("login-error").classList.add("hidden");
   const usuario = $("login-user").value.trim().toLowerCase(), pw = $("login-pass").value;
-  if (usuario === DEMO_USUARIO && pw === DEMO_CLAVE) return entrarDemo();
-  if (errorInicial) return errorLogin("No hay conexión con Supabase. Puedes probar el panel con la cuenta demo.");
+  if (errorInicial) return errorLogin("No hay conexión con Supabase: " + errorInicial);
   const email = /^[a-z0-9_.-]{3,30}$/.test(usuario) ? usuario + "@" + DOMINIO_STAFF : null;
   if (!email || !pw) return errorLogin("Usuario o contraseña incorrectos.");
   $("login-btn").disabled = true; $("login-btn").textContent = "Entrando…";
@@ -1484,8 +1478,7 @@ $("login-form").addEventListener("submit", async e => {
   await entrar(data.session);
 });
 
-$("login-demo").addEventListener("click", () => { $("login-user").value = DEMO_USUARIO; $("login-pass").value = DEMO_CLAVE; $("login-btn").focus(); });
-$("salir").addEventListener("click", () => { if (modoDemo) salirDemo(); else if (db) db.auth.signOut(); });
+$("salir").addEventListener("click", () => { if (db) db.auth.signOut(); });
 
 // ---------- Administradores ----------
 function pintarAdmins() {
@@ -1600,137 +1593,11 @@ async function iniciar() {
   $("live-box").classList.remove("hidden");
   render();
   if (errorInicial) { mostrarError(errorInicial); mostrarLogin(); return; }
-  db.auth.onAuthStateChange(ev => { if (ev === "SIGNED_OUT" && !modoDemo) mostrarLogin(); });
+  db.auth.onAuthStateChange(ev => { if (ev === "SIGNED_OUT") mostrarLogin(); });
   const { data } = await db.auth.getSession();
   entrar(data.session);
 }
 
-// ---------- Modo demo (sin Supabase) ----------
-// Usuario: demo · Contraseña: webcare2026
-// Todo funciona en memoria: los cambios se pierden al cerrar sesión o recargar la página.
-const DEMO_USUARIO = "demo", DEMO_CLAVE = "webcare2026";
-let dbReal = db, modoDemo = false;
-DUENOS_BORRAR.push(DEMO_USUARIO);
-
-function crearDemoDb() {
-  const ahora = Date.now(), hace = (h) => new Date(ahora - h * 3600000).toISOString();
-  const T = {
-    staff: [
-      { usuario: "demo", email: "demo@" + DOMINIO_STAFF, creado_por: "sistema", creado_en: hace(900), es_dueno: true },
-      { usuario: "marcos", email: "marcos@" + DOMINIO_STAFF, creado_por: "demo", creado_en: hace(800), es_dueno: false },
-      { usuario: "lucia", email: "lucia@" + DOMINIO_STAFF, creado_por: "demo", creado_en: hace(700), es_dueno: false }
-    ],
-    reportes: [
-      { id: 1052, tipo_reporte: "Lead", titulo: "Nuevo cliente · Web Profesional", descripcion: "Se ha registrado desde el portal y ha elegido el paquete Web Profesional.", usuario_discord: "Jorge Reyes", email: "jreyes@globaltis.com", telefono: "+34 916 651 232", dominio: "globaltis.com", plan: "Web Profesional", pruebas: "", estado: "Entrada de leads", created_at: hace(5), responsable_usuario: null },
-      { id: 1051, tipo_reporte: "Lead", titulo: "Nuevo cliente · Mantenimiento Pro", descripcion: "Quiere pasar su web actual a nuestro mantenimiento.", usuario_discord: "Gladys Calero", email: "gladys@calero.es", telefono: "672 676 253", dominio: "calero.es", plan: "Mantenimiento Pro", pruebas: "", estado: "Entrada de leads", created_at: hace(1), responsable_usuario: null },
-      { id: 1049, tipo_reporte: "Lead", titulo: "Tienda online para su marca de ropa", descripcion: "Envió el formulario de la web pidiendo presupuesto para una tienda.", usuario_discord: "Ali Hadj", email: "yasijuan6@gmail.com", telefono: "632 920 643", dominio: "", plan: "Tienda Online", pruebas: "", estado: "Formulario enviado", created_at: hace(30), responsable_usuario: "demo" },
-      { id: 1048, tipo_reporte: "Incidencia", titulo: "El formulario de contacto no envía", descripcion: "Desde ayer, al pulsar «Enviar» en la página de contacto se queda cargando y no llega ningún correo.", usuario_discord: "Laura Luz", email: "laura@panaderialuz.es", telefono: "611 223 344", dominio: "panaderialuz.es", plan: "Mantenimiento Pro", pruebas: "", estado: "Formulario recibido", created_at: hace(3), responsable_usuario: null, urgencia: 0.85 },
-      { id: 1047, tipo_reporte: "Cambio", titulo: "Añadir botón de WhatsApp", descripcion: "Nos gustaría que los clientes pudieran escribirnos por WhatsApp desde cualquier página.", usuario_discord: "Javier Sol", email: "javier@clinicadentalsol.es", telefono: "699 812 004", dominio: "clinicadentalsol.es", plan: "Mantenimiento B\u00e1sico", pruebas: "", estado: "Interesado", created_at: hace(20), responsable_usuario: "marcos" },
-      { id: 1045, tipo_reporte: "Lead", titulo: "Rediseño completo + SEO", descripcion: "Le enviamos propuesta de Web Profesional con Pro + SEO.", usuario_discord: "Emilio José Caluroso", email: "emilio@caluroso.es", telefono: "630 006 882", dominio: "caluroso.es", plan: "Pro + SEO", pruebas: "", estado: "Propuesta enviada", created_at: hace(50), responsable_usuario: "lucia" },
-      { id: 1042, tipo_reporte: "Cambio", titulo: "Cambiar horario en Contacto", descripcion: "A partir de noviembre abrimos los sábados de 9:00 a 14:00.", usuario_discord: "Laura Luz", email: "laura@panaderialuz.es", telefono: "611 223 344", dominio: "panaderialuz.es", plan: "Mantenimiento Pro", pruebas: "", estado: "Seguimiento", created_at: hace(30), responsable_usuario: "demo" },
-      { id: 1036, tipo_reporte: "Incidencia", titulo: "Error 500 al subir productos", descripcion: "Al añadir un producto con foto, la tienda da un error 500.", usuario_discord: "Marta Verde", email: "marta@tiendaverde.com", telefono: "654 112 908", dominio: "tiendaverde.com", plan: "Mantenimiento Pro", pruebas: "", estado: "Seguimiento", created_at: hace(90), responsable_usuario: "demo" },
-      { id: 1040, tipo_reporte: "Duda", titulo: "¿Cómo cambio la contraseña del correo?", descripcion: "No sé dónde se cambia la contraseña del buzón hola@.", usuario_discord: "Sergio Vega", email: "sergio@talleresvega.es", telefono: "685 129 418", dominio: "talleresvega.es", plan: "Mantenimiento B\u00e1sico", pruebas: "", estado: "Entrada de leads", created_at: hace(40), responsable_usuario: null },
-      { id: 1038, tipo_reporte: "Lead", titulo: "Web Esencial para estudio de yoga", descripcion: "Aceptó la propuesta y pagó el 50 %.", usuario_discord: "Iván Pasmar", email: "ivan@pasmar.es", telefono: "641 964 508", dominio: "pasmar.es", plan: "Web Esencial", pruebas: "", estado: "Aceptado", created_at: hace(120), resuelto_en: hace(110), responsable_usuario: "marcos" },
-      { id: 1035, tipo_reporte: "Lead", titulo: "Tienda online de cerámica", descripcion: "No sigue adelante por presupuesto.", usuario_discord: "Nuria Gulkuri", email: "nuria@ceramicas.es", telefono: "685 737 210", dominio: "", plan: "Tienda Online", pruebas: "", estado: "Denegado", created_at: hace(150), resuelto_en: hace(140), responsable_usuario: "lucia" }
-    ],
-    notas_caso: [
-      { id: 1, caso_id: 1045, autor: "lucia", texto: "Las imágenes de producto pesan más de 2 MB cada una. Propongo comprimirlas y ofrecer el extra de optimización.", creado_en: hace(40) }
-    ],
-    mensajes_caso: [
-      { id: 1, caso_id: 1048, autor_tipo: "usuario", autor: null, texto: "Hola, ¿podéis mirarlo hoy? Estamos perdiendo pedidos.", creado_en: hace(2) },
-      { id: 2, caso_id: 1042, autor_tipo: "usuario", autor: null, texto: "¡Gracias por cogerlo tan rápido!", creado_en: hace(25) },
-      { id: 4, caso_id: 1036, autor_tipo: "usuario", autor: null, texto: "¿Hay novedades? Necesito subir el catálogo nuevo esta semana.", creado_en: hace(5) },
-      { id: 3, caso_id: 1042, autor_tipo: "staff", autor: "demo", texto: "A ti, Laura. Lo dejamos publicado esta tarde.", creado_en: hace(24) }
-    ],
-    actividad_caso: []
-  };
-  let seq = 5000;
-  const canales = [];
-  const emitir = (tabla, evento, fila) => setTimeout(() => canales.forEach(c => c.h
-    .filter(x => x.tabla === tabla && (x.evento === "*" || x.evento === evento))
-    .forEach(x => x.fn({ eventType: evento, new: fila, old: fila }))), 0);
-
-  class Consulta {
-    constructor(t) { this.t = t; this.op = "select"; this.f = []; this.una = false; }
-    select() { return this; } order() { return this; }
-    eq(k, v) { this.f.push([k, v]); return this; }
-    single() { this.una = true; return this; }
-    update(v) { this.op = "update"; this.v = v; return this; }
-    insert(v) { this.op = "insert"; this.v = v; return this; }
-    delete() { this.op = "delete"; return this; }
-    ejecutar() {
-      const filas = T[this.t] || [], ok = r => this.f.every(([k, v]) => r[k] === v);
-      let out = [];
-      if (this.op === "select") {
-        out = filas.filter(ok).map(r => ({ ...r }));
-        if (this.t === "reportes") out.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-      } else if (this.op === "update") {
-        T[this.t] = filas.map(r => {
-          if (!ok(r)) return r;
-          const n = { ...r, ...this.v };
-          if (this.t === "reportes") {
-            for (const [c, tipo] of [["estado", "estado"], ["responsable_usuario", "responsable"]])
-              if (c in this.v && r[c] !== this.v[c]) T.actividad_caso.push({ id: ++seq, caso_id: r.id, tipo, anterior: r[c], nuevo: this.v[c], autor: usuarioActual, creado_en: new Date().toISOString() });
-            if ("eliminado_en" in this.v) T.actividad_caso.push({ id: ++seq, caso_id: r.id, tipo: this.v.eliminado_en ? "eliminado" : "restaurado", autor: usuarioActual, creado_en: new Date().toISOString() });
-          }
-          out.push({ ...n }); return n;
-        });
-        if (this.t === "reportes") { actividad = T.actividad_caso.map(a => ({ ...a })); indexarActividad(); }
-      } else if (this.op === "insert") {
-        const r = { id: ++seq, creado_en: new Date().toISOString(), ...this.v };
-        filas.push(r); out = [{ ...r }];
-        if (this.t === "mensajes_caso" && r.autor_tipo === "staff") setTimeout(() => {
-          const m = { id: ++seq, caso_id: r.caso_id, autor_tipo: "usuario", autor: null, texto: "¡Perfecto, muchas gracias! (respuesta automática de la demo)", creado_en: new Date().toISOString() };
-          T.mensajes_caso.push(m); emitir("mensajes_caso", "INSERT", { ...m });
-        }, 4000);
-      } else if (this.op === "delete") {
-        out = filas.filter(ok).map(r => ({ ...r })); T[this.t] = filas.filter(r => !ok(r));
-      }
-      return { data: this.una ? (out[0] ?? null) : out, error: null };
-    }
-    then(a, b) { return Promise.resolve(this.ejecutar()).then(a, b); }
-  }
-
-  // Simula un caso nuevo que llega a los 25 segundos de entrar
-  setTimeout(() => {
-    if (!modoDemo) return;
-    const r = { id: 1053, tipo_reporte: "Lead", titulo: "Nuevo cliente · Mantenimiento Básico", descripcion: "Se acaba de registrar desde el portal del cliente.", usuario_discord: "Ana Martín", email: "ana@estudioyoga.es", telefono: "604 313 097", dominio: "estudioyoga.es", plan: "Mantenimiento Básico", pruebas: "", estado: "Entrada de leads", created_at: new Date().toISOString(), responsable_usuario: null };
-    T.reportes.push(r); emitir("reportes", "INSERT", { ...r });
-  }, 25000);
-
-  return {
-    from: t => new Consulta(t),
-    channel: () => {
-      const c = { h: [], on(_, cfg, fn) { this.h.push({ tabla: cfg.table, evento: cfg.event, fn }); return this; },
-        subscribe(cb) { canales.push(this); setTimeout(() => { cb("SUBSCRIBED"); estadoConexion("Modo demo", "bg-amber-400"); }, 50); return this; } };
-      return c;
-    },
-    removeChannel: c => { const i = canales.indexOf(c); if (i >= 0) canales.splice(i, 1); },
-    auth: {
-      signOut: async () => { salirDemo(); return { error: null }; },
-      getSession: async () => ({ data: { session: { user: { email: "demo@" + DOMINIO_STAFF }, access_token: "demo" } } })
-    },
-    functions: { invoke: async (_, { body }) => {
-      if (body.accion === "crear") T.staff.push({ usuario: body.usuario, email: body.usuario + "@" + DOMINIO_STAFF, creado_por: usuarioActual, creado_en: new Date().toISOString(), es_dueno: false });
-      if (body.accion === "borrar") T.staff = T.staff.filter(x => x.usuario !== body.usuario);
-      return { data: { ok: true }, error: null };
-    } }
-  };
-}
-
-function entrarDemo() {
-  modoDemo = true; dbReal = db; db = crearDemoDb();
-  errorInicial = null; $("error").classList.add("hidden");
-  entrar({ user: { email: "demo@" + DOMINIO_STAFF } });
-  toast("Modo demo: los cambios no se guardan en Supabase", 5000);
-}
-function salirDemo() {
-  if (!modoDemo) return;
-  if (canal) { db.removeChannel(canal); canal = null; }
-  modoDemo = false; db = dbReal; errorInicial = errorDemoAntes;
-  mostrarLogin();
-}
-let errorDemoAntes = errorInicial;
 
 // ---------- Arranque ----------
 iniciar();
