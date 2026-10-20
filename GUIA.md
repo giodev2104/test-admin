@@ -186,6 +186,7 @@ Ejecuta `supabase_tarifas_2026.sql` en el SQL Editor: acepta los planes nuevos y
 Ejecuta `supabase_servicios.sql` en el SQL Editor (después de `supabase_tarifas_2026.sql`). Crea la lista de servicios de cada cliente y rellena la de los clientes que ya tienes con su plan, su alta y lo que hayan contratado antes.
 
 - **Portal → «Servicios»**: el cliente ve su plan de web, su plan de mantenimiento o renting y sus extras y packs. Puede cambiar de plan, añadir extras o packs y pedir la baja de un extra. Cada petición crea un caso en el panel y queda «Pendiente de aprobar».
+- **Panel según lo contratado**: si el cliente tiene (o pide) un plan mensual de mantenimiento o de renting ve el panel completo (Mi web, Servicios, Soporte, SEO…). Si solo ha pedido cosas de pago único (un plan de web, extras o packs) ve un panel reducido: «Mis pedidos» (cada pedido con su estado Recibido → En preparación → Entregado, su chat y el pago), «Facturación» y «Mi cuenta». En cuanto contrate un plan mensual pasa solo al panel completo.
 - **Panel**: al pasar ese caso a «Aceptado» el servicio queda activo (si es un plan, sustituye al anterior); al denegarlo queda rechazado. En la ficha completa del cliente, «Servicios contratados» permite corregir el estado, añadir un servicio a mano o quitarlo.
 
 ---
