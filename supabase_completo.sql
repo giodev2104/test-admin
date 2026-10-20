@@ -426,22 +426,23 @@ grant execute on function public.cliente_pedir_plan(text, text) to anon, authent
 
 -- Al aceptar el caso, se aplica el plan
 create or replace function public.aplicar_plan_aceptado()
-returns trigger language plpgsql security definer set search_path = public as $$
-declare nuevo text;
+returns trigger language plpgsql security definer set search_path = public as $fn$
 begin
   if new.estado = 'Aceptado' and old.estado is distinct from 'Aceptado' and new.cliente_id is not null then
-    nuevo := case
-      when new.plan_solicitado is not null then new.plan_solicitado
-      when new.tipo_reporte = 'Lead' and new.plan like 'Mantenimiento%' then new.plan
-    end;
-    if nuevo is not null then
-      insert into webs_cliente (cliente_id, plan) values (new.cliente_id, nuevo)
-      on conflict (cliente_id) do update set plan = excluded.plan
-        where new.plan_solicitado is not null or webs_cliente.plan is null;   -- el lead no pisa un plan ya puesto
+    if new.plan_solicitado is not null then
+      insert into webs_cliente (cliente_id, plan) values (new.cliente_id, new.plan_solicitado)
+        on conflict (cliente_id) do update set plan = excluded.plan;
+    elsif new.tipo_reporte = 'Lead' and new.plan like 'Mantenimiento%' then
+      update webs_cliente set plan = new.plan where cliente_id = new.cliente_id and plan is null;
+      if not found then
+        insert into webs_cliente (cliente_id, plan) values (new.cliente_id, new.plan)
+          on conflict (cliente_id) do nothing;
+      end if;
     end if;
   end if;
   return new;
-end $$;
+end
+$fn$;
 
 drop trigger if exists reportes_plan_aceptado on public.reportes;
 create trigger reportes_plan_aceptado after update of estado on public.reportes
