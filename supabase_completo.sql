@@ -74,6 +74,45 @@ create table if not exists public.actividad_caso (
   creado_en timestamptz not null default now()
 );
 
+-- Si alguna tabla ya existía (de una instalación anterior), se le añaden las columnas que falten
+alter table public.staff
+  add column if not exists email      text,
+  add column if not exists creado_por text default 'sistema',
+  add column if not exists creado_en  timestamptz not null default now(),
+  add column if not exists es_dueno   boolean not null default false;
+alter table public.reportes
+  add column if not exists created_at          timestamptz not null default now(),
+  add column if not exists tipo_reporte        text not null default 'Cambio',
+  add column if not exists titulo              text,
+  add column if not exists descripcion         text,
+  add column if not exists usuario_discord     text,
+  add column if not exists email               text,
+  add column if not exists telefono            text,
+  add column if not exists dominio             text,
+  add column if not exists plan                text,
+  add column if not exists pruebas             text,
+  add column if not exists estado              text not null default 'Entrada de leads',
+  add column if not exists resuelto_en         timestamptz,
+  add column if not exists responsable_usuario text,
+  add column if not exists urgencia            double precision,
+  add column if not exists eliminado_en        timestamptz,
+  add column if not exists eliminado_por       text;
+alter table public.notas_caso
+  add column if not exists autor     text,
+  add column if not exists texto     text,
+  add column if not exists creado_en timestamptz not null default now();
+alter table public.mensajes_caso
+  add column if not exists autor_tipo text,
+  add column if not exists autor      text,
+  add column if not exists texto      text,
+  add column if not exists creado_en  timestamptz not null default now();
+alter table public.actividad_caso
+  add column if not exists tipo      text,
+  add column if not exists anterior  text,
+  add column if not exists nuevo     text,
+  add column if not exists autor     text,
+  add column if not exists creado_en timestamptz not null default now();
+
 create index if not exists notas_caso_caso_idx     on public.notas_caso (caso_id);
 create index if not exists mensajes_caso_caso_idx  on public.mensajes_caso (caso_id);
 create index if not exists actividad_caso_caso_idx on public.actividad_caso (caso_id);
