@@ -222,7 +222,26 @@ Ejecuta `supabase_opiniones.sql` en el SQL Editor (después de `supabase_entrega
 
 ---
 
-## 15. Publicar
+## 15. Cobros con Stripe: el pedido se crea solo después de pagar
+
+Antes, al pulsar «Pagar» se creaba el pedido aunque el cliente cerrara la página sin pagar. Ahora:
+
+- El portal abre la página de pago de Stripe con el precio del catálogo (lo pone el servidor, no el navegador).
+- **No se crea ningún caso ni servicio hasta que Stripe confirma el cobro.** Se confirma de dos maneras: cuando el cliente vuelve al portal, y por el aviso automático de Stripe (webhook). Así, aunque el cliente cierre la página justo después de pagar, el pedido se registra igual, y nunca dos veces.
+- Si cancela en Stripe, el portal le dice que no se ha creado nada.
+- Los planes de web (precio por presupuesto) no pasan por Stripe: se crea un caso «Presupuesto: …» y le mandas el precio por el chat.
+- El botón «Pagar» de un pedido que ya existía (por ejemplo, la entrega pendiente de pago) lo marca como pagado solo cuando Stripe confirma el cobro.
+
+Pasos:
+1. Ejecuta `supabase_pagos.sql` en el SQL Editor (después de `supabase_opiniones.sql`).
+2. Despliega la función `pago` (Edge Functions > Deploy a new function > Via Editor, pega `supabase/functions/pago/index.ts`) y **desactiva «Verify JWT»**.
+3. En Edge Functions > Secrets añade `STRIPE_SECRET_KEY` (`sk_test_…` para pruebas, `sk_live_…` para cobrar de verdad).
+4. En Stripe > Desarrolladores > Webhooks > Añadir endpoint: URL `https://ufwuvbjrgvphbggkfkuh.supabase.co/functions/v1/pago`, evento `checkout.session.completed`. Copia el «Signing secret» (`whsec_…`) y guárdalo en Secrets como `STRIPE_WEBHOOK_SECRET`.
+5. (Opcional) `URL_PORTAL` en Secrets si el portal no está en `https://giodev2104.github.io/test-cliente/`.
+
+Mientras falte `STRIPE_SECRET_KEY`, el portal avisa de que el pago online no está configurado y no crea nada.
+
+## 16. Publicar
 
 GitHub Pages publica la rama principal. Fusiona la rama `claude/dreamy-albattani-j8rm9a` en **los dos repositorios** (o elígela en Settings > Pages).
 
