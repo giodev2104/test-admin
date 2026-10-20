@@ -211,7 +211,18 @@ Los plazos, recargos y el mínimo están en `FINANCIACION` al principio del port
 
 ---
 
-## 14. Publicar
+## 14. Opiniones de clientes en la portada
+
+Ejecuta `supabase_opiniones.sql` en el SQL Editor (después de `supabase_entregas.sql`).
+
+- Cuando un cliente descarga su entrega, se le pide su opinión: estrellas, un comentario y una casilla para mostrarla en la web (desmarcada por defecto; solo se publica si la marca). También puede valorar desde la entrega más tarde o al cerrarse una solicitud.
+- Las opiniones públicas salen en la página principal del portal, en «Lo que dicen nuestros clientes», con la media de estrellas y el nombre con la inicial del apellido (p. ej. «Pedro R.»). La media se calcula con todas las opiniones públicas, buenas y malas.
+- En el panel, «Negocio» → «Últimas valoraciones» indica cuáles están en la web y permite ocultarlas o volver a mostrarlas.
+- Las entregas sirven para cualquier cliente: los de plan mensual las ven en «Servicios» y con un aviso en «Mi web».
+
+---
+
+## 15. Publicar
 
 GitHub Pages publica la rama principal. Fusiona la rama `claude/dreamy-albattani-j8rm9a` en **los dos repositorios** (o elígela en Settings > Pages).
 

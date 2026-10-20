@@ -2118,13 +2118,14 @@ function renderNegocio() {
         <td class="py-2.5 text-right text-slate-300 tabular-nums">${f.msgs}</td><td class="py-2.5 text-right text-slate-300">${f.val === null ? "—" : f.val.toFixed(1).replace(".", ",") + " ★ <span class='text-slate-500 text-xs'>(" + f.nVal + ")</span>"}</td></tr>`).join("")}</tbody></table></div>
   </section>
   <section class="mt-4 rounded-2xl border border-line bg-panel p-5">
-    <h3 class="text-sm font-semibold text-white">Últimas valoraciones</h3><p class="text-xs text-slate-500">Lo que opinan los clientes al cerrar sus solicitudes (es opcional para ellos)</p>
+    <h3 class="text-sm font-semibold text-white">Últimas valoraciones</h3><p class="text-xs text-slate-500">Lo que opinan los clientes al descargar su entrega o cerrar sus solicitudes. Las marcadas «En la web» salen en la página principal del portal; puedes ocultarlas.</p>
     ${valoraciones.length ? `<ul class="mt-3 divide-y divide-line/70">${valoraciones.slice().sort((a, b) => new Date(b.creado_en) - new Date(a.creado_en)).slice(0, 8).map(v => {
       const r = reportes.find(x => x.id === v.caso_id) || {}, c = clienteDe(v.cliente_id) || {};
       return `<li class="py-2.5 flex items-start gap-3"><span class="text-amber-300 text-sm whitespace-nowrap" aria-label="${v.estrellas} de 5">${estrellas(v.estrellas)}</span>
         <button type="button" data-detalle="${v.caso_id}" class="min-w-0 text-left"><span class="block text-sm text-slate-200 truncate">${esc(c.nombre || r.usuario_discord || "Cliente")} · #${v.caso_id} ${esc(r.titulo || "")}</span>
         ${v.comentario ? `<span class="block text-xs text-slate-400 break-words">«${esc(v.comentario)}»</span>` : ""}</button>
-        <span class="ml-auto text-[11px] text-slate-500 whitespace-nowrap">${esc(fechaDia(v.creado_en))}</span></li>`;
+        <span class="ml-auto flex flex-col items-end gap-1 shrink-0"><span class="text-[11px] text-slate-500 whitespace-nowrap">${esc(fechaDia(v.creado_en))}</span>
+        ${v.publica ? `<span class="flex items-center gap-1.5"><span class="mini ${v.oculta ? "bg-base text-slate-400 border-line" : "bg-sky-500/10 text-sky-300 border-sky-500/30"}">${v.oculta ? "Oculta en la web" : "🌐 En la web"}</span><button type="button" data-val-oculta="${v.caso_id}" data-valor="${v.oculta ? 0 : 1}" class="text-[11px] text-slate-400 hover:text-white underline">${v.oculta ? "Mostrar" : "Ocultar"}</button></span>` : `<span class="text-[11px] text-slate-600">Privada</span>`}</span></li>`;
     }).join("")}</ul>` : `<p class="mt-4 text-sm text-slate-500">Todavía no hay valoraciones.</p>`}
   </section>`;
 }
@@ -2140,6 +2141,16 @@ function renderNegocio() {
     tip.style.left = Math.min(innerWidth - tip.offsetWidth - 8, e.clientX + 12) + "px"; tip.style.top = (e.clientY - 34) + "px";
   });
 })();
+
+document.addEventListener("click", async e => {
+  const b = e.target.closest?.("[data-val-oculta]");
+  if (!b) return;
+  const caso = Number(b.dataset.valOculta), oculta = b.dataset.valor === "1";
+  const { error } = await db.from("valoraciones").update({ oculta }).eq("caso_id", caso);
+  if (error) { toast("No se pudo cambiar: " + error.message + " (¿has ejecutado supabase_opiniones.sql?)", 7000); return; }
+  const v = valoraciones.find(x => x.caso_id === caso); if (v) v.oculta = oculta;
+  toast(oculta ? "Opinión oculta en la web" : "Opinión visible en la web"); render();
+});
 
 // ----- 17: renovaciones -----
 let renovEditando = null, renovAvisadas = false;
