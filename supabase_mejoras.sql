@@ -44,21 +44,21 @@ alter table public.intentos enable row level security;
 revoke all on public.intentos from anon, authenticated;
 
 create or replace function public._ip()
-returns text language sql stable as $fn$
+returns text language sql stable as $$
   select trim(split_part(coalesce(
     nullif(current_setting('request.headers', true), '')::json ->> 'cf-connecting-ip',
     nullif(current_setting('request.headers', true), '')::json ->> 'x-forwarded-for',
     ''), ',', 1));
-$fn$;
+$$;
 
 create or replace function public._excedido(p_clave text, p_max int, p_ventana interval)
-returns boolean language sql stable security definer set search_path = public as $fn$
+returns boolean language sql stable security definer set search_path = public as $$
   select coalesce(p_clave, '') !~ ':$' and coalesce(p_clave, '') <> ''
      and (select count(*) from intentos where clave = p_clave and creado_en > now() - p_ventana) >= p_max;
-$fn$;
+$$;
 
 create or replace function public._anotar(p_clave text)
-returns void language plpgsql security definer set search_path = public as $fn$
+returns void language plpgsql security definer set search_path = public as $$
 begin
   if coalesce(p_clave, '') = '' or p_clave ~ ':$' then
     return;
@@ -66,7 +66,7 @@ begin
   delete from intentos where creado_en < now() - interval '2 days';
   insert into intentos (clave) values (p_clave);
 end
-$fn$;
+$$;
 
 revoke all on function public._ip(), public._excedido(text, int, interval), public._anotar(text) from public, anon, authenticated;
 
@@ -74,17 +74,17 @@ revoke all on function public._ip(), public._excedido(text, int, interval), publ
 -- Registro con consentimiento, trampa anti-bots y límites
 -- ---------------------------------------------------------------------
 -- La versión antigua del registro (sin consentimiento ni límites) se desactiva
-do $do$
+do $$
 begin
   revoke all on function public.cliente_registrar(text, text, text, text, text) from public, anon, authenticated;
 exception when undefined_function then
   null;
 end
-$do$;
+$$;
 
 create or replace function public.cliente_registrar(p_email text, p_clave text, p_nombre text, p_dominio text,
                                                     p_plan text, p_acepta boolean, p_trampa text)
-returns json language plpgsql security definer set search_path = public, extensions as $fn$
+returns json language plpgsql security definer set search_path = public, extensions as $$
 declare
   e   text := lower(trim(coalesce(p_email, '')));
   n   text := left(trim(coalesce(p_nombre, '')), 100);
@@ -118,11 +118,11 @@ begin
   perform _anotar('registro-total');
   return _cliente_sesion(cid);
 end
-$fn$;
+$$;
 
 -- Entrar: los fallos se cuentan (devuelve {error} en vez de lanzar, para que el intento quede anotado)
 create or replace function public.cliente_entrar(p_email text, p_clave text)
-returns json language plpgsql security definer set search_path = public, extensions as $fn$
+returns json language plpgsql security definer set search_path = public, extensions as $$
 declare
   e  text := lower(trim(coalesce(p_email, '')));
   ip text := _ip();
@@ -141,7 +141,7 @@ begin
   delete from intentos where clave = 'entrar-correo:' || e;
   return _cliente_sesion(c.id);
 end
-$fn$;
+$$;
 
 revoke all on function public.cliente_registrar(text, text, text, text, text, boolean, text), public.cliente_entrar(text, text) from public;
 grant execute on function public.cliente_registrar(text, text, text, text, text, boolean, text), public.cliente_entrar(text, text) to anon, authenticated;
@@ -160,7 +160,7 @@ alter table public.recuperaciones enable row level security;
 revoke all on public.recuperaciones from anon, authenticated;
 
 create or replace function public.servidor_crear_recuperacion(p_email text, p_ip text)
-returns json language plpgsql security definer set search_path = public, extensions as $fn$
+returns json language plpgsql security definer set search_path = public, extensions as $$
 declare c clientes; t text;
 begin
   if _excedido('recuperar-ip:' || coalesce(p_ip, ''), 5, interval '1 hour') then
@@ -179,10 +179,10 @@ begin
   insert into recuperaciones (token_hash, cliente_id) values (encode(digest(t, 'sha256'), 'hex'), c.id);
   return json_build_object('token', t, 'nombre', c.nombre, 'email', c.email);
 end
-$fn$;
+$$;
 
 create or replace function public.cliente_restablecer_clave(p_token text, p_clave text)
-returns json language plpgsql security definer set search_path = public, extensions as $fn$
+returns json language plpgsql security definer set search_path = public, extensions as $$
 declare r recuperaciones;
 begin
   if length(coalesce(p_clave, '')) < 8 then raise exception 'La contraseña debe tener al menos 8 caracteres.'; end if;
@@ -196,7 +196,7 @@ begin
   delete from sesiones_cliente where cliente_id = r.cliente_id;
   return _cliente_sesion(r.cliente_id);
 end
-$fn$;
+$$;
 
 revoke all on function public.servidor_crear_recuperacion(text, text), public.cliente_restablecer_clave(text, text) from public, anon, authenticated;
 grant execute on function public.cliente_restablecer_clave(text, text) to anon, authenticated;
@@ -205,7 +205,7 @@ grant execute on function public.cliente_restablecer_clave(text, text) to anon, 
 -- 4) Perfil y contraseña del cliente
 -- ---------------------------------------------------------------------
 create or replace function public.cliente_actualizar_perfil(p_token text, p_nombre text, p_telefono text, p_dominio text)
-returns json language plpgsql security definer set search_path = public, extensions as $fn$
+returns json language plpgsql security definer set search_path = public, extensions as $$
 declare cid uuid := _cliente_de_token(p_token); c clientes;
 begin
   if cid is null then raise exception 'SESION_CADUCADA'; end if;
@@ -217,10 +217,10 @@ begin
   where id = cid returning * into c;
   return json_build_object('id', c.id, 'email', c.email, 'nombre', c.nombre, 'dominio', c.dominio, 'telefono', c.telefono);
 end
-$fn$;
+$$;
 
 create or replace function public.cliente_cambiar_clave(p_token text, p_actual text, p_nueva text)
-returns void language plpgsql security definer set search_path = public, extensions as $fn$
+returns void language plpgsql security definer set search_path = public, extensions as $$
 declare cid uuid := _cliente_de_token(p_token); c clientes;
 begin
   if cid is null then raise exception 'SESION_CADUCADA'; end if;
@@ -230,7 +230,7 @@ begin
   update clientes set clave_hash = crypt(p_nueva, gen_salt('bf')) where id = cid;
   delete from sesiones_cliente where cliente_id = cid and token_hash <> encode(digest(p_token, 'sha256'), 'hex');
 end
-$fn$;
+$$;
 
 revoke all on function public.cliente_actualizar_perfil(text, text, text, text), public.cliente_cambiar_clave(text, text, text) from public;
 grant execute on function public.cliente_actualizar_perfil(text, text, text, text), public.cliente_cambiar_clave(text, text, text) to anon, authenticated;
@@ -250,41 +250,41 @@ values ('adjuntos', 'adjuntos', false, 10485760, array[
   'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'])
 on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
 
-do $do$
+do $$
 begin
   if not exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'staff_lee_adjuntos') then
     create policy "staff_lee_adjuntos" on storage.objects for select to authenticated
   using (bucket_id = 'adjuntos' and public.es_staff());
   end if;
 end
-$do$;
-do $do$
+$$;
+do $$
 begin
   if not exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'staff_sube_adjuntos') then
     create policy "staff_sube_adjuntos" on storage.objects for insert to authenticated
   with check (bucket_id = 'adjuntos' and public.es_staff());
   end if;
 end
-$do$;
+$$;
 
 create or replace function public.servidor_caso_del_cliente(p_token text, p_caso bigint)
-returns boolean language sql stable security definer set search_path = public, extensions as $fn$
+returns boolean language sql stable security definer set search_path = public, extensions as $$
   select exists (select 1 from reportes where id = p_caso and eliminado_en is null and cliente_id = _cliente_de_token(p_token));
-$fn$;
+$$;
 revoke all on function public.servidor_caso_del_cliente(text, bigint) from public, anon, authenticated;
 
 -- La versión antigua (sin adjuntos) se desactiva; el portal llama siempre a la de 7 parámetros
-do $do$
+do $$
 begin
   revoke all on function public.cliente_enviar_mensaje(text, bigint, text) from public, anon, authenticated;
 exception when undefined_function then
   null;
 end
-$do$;
+$$;
 
 create or replace function public.cliente_enviar_mensaje(p_token text, p_caso bigint, p_texto text,
   p_adjunto_ruta text, p_adjunto_nombre text, p_adjunto_tipo text, p_adjunto_tamano bigint)
-returns json language plpgsql security definer set search_path = public, extensions as $fn$
+returns json language plpgsql security definer set search_path = public, extensions as $$
 declare cid uuid := _cliente_de_token(p_token); m mensajes_caso; t text := trim(coalesce(p_texto, ''));
 begin
   if cid is null then raise exception 'SESION_CADUCADA'; end if;
@@ -306,7 +306,7 @@ begin
                            'creado_en', m.creado_en, 'adjunto_ruta', m.adjunto_ruta, 'adjunto_nombre', m.adjunto_nombre,
                            'adjunto_tipo', m.adjunto_tipo, 'adjunto_tamano', m.adjunto_tamano);
 end
-$fn$;
+$$;
 revoke all on function public.cliente_enviar_mensaje(text, bigint, text, text, text, text, bigint) from public;
 grant execute on function public.cliente_enviar_mensaje(text, bigint, text, text, text, text, bigint) to anon, authenticated;
 
@@ -323,16 +323,16 @@ create table if not exists public.webs_cliente_historial (
 alter table public.webs_cliente_historial enable row level security;
 revoke all on public.webs_cliente_historial from anon, authenticated;
 grant select on public.webs_cliente_historial to authenticated;
-do $do$
+do $$
 begin
   if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'webs_cliente_historial' and policyname = 'staff_lee_historial') then
     create policy "staff_lee_historial" on public.webs_cliente_historial for select to authenticated using (public.es_staff());
   end if;
 end
-$do$;
+$$;
 
 create or replace function public.cerrar_mes(p_mes date default null)
-returns int language plpgsql security definer set search_path = public as $fn$
+returns int language plpgsql security definer set search_path = public as $$
 declare m date := coalesce(p_mes, (date_trunc('month', now()) - interval '1 month')::date); n int;
 begin
   if coalesce(auth.jwt() ->> 'email', '') <> '' and not public.es_staff() then
@@ -352,7 +352,7 @@ begin
     horas_usadas = case when horas_incluidas is not null then 0 end;
   return n;
 end
-$fn$;
+$$;
 revoke all on function public.cerrar_mes(date) from public, anon;
 grant execute on function public.cerrar_mes(date) to authenticated;
 
@@ -370,16 +370,16 @@ create index if not exists webs_cliente_cambios_cliente_idx on public.webs_clien
 alter table public.webs_cliente_cambios enable row level security;
 revoke all on public.webs_cliente_cambios from anon, authenticated;
 grant select on public.webs_cliente_cambios to authenticated;
-do $do$
+do $$
 begin
   if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'webs_cliente_cambios' and policyname = 'staff_lee_cambios') then
     create policy "staff_lee_cambios" on public.webs_cliente_cambios for select to authenticated using (public.es_staff());
   end if;
 end
-$do$;
+$$;
 
 create or replace function public.webs_cliente_sello()
-returns trigger language plpgsql security definer set search_path = public as $fn$
+returns trigger language plpgsql security definer set search_path = public as $$
 declare quien text := public.staff_usuario();
 begin
   if quien is not null then
@@ -394,10 +394,10 @@ begin
   end if;
   return new;
 end
-$fn$;
+$$;
 
 create or replace function public.webs_cliente_registrar_cambios()
-returns trigger language plpgsql security definer set search_path = public as $fn$
+returns trigger language plpgsql security definer set search_path = public as $$
 declare quien text := public.staff_usuario(); d jsonb;
 begin
   if quien is null then
@@ -414,7 +414,7 @@ begin
   end if;
   return null;
 end
-$fn$;
+$$;
 
 create or replace trigger webs_cliente_cambios after insert or update on public.webs_cliente
   for each row execute function public.webs_cliente_registrar_cambios();
@@ -432,14 +432,14 @@ create table if not exists public.respuestas_rapidas (
 alter table public.respuestas_rapidas enable row level security;
 revoke all on public.respuestas_rapidas from anon, authenticated;
 grant select, insert, update, delete on public.respuestas_rapidas to authenticated;
-do $do$
+do $$
 begin
   if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'respuestas_rapidas' and policyname = 'staff_respuestas') then
     create policy "staff_respuestas" on public.respuestas_rapidas for all to authenticated
   using (public.es_staff()) with check (public.es_staff());
   end if;
 end
-$do$;
+$$;
 
 insert into public.respuestas_rapidas (titulo, texto, creado_por)
 select * from (values
@@ -468,13 +468,13 @@ create index if not exists comprobaciones_cliente_idx on public.comprobaciones (
 alter table public.comprobaciones enable row level security;
 revoke all on public.comprobaciones from anon, authenticated;
 grant select on public.comprobaciones to authenticated;
-do $do$
+do $$
 begin
   if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'comprobaciones' and policyname = 'staff_lee_comprobaciones') then
     create policy "staff_lee_comprobaciones" on public.comprobaciones for select to authenticated using (public.es_staff());
   end if;
 end
-$do$;
+$$;
 
 create table if not exists public.ajustes (
   clave text primary key,
@@ -488,7 +488,7 @@ insert into public.ajustes (clave, valor) values ('secreto_cron', encode(extensi
   on conflict (clave) do nothing;
 
 create or replace function public.lanzar_medicion()
-returns void language plpgsql security definer set search_path = public as $fn$
+returns void language plpgsql security definer set search_path = public as $$
 declare u text; s text;
 begin
   select valor into u from ajustes where clave = 'url_proyecto';
@@ -502,7 +502,7 @@ begin
     body := '{}'::jsonb,
     timeout_milliseconds := 120000);
 end
-$fn$;
+$$;
 revoke all on function public.lanzar_medicion() from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------
@@ -515,7 +515,7 @@ alter table public.reportes add column if not exists aviso_equipo_en  timestampt
 -- 11) Avisos instantáneos al portal (Realtime Broadcast, canal secreto por cliente)
 -- ---------------------------------------------------------------------
 create or replace function public.avisar_portal()
-returns trigger language plpgsql security definer set search_path = public as $fn$
+returns trigger language plpgsql security definer set search_path = public as $$
 declare cid uuid; k uuid;
 begin
   if tg_table_name = 'mensajes_caso' then
@@ -534,7 +534,7 @@ begin
   end;
   return null;
 end
-$fn$;
+$$;
 
 create or replace trigger avisar_portal after insert on public.mensajes_caso for each row execute function public.avisar_portal();
 create or replace trigger avisar_portal after insert or update on public.reportes for each row execute function public.avisar_portal();
@@ -544,7 +544,7 @@ create or replace trigger avisar_portal after insert or update on public.webs_cl
 -- Lo que recibe el portal (versión completa)
 -- ---------------------------------------------------------------------
 create or replace function public.cliente_datos(p_token text)
-returns json language plpgsql stable security definer set search_path = public, extensions as $fn$
+returns json language plpgsql stable security definer set search_path = public, extensions as $$
 declare cid uuid := _cliente_de_token(p_token); c clientes;
 begin
   if cid is null then raise exception 'SESION_CADUCADA'; end if;
@@ -564,12 +564,12 @@ begin
         from mensajes_caso m join reportes r on r.id = m.caso_id
         where r.cliente_id = cid and r.eliminado_en is null) x), '[]'::json));
 end
-$fn$;
+$$;
 
 -- ---------------------------------------------------------------------
 -- Permisos para las funciones del servidor (Edge Functions con service_role)
 -- ---------------------------------------------------------------------
-do $do$
+do $$
 begin
   execute 'grant execute on function public.servidor_crear_recuperacion(text, text) to service_role';
   execute 'grant execute on function public.servidor_caso_del_cliente(text, bigint) to service_role';
@@ -577,21 +577,21 @@ begin
 exception when others then
   raise notice 'No se pudieron dar permisos a service_role: %', sqlerrm;
 end
-$do$;
+$$;
 
 -- ---------------------------------------------------------------------
 -- Tareas programadas (pg_cron + pg_net). Si fallan, actívalas en
 -- Database > Extensions (pg_cron y pg_net) y vuelve a ejecutar el script.
 -- ---------------------------------------------------------------------
-do $do$
+do $$
 begin
   create extension if not exists pg_net with schema extensions;
 exception when others then
   raise notice 'pg_net no disponible: %', sqlerrm;
 end
-$do$;
+$$;
 
-do $do$
+do $$
 begin
   create extension if not exists pg_cron;
   perform cron.schedule('webcare-cerrar-mes', '10 0 1 * *', 'select public.cerrar_mes()');
@@ -599,7 +599,7 @@ begin
 exception when others then
   raise notice 'pg_cron no disponible: %', sqlerrm;
 end
-$do$;
+$$;
 
 -- Comprobación: tareas programadas (si sale error o vacío, activa pg_cron en Database > Extensions)
 select 'Script de mejoras aplicado' as resultado;

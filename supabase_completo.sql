@@ -427,7 +427,7 @@ grant execute on function public.cliente_pedir_plan(text, text) to anon, authent
 
 -- Al aceptar el caso, se aplica el plan
 create or replace function public.aplicar_plan_aceptado()
-returns trigger language plpgsql security definer set search_path = public as $fn$
+returns trigger language plpgsql security definer set search_path = public as $$
 begin
   if new.estado = 'Aceptado' and old.estado is distinct from 'Aceptado' and new.cliente_id is not null then
     if new.plan_solicitado is not null then
@@ -443,7 +443,7 @@ begin
   end if;
   return new;
 end
-$fn$;
+$$;
 
 drop trigger if exists reportes_plan_aceptado on public.reportes;
 create trigger reportes_plan_aceptado after update of estado on public.reportes

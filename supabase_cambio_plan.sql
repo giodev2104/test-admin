@@ -14,7 +14,7 @@ alter table public.reportes add column if not exists plan_solicitado text;
 
 -- 2) El portal pide el cambio con esta función (valida el plan y evita duplicados)
 create or replace function public.cliente_pedir_plan(p_token text, p_plan text)
-returns json language plpgsql security definer set search_path = public, extensions as $fn$
+returns json language plpgsql security definer set search_path = public, extensions as $$
 declare cid uuid := _cliente_de_token(p_token); c clientes; r reportes; actual text;
 begin
   if cid is null then raise exception 'SESION_CADUCADA'; end if;
@@ -38,13 +38,13 @@ begin
                            'plan', r.plan, 'plan_solicitado', r.plan_solicitado, 'dominio', r.dominio,
                            'urgencia', r.urgencia, 'created_at', r.created_at);
 end
-$fn$;
+$$;
 revoke all on function public.cliente_pedir_plan(text, text) from public;
 grant execute on function public.cliente_pedir_plan(text, text) to anon, authenticated;
 
 -- 3) Al aceptar el caso, se aplica el plan (un lead aceptado no pisa un plan ya puesto)
 create or replace function public.aplicar_plan_aceptado()
-returns trigger language plpgsql security definer set search_path = public as $fn$
+returns trigger language plpgsql security definer set search_path = public as $$
 begin
   if new.estado = 'Aceptado' and old.estado is distinct from 'Aceptado' and new.cliente_id is not null then
     if new.plan_solicitado is not null then
@@ -60,7 +60,7 @@ begin
   end if;
   return new;
 end
-$fn$;
+$$;
 
 drop trigger if exists reportes_plan_aceptado on public.reportes;
 create trigger reportes_plan_aceptado after update of estado on public.reportes
@@ -68,7 +68,7 @@ create trigger reportes_plan_aceptado after update of estado on public.reportes
 
 -- 4) El portal recibe también qué plan pidió en cada caso (para mostrar «pendiente»)
 create or replace function public.cliente_datos(p_token text)
-returns json language plpgsql stable security definer set search_path = public, extensions as $fn$
+returns json language plpgsql stable security definer set search_path = public, extensions as $$
 declare cid uuid := _cliente_de_token(p_token); c clientes;
 begin
   if cid is null then raise exception 'SESION_CADUCADA'; end if;
@@ -84,7 +84,7 @@ begin
         from mensajes_caso m join reportes r on r.id = m.caso_id
         where r.cliente_id = cid and r.eliminado_en is null) x), '[]'::json));
 end
-$fn$;
+$$;
 
 -- 5) Solicitudes de cambio de plan que ya estaban aceptadas antes de este script: se aplican ahora
 update public.reportes set plan_solicitado = substring(titulo from '^Cambio de plan a (.+)$')
