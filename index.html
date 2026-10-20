@@ -1542,6 +1542,11 @@ function pagoCasoHTML(r, borrado) {
       ${s.pagado_en
         ? `<span class="mini bg-emerald-500/10 text-emerald-300 border-emerald-500/30">✓ Pagado el ${esc(fechaDia(s.pagado_en))}${s.pagado_por ? " · " + esc(s.pagado_por === "Stripe" || s.pagado_por === "Tokens" ? s.pagado_por : bonito(s.pagado_por)) : ""}</span>${borrado ? "" : `<button type="button" data-serv-pago="${s.id}" data-pagado="0" class="text-xs text-slate-500 hover:text-red-300 underline">Quitar</button>`}`
         : `<span class="mini bg-amber-500/10 text-amber-300 border-amber-500/40">⏳ Pendiente de pago</span>${borrado ? "" : `<button type="button" data-serv-pago="${s.id}" data-pagado="1" class="rounded-md bg-emerald-500 hover:bg-emerald-400 px-3 py-1.5 text-xs font-semibold text-[#06210f]">✓ Marcar como pagado</button>`}`}
+      ${s.tipo === "mantenimiento" ? "" : `<div class="basis-full w-full rounded-lg border border-line/70 bg-panel/60 px-3 py-2">
+        <div class="flex flex-wrap items-center gap-2"><span class="text-xs font-semibold text-slate-300">📦 Proyecto finalizado</span>
+          <span class="text-[11px] text-slate-500">${s.pagado_en ? "El cliente lo descarga en su portal." : "El cliente lo podrá descargar en cuanto esté pagado."}</span>
+          ${borrado ? "" : `<label class="ml-auto cursor-pointer rounded-md border border-line px-2.5 py-1 text-xs text-slate-200 hover:border-fx">📦 Subir entrega<input type="file" multiple data-entrega-subir="${s.id}" class="hidden"></label>`}</div>
+        ${archivosEntregaHTML(s)}</div>`}
     </li>`).join("")}</ul>
     ${l.some(s => !s.pagado_en) ? `<p class="mt-2 text-[11px] text-slate-500">Úsalo si ha pagado por transferencia, Bizum o en mano. Los pagos con tarjeta en el portal se marcan solos.</p>` : ""}
   </section>`;
@@ -2585,7 +2590,7 @@ const GUIA = [
       "Instala también <b>Wordfence</b> (ataques y amenazas) y <b>UpdraftPlus</b> (copias de seguridad) si no los tiene."]) + ojo("Desde ese momento, cada día llegan solas las actualizaciones, los ataques bloqueados, las amenazas y las copias. En la ficha verás si tiene actualizaciones pendientes.") },
   { i: "📦", t: "Entregar un trabajo (web, ZIP, PDF…)", k: "entrega subir archivo zip html pdf descargar pagado pago marcar", h: pasos([
       "Abre la ficha del cliente → <b>Servicios contratados</b> → el pedido.",
-      "Pulsa <b>📦 Subir entrega</b> y elige el archivo (hasta 50 MB). Puedes añadir una nota.",
+      "Pulsa <b>📦 Subir entrega</b> (en el bloque 💶 Pago del caso o en la ficha del cliente) y elige el archivo (hasta 50 MB).",
       "El cliente recibe un aviso y ve «Tu entrega está lista».",
       "<b>Solo puede descargarla cuando el pedido está pagado.</b> Si pagó con tarjeta en el portal, se marca solo. Si pagó por transferencia o Bizum, pulsa <b>Marcar como pagado</b>.",
       "Tras descargarla, el portal le pide una valoración."]) + ojo("Si lo que entregas es una web, súbela en .zip con todos sus archivos.") },
@@ -3015,18 +3020,24 @@ function entregaStaffHTML(s) {
         : `<button type="button" data-serv-pago="${s.id}" data-pagado="1" class="rounded-md border border-emerald-500/40 px-2 py-0.5 text-xs text-emerald-300 hover:bg-emerald-500/15">Marcar como pagado</button>`}
       <label class="ml-auto cursor-pointer rounded-md border border-line px-2.5 py-1 text-xs text-slate-200 hover:border-fx">📦 Subir entrega<input type="file" multiple data-entrega-subir="${s.id}" class="hidden"></label>
     </div>
-    ${lista.length ? `<ul class="mt-1.5 space-y-1">${lista.map(e => `<li class="flex items-center gap-2 text-xs">
+    ${archivosEntregaHTML(s)}
+  </div>`;
+}
+// Archivos entregados de un pedido (también se muestran y suben desde el propio caso)
+function archivosEntregaHTML(s) {
+  const lista = entregas.filter(e => e.servicio_id === s.id);
+  return `${lista.length ? `<ul class="mt-1.5 space-y-1">${lista.map(e => `<li class="flex items-center gap-2 text-xs">
       <span class="min-w-0 flex-1 truncate text-slate-200" title="${esc(e.nombre)}">📄 ${esc(e.nombre)} <span class="text-slate-500">· ${tamano(e.tamano || 0)}</span></span>
       <span class="${e.descargado_en ? "text-emerald-300" : "text-slate-500"}">${e.descargado_en ? "Descargado " + esc(fechaCorta(e.descargado_en)) : s.pagado_en ? "Sin descargar" : "Bloqueado hasta el pago"}</span>
       <button type="button" data-entrega-ver="${e.id}" class="text-slate-400 hover:text-white underline">Ver</button>
       <button type="button" data-entrega-borrar="${e.id}" class="px-1 text-slate-500 hover:text-red-300" aria-label="Borrar archivo">✕</button></li>`).join("")}</ul>`
-      : `<p class="mt-1 text-[11px] text-slate-500">Sin archivos de entrega. ${s.pagado_en ? "" : "El cliente podrá descargarlos cuando lo marques como pagado."}</p>`}
-  </div>`;
+      : `<p class="mt-1 text-[11px] text-slate-500">Sin archivos de entrega. ${s.pagado_en ? "" : "El cliente podrá descargarlos cuando lo marques como pagado."}</p>`}`;
 }
 async function recargarEntregas() {
   const { data, error } = await db.from("entregas").select("*").order("creado_en", { ascending: false });
   if (!error) entregas = data;
   await recargarServicios();
+  if (detalleId) pintarDetalle();
 }
 async function subirEntrega(servId, archivos) {
   const s = servicios.find(x => x.id === servId);

@@ -267,6 +267,8 @@ Todos los precios están en la tabla `catalogo` de Supabase (`supabase_catalogo.
 ### Marcar pagos desde el caso
 Cada caso con un pedido del cliente muestra el bloque **💶 Pago** al abrirlo, y su tarjeta lleva el aviso «💶 Pendiente de pago» mientras no esté pagado. Si el cliente paga por transferencia, Bizum o en mano, pulsa **✓ Marcar como pagado**: el cliente recibe «Hemos recibido tu pago» en el chat, deja de ver el botón «Pagar» y se desbloquean sus entregas. Si el caso es su alta (Lead), el panel pregunta si pasarlo a «Aceptado» para desbloquear su portal. Los pagos con tarjeta o con tokens se marcan solos.
 
+En ese mismo bloque, cada pedido (salvo los de mantenimiento) tiene **📦 Proyecto finalizado › Subir entrega**: sube ahí la web en .zip, el logo, el PDF… El cliente recibe el aviso y lo descarga en su portal en cuanto el pedido está pagado (hasta entonces ve «Pagar y desbloquear»).
+
 ## 19. Guía para empleados
 
 Dentro del panel, botón **❓** de la barra lateral (encima de «Cerrar sesión»). Se abre sola la primera vez que entra cada persona.
