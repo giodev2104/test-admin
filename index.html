@@ -148,6 +148,7 @@
             <h1 class="font-display text-2xl font-bold text-white leading-tight">Clientes</h1>
             <p class="text-sm text-slate-500 mt-1">Lo que rellenes en la ficha de cada cliente es lo que verá en «Mi web», «SEO» y «Facturación» de su portal.</p>
           </div>
+          <button id="cerrar-mes" type="button" class="hidden rounded-xl border border-line px-3 py-2 text-xs text-slate-300 hover:border-fx" title="Guarda los datos de este mes en el historial de cada cliente y pone a cero los contadores del mes">Cerrar el mes ahora</button>
           <input id="cli-buscar" type="search" autocomplete="off" placeholder="Buscar por nombre, correo o web…" aria-label="Buscar clientes"
             class="w-full sm:w-72 bg-panel border border-line rounded-xl px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:border-fx focus:outline-none">
         </header>
@@ -177,8 +178,8 @@
       <p class="text-sm text-slate-400 mt-2">Inicia sesión para gestionar las solicitudes de los clientes.</p>
     </div>
     <div>
-      <label for="login-user" class="block text-sm font-medium text-slate-300 mb-1.5">Usuario</label>
-      <input id="login-user" class="campo" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+      <label for="login-user" class="block text-sm font-medium text-slate-300 mb-1.5">Correo (o usuario)</label>
+      <input id="login-user" class="campo" autocomplete="username" autocapitalize="none" spellcheck="false" required placeholder="tu@correo.com">
     </div>
     <div>
       <label for="login-pass" class="block text-sm font-medium text-slate-300 mb-1.5">Contraseña</label>
@@ -203,8 +204,13 @@
     <form id="admin-form" class="mt-5 pt-5 border-t border-line space-y-4" novalidate>
       <h3 class="text-sm font-semibold text-slate-200">Añadir un administrador nuevo</h3>
       <div>
-        <label for="admin-user" class="block text-xs font-medium text-slate-400 mb-1">Usuario</label>
+        <label for="admin-user" class="block text-xs font-medium text-slate-400 mb-1">Usuario (nombre corto en el panel)</label>
         <input id="admin-user" class="campo" maxlength="30" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="ej: maria">
+      </div>
+      <div>
+        <label for="admin-correo" class="block text-xs font-medium text-slate-400 mb-1">Su correo real (con él entrará al panel)</label>
+        <input id="admin-correo" type="email" class="campo" maxlength="200" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="maria@empresa.com">
+        <p class="mt-1 text-[11px] text-slate-500">Tiene que ser un buzón suyo: nunca inventes uno, quien lo tenga podría cambiar la contraseña y entrar.</p>
       </div>
       <div>
         <div class="flex justify-between items-baseline mb-1">
@@ -219,7 +225,7 @@
       <p id="admin-error" class="hidden text-sm text-red-300"></p>
       <div id="admin-ok" class="hidden rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-200">
         <p class="font-semibold">Administrador creado. Copia estos datos ahora:</p>
-        <p class="mt-1">Usuario: <span id="admin-ok-usuario" class="font-mono text-white"></span></p>
+        <p class="mt-1">Correo: <span id="admin-ok-usuario" class="font-mono text-white"></span></p>
         <p>Contraseña: <span id="admin-ok-clave" class="font-mono text-white break-all"></span></p>
         <button id="admin-copiar" type="button" class="mt-2 rounded-md border border-emerald-500/40 px-3 py-1 text-xs hover:bg-emerald-500/20">Copiar</button>
       </div>
@@ -243,6 +249,24 @@
 
 <div id="detalle-modal" class="hidden fixed inset-0 z-[60] grid place-items-center bg-black/70 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="detalle-titulo">
   <div id="detalle-cuerpo" class="w-full max-w-2xl max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl border border-line bg-panel shadow-2xl"></div>
+</div>
+
+<div id="rr-modal" class="hidden fixed inset-0 z-[64] grid place-items-center bg-black/70 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="rr-titulo">
+  <div class="w-full max-w-lg max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl border border-line bg-panel p-5 sm:p-6 shadow-2xl">
+    <div class="flex items-start justify-between gap-3">
+      <div><h2 id="rr-titulo" class="font-display text-xl font-bold text-white">Respuestas rápidas</h2>
+        <p class="text-xs text-slate-500 mt-1">Las comparte todo el equipo. Escribe {nombre} para poner el nombre del cliente.</p></div>
+      <button type="button" data-rr-cerrar class="text-slate-400 hover:text-white p-1" aria-label="Cerrar">✕</button>
+    </div>
+    <ul id="rr-lista" class="mt-4 space-y-2"></ul>
+    <form id="rr-form" class="mt-5 pt-5 border-t border-line space-y-3" novalidate>
+      <h3 class="text-sm font-semibold text-slate-200">Añadir una respuesta</h3>
+      <input id="rr-nombre" class="campo text-sm" maxlength="60" placeholder="Título corto (p. ej. «Publicado»)">
+      <textarea id="rr-texto" class="campo text-sm" rows="4" maxlength="2000" placeholder="Hola, {nombre}. …"></textarea>
+      <p id="rr-error" class="hidden text-sm text-red-300"></p>
+      <button type="submit" class="w-full rounded-lg bg-fx hover:bg-fx2 text-[#1a1005] text-sm font-bold py-2.5">Guardar respuesta</button>
+    </form>
+  </div>
 </div>
 
 <div id="ficha-modal" class="hidden fixed inset-0 z-[62] grid place-items-center bg-black/70 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="ficha-titulo">
@@ -322,8 +346,7 @@ const bonito = u => u.charAt(0).toUpperCase() + u.slice(1);
 let listaStaff = [];   // se actualiza al iniciar sesión
 let usuarioActual = null, soyDueno = false, quitando = null, quitarT = null;
 const COLS_STAFF = "usuario,email,creado_por,creado_en,es_dueno";
-const DUENOS_BORRAR = ["gio", "apocalypse"];     // además de los propietarios (staff.es_dueno), pueden borrar y restaurar casos
-const puedeBorrar = () => soyDueno || DUENOS_BORRAR.includes(usuarioActual);
+const puedeBorrar = () => soyDueno;              // solo los propietarios (staff.es_dueno) borran y restauran casos
 const activos = () => reportes.filter(r => !r.eliminado_en);
 const eliminados = () => reportes.filter(r => r.eliminado_en);
 const ARCHIVO_MS = DIAS_ARCHIVO * 24 * 60 * 60 * 1000;
@@ -335,7 +358,9 @@ const borradorNota = new Map();                  // lo que se está escribiendo 
 const expandidas = new Set();                    // descripciones largas desplegadas
 let filtroResp = "", sonidoOn = true;
 let clientes = [], webs = new Map();             // cuentas del portal y la ficha de su web (webs_cliente)
-const COLS_CLIENTE = "id,email,nombre,dominio,creado_en";   // nunca clave_hash
+const COLS_CLIENTE = "id,email,nombre,dominio,telefono,acepta_privacidad_en,creado_en";   // nunca clave_hash
+let respuestas = [];                             // respuestas rápidas del chat (tabla respuestas_rapidas)
+const adjuntosStaff = new Map();                 // archivo elegido para enviar en cada caso
 const fechaCorta = d => new Date(d).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" });
 const coincideResp = r => !filtroResp || (filtroResp === "__sin" ? !r.responsable_usuario
   : filtroResp === "__mios" ? r.responsable_usuario === usuarioActual : true);
@@ -422,10 +447,12 @@ async function pedirDatos() {
     db.from("mensajes_caso").select("*").order("creado_en", { ascending: true }),
     db.from("actividad_caso").select("*").order("creado_en", { ascending: true }),
     db.from("clientes").select(COLS_CLIENTE).order("creado_en", { ascending: false }),
-    db.from("webs_cliente").select("*")
+    db.from("webs_cliente").select("*"),
+    db.from("respuestas_rapidas").select("*").order("titulo")
   ]);
   const espera = new Promise((_, rej) => setTimeout(() => rej(new Error("Supabase no responde (10 s). Revisa la URL y que el proyecto no esté pausado.")), 10000));
-  const [rep, not, msg, act, cli, web] = await Promise.race([consulta, espera]);
+  const [rep, not, msg, act, cli, web, rr] = await Promise.race([consulta, espera]);
+  respuestas = rr.error ? [] : rr.data;
   if (rep.error) throw new Error(rep.error.message + (rep.error.code === "42501" || /permission|policy/i.test(rep.error.message) ? " No tienes permiso para leer los casos: comprueba que has iniciado sesión con un usuario del staff y que has ejecutado supabase.sql." : ""));
   reportes = rep.data;
   if (not.error) toast("No se pudieron cargar las notas: " + not.error.message + " (¿has ejecutado supabase_migracion.sql?)", 8000);
@@ -507,10 +534,31 @@ document.addEventListener("visibilitychange", () => {
 });
 
 function avisarMensaje(m) {
-  const rr = reportes.find(x => x.id === m.caso_id);
-  avisoSistema("Nuevo mensaje · caso #" + m.caso_id, (rr ? rr.usuario_discord : "Usuario") + ": " + String(m.texto || "").slice(0, 120), m.caso_id);
-  const r = reportes.find(x => x.id === m.caso_id);
-  toast("Nuevo mensaje de " + (r ? r.usuario_discord : "un usuario") + " en el caso #" + m.caso_id, 6000);
+  const r = reportes.find(x => x.id === m.caso_id), mio = r && r.responsable_usuario === usuarioActual;
+  avisoSistema((mio ? "Tu caso #" : "Nuevo mensaje · caso #") + m.caso_id, (r ? r.usuario_discord : "Usuario") + ": " + String(m.texto || "").slice(0, 120), m.caso_id, mio);
+  toast((mio ? "💬 En tu caso #" + m.caso_id + ": " : "Nuevo mensaje en el caso #" + m.caso_id + " de ") + (r ? r.usuario_discord : "un usuario"), mio ? 9000 : 6000);
+  sonidoNuevo();
+  if (document.hidden) { nuevosSinVer++; actualizarTitulo(); }
+}
+
+// ---------- Avisos por correo (Edge Function «correo», con Brevo) ----------
+let correoAvisado = false;
+async function avisarCorreo(body) {
+  try {
+    const { data, error } = await db.functions.invoke("correo", { body });
+    if (error) {
+      let m = error.message; try { const j = await error.context.json(); if (j && j.error) m = j.error; } catch (_) {}
+      if (!correoAvisado) { correoAvisado = true; toast("No se pudo enviar el aviso por correo: " + m, 7000); }
+    } else if (data && data.error && !correoAvisado) { correoAvisado = true; toast("Aviso por correo: " + data.error, 7000); }
+  } catch (_) {}
+}
+// Lo que ve el cliente de cada etapa (igual que en su portal)
+const estadoCliente = e => e === "Aceptado" ? "Completada" : e === "Denegado" ? "Cerrada" : !e || e === ESTADO0 ? "Recibida" : "En curso";
+
+// 16: avisos al responsable
+function avisarAsignado(r) {
+  avisoSistema("Te han asignado el caso #" + r.id, r.titulo || "Sin título", r.id, true);
+  toast("Te han asignado el caso #" + r.id + " · " + (r.titulo || "Sin título"), 7000);
   sonidoNuevo();
   if (document.hidden) { nuevosSinVer++; actualizarTitulo(); }
 }
@@ -525,6 +573,8 @@ function suscribir() {
       if (p.eventType === "INSERT") {
         if (!reportes.some(r => r.id === p.new.id)) { reportes.unshift(p.new); avisarNuevo(p.new); }
       } else if (p.eventType === "UPDATE") {
+        const antes = reportes.find(r => r.id === p.new.id);
+        if (antes && p.new.responsable_usuario === usuarioActual && antes.responsable_usuario !== usuarioActual) avisarAsignado(p.new);
         reportes = reportes.map(r => r.id === p.new.id ? p.new : r);
       } else if (p.eventType === "DELETE") {
         reportes = reportes.filter(r => r.id !== p.old.id);
@@ -566,7 +616,10 @@ async function cambiarEstado(id, estado) {
   render();
   const { error } = await db.from("reportes").update({ estado, resuelto_en: r.resuelto_en }).eq("id", id);
   if (error) { r.estado = anterior; r.resuelto_en = anteriorRes; render(); toast("No se pudo cambiar el estado: " + error.message); }
-  else toast("Caso #" + id + " marcado como " + estado);
+  else {
+    toast("Caso #" + id + " marcado como " + estado);
+    if (r.cliente_id && estadoCliente(anterior) !== estadoCliente(estado)) avisarCorreo({ accion: "aviso_cliente", caso_id: id, motivo: "estado" });
+  }
 }
 
 // Guarda un campo suelto (responsable…) con la misma lógica optimista
@@ -599,17 +652,64 @@ const buscarCampo = sel => (detalleId !== null && $("detalle-cuerpo").querySelec
 
 async function agregarMensaje(id) {
   const ta = buscarCampo(`textarea[data-msg-nuevo="${id}"]`);
-  const texto = (ta ? ta.value : (borradorMsg.get(id) || "")).trim();
-  if (!texto) return;
+  let texto = (ta ? ta.value : (borradorMsg.get(id) || "")).trim();
+  const archivo = adjuntosStaff.get(id);
+  if (!texto && !archivo) return;
   const btn = buscarCampo(`[data-msg-add="${id}"]`);
-  if (btn) btn.disabled = true;
-  const { data, error } = await db.from("mensajes_caso").insert({ caso_id: id, autor_tipo: "staff", autor: usuarioActual, texto }).select().single();
-  if (error) { if (btn) btn.disabled = false; toast("No se pudo enviar la respuesta: " + error.message); return; }
-  borradorMsg.delete(id);
+  if (btn) { btn.disabled = true; btn.textContent = archivo ? "Subiendo…" : "Enviando…"; }
+  const fila = { caso_id: id, autor_tipo: "staff", autor: usuarioActual, texto };
+  if (archivo) {
+    const ruta = id + "/" + crypto.randomUUID() + "-" + nombreSeguro(archivo.name);
+    const { error: eSub } = await db.storage.from("adjuntos").upload(ruta, archivo, { contentType: archivo.type });
+    if (eSub) { if (btn) { btn.disabled = false; btn.textContent = "Enviar respuesta"; } toast("No se pudo subir el archivo: " + eSub.message + " (¿has ejecutado supabase_mejoras.sql?)", 8000); return; }
+    Object.assign(fila, { adjunto_ruta: ruta, adjunto_nombre: archivo.name, adjunto_tipo: archivo.type, adjunto_tamano: archivo.size });
+    if (!texto) fila.texto = texto = "📎 " + archivo.name;
+  }
+  const { data, error } = await db.from("mensajes_caso").insert(fila).select().single();
+  if (error) { if (btn) { btn.disabled = false; btn.textContent = "Enviar respuesta"; } toast("No se pudo enviar la respuesta: " + error.message); return; }
+  borradorMsg.delete(id); adjuntosStaff.delete(id);
+  const rc = reportes.find(x => x.id === id);
+  if (rc && rc.cliente_id) avisarCorreo({ accion: "aviso_cliente", caso_id: id, motivo: "respuesta" });
   if (!mensajes.some(m => m.id === data.id)) mensajes.push(data);
   chatAbiertos.add(id); indexarMensajes(); editando = false; render();
   toast("Respuesta enviada al cliente");
 }
+
+const ADJ_TIPOS = ["image/png", "image/jpeg", "image/gif", "image/webp", "application/pdf", "text/plain", "application/zip", "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"];
+const nombreSeguro = n => n.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(-80) || "archivo";
+const tamano = b => b >= 1048576 ? (b / 1048576).toFixed(1).replace(".", ",") + " MB" : Math.max(1, Math.round(b / 1024)) + " KB";
+async function abrirAdjunto(msgId) {
+  const m = mensajes.find(x => x.id === msgId);
+  if (!m || !m.adjunto_ruta) return;
+  const w = window.open("", "_blank");
+  const { data, error } = await db.storage.from("adjuntos").createSignedUrl(m.adjunto_ruta, 600);
+  if (error) { if (w) w.close(); toast("No se pudo abrir el archivo: " + error.message, 6000); return; }
+  if (w) w.location = data.signedUrl; else location.href = data.signedUrl;
+}
+document.addEventListener("change", e => {
+  const inp = e.target.closest?.("input[data-adj-caso]");
+  if (!inp) return;
+  const id = Number(inp.dataset.adjCaso), f = inp.files[0];
+  if (f && !ADJ_TIPOS.includes(f.type)) { toast("Tipo de archivo no permitido. Usa imágenes, PDF, Word, Excel, TXT o ZIP."); inp.value = ""; return; }
+  if (f && f.size > 10485760) { toast("El archivo no puede pasar de 10 MB."); inp.value = ""; return; }
+  if (f) adjuntosStaff.set(id, f); else adjuntosStaff.delete(id);
+  render();
+});
+// 15: respuesta rápida → se escribe en el cuadro del chat ({nombre} = nombre del cliente)
+document.addEventListener("change", e => {
+  const sel = e.target.closest?.("select[data-rr-caso]");
+  if (!sel || !sel.value) return;
+  const id = Number(sel.dataset.rrCaso), rr = respuestas.find(x => String(x.id) === sel.value), r = reportes.find(x => x.id === id);
+  if (!rr) return;
+  const texto = rr.texto.replace(/\{nombre\}/g, String(r && r.usuario_discord || "").split(" ")[0] || "");
+  const ta = buscarCampo(`textarea[data-msg-nuevo="${id}"]`);
+  const actual = ta ? ta.value.trim() : (borradorMsg.get(id) || "");
+  const nuevo = actual ? actual + "\n\n" + texto : texto;
+  borradorMsg.set(id, nuevo);
+  if (ta) { ta.value = nuevo; ta.focus(); }
+  sel.value = "";
+});
 
 // ---------- Notas del staff (historial) ----------
 async function agregarNota(id) {
@@ -1148,6 +1248,11 @@ document.addEventListener("keydown", e => {
 
 document.addEventListener("click", e => {
   if (e.target.closest("[data-archivo]")) { verArchivados = !verArchivados; render(); return; }
+  const adjM = e.target.closest("[data-adj-msg]");
+  if (adjM) { abrirAdjunto(Number(adjM.dataset.adjMsg)); return; }
+  const adjQ = e.target.closest("[data-adj-quitar]");
+  if (adjQ) { adjuntosStaff.delete(Number(adjQ.dataset.adjQuitar)); render(); return; }
+  if (e.target.closest("[data-rr-gestionar]")) { abrirRespuestas(); return; }
   const addM = e.target.closest("[data-msg-add]");
   if (addM) { agregarMensaje(Number(addM.dataset.msgAdd)); return; }
   const mas = e.target.closest("[data-mas]");
@@ -1191,7 +1296,8 @@ document.addEventListener("change", e => {
   const sel = e.target.closest?.("[data-resp]");
   if (sel) {
     const id = Number(sel.dataset.resp), v = sel.value || null;
-    guardarCampo(id, "responsable_usuario", v, v ? "Caso #" + id + " asignado a " + bonito(v) : "Caso #" + id + " sin responsable");
+    guardarCampo(id, "responsable_usuario", v, v ? "Caso #" + id + " asignado a " + bonito(v) : "Caso #" + id + " sin responsable")
+      .then(() => { const r = reportes.find(x => x.id === id); if (v && v !== usuarioActual && r && r.responsable_usuario === v) avisarCorreo({ accion: "aviso_responsable", caso_id: id }); });
     render();
     return;
   }
@@ -1335,11 +1441,19 @@ function pintarDetalle() {
   const listaChat = ms.length ? `<ul class="space-y-2 max-h-72 overflow-y-auto">${ms.map(m => `
       <li class="rounded-md border px-3 py-2 ${m.autor_tipo === "staff" ? "bg-fx/10 border-fx/30" : "bg-base border-line"}">
         <div class="text-xs text-slate-400"><span class="font-medium text-slate-200">${m.autor_tipo === "staff" ? esc(bonito(m.autor || "staff")) + " (Webcare)" : esc(r.usuario_discord || "Cliente")}</span> · ${esc(fechaCorta(m.creado_en))}</div>
-        <p class="mt-1 text-sm text-slate-200 whitespace-pre-wrap break-words">${esc(m.texto)}</p>
+        ${m.adjunto_ruta && m.texto === "📎 " + m.adjunto_nombre ? "" : `<p class="mt-1 text-sm text-slate-200 whitespace-pre-wrap break-words">${esc(m.texto)}</p>`}
+        ${m.adjunto_ruta ? `<button type="button" data-adj-msg="${m.id}" class="mt-1.5 inline-flex items-center gap-1.5 rounded-md border border-line bg-panel px-2.5 py-1 text-xs text-slate-200 hover:border-fx">📎 ${esc(m.adjunto_nombre || "Archivo")}${m.adjunto_tamano ? " · " + tamano(m.adjunto_tamano) : ""}</button>` : ""}
       </li>`).join("")}</ul>` : `<p class="text-sm text-slate-500">El cliente aún no ha escrito.</p>`;
+  const adjElegido = adjuntosStaff.get(r.id);
   const formChat = borrado ? "" : `
-    <textarea data-msg-nuevo="${r.id}" maxlength="1000" rows="3" placeholder="Responder al cliente…"
-      class="mt-3 w-full resize-y bg-base border border-line rounded-md px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:border-fx focus:outline-none">${esc(borradorMsg.get(r.id) || "")}</textarea>
+    <div class="mt-3 flex flex-wrap items-center gap-2">
+      <select data-rr-caso="${r.id}" aria-label="Respuesta rápida" class="sel"><option value="">⚡ Respuesta rápida…</option>${respuestas.map(x => `<option value="${x.id}">${esc(x.titulo)}</option>`).join("")}</select>
+      <button type="button" data-rr-gestionar class="text-xs text-slate-400 hover:text-white underline">Gestionar</button>
+      <label class="ml-auto cursor-pointer rounded-md border border-line px-2.5 py-1.5 text-xs text-slate-300 hover:border-fx" title="Adjuntar archivo (máx. 10 MB)">📎 Adjuntar<input type="file" data-adj-caso="${r.id}" accept="${ADJ_TIPOS.join(",")}" class="hidden"></label>
+    </div>
+    ${adjElegido ? `<p class="mt-2 text-xs text-slate-300">📎 ${esc(adjElegido.name)} · ${tamano(adjElegido.size)} <button type="button" data-adj-quitar="${r.id}" class="ml-1 underline text-slate-400 hover:text-white">Quitar</button></p>` : ""}
+    <textarea data-msg-nuevo="${r.id}" maxlength="2000" rows="3" placeholder="Responder al cliente…"
+      class="mt-2 w-full resize-y bg-base border border-line rounded-md px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:border-fx focus:outline-none">${esc(borradorMsg.get(r.id) || "")}</textarea>
     <div class="mt-2 flex items-center justify-between gap-2">
       <span class="text-xs ${r.cliente_id ? "text-amber-300/80" : "text-slate-500"}">${r.cliente_id ? "Lo verá el cliente en su portal" : "Este caso no está vinculado a una cuenta del portal: el cliente no verá el chat"}</span>
       <button type="button" data-msg-add="${r.id}" class="rounded-md bg-fx hover:bg-fx2 disabled:opacity-60 text-[#1a1005] text-sm font-semibold px-3.5 py-1.5 transition-colors">Enviar respuesta</button>
@@ -1476,7 +1590,7 @@ function renderClientes() {
         <span class="w-9 h-9 shrink-0 rounded-full grid place-items-center text-sm font-bold text-[#1a1005] bg-gradient-to-br from-amber-300 to-orange-500">${inicial(c.nombre)}</span>
         <div class="min-w-0">
           <h3 class="text-[15px] font-semibold text-white truncate">${esc(c.nombre)}</h3>
-          <p class="text-xs text-slate-400 truncate">${esc(c.email)}${c.dominio ? " · " + esc(c.dominio) : ""}</p>
+          <p class="text-xs text-slate-400 truncate">${esc(c.email)}${c.dominio ? " · " + esc(c.dominio) : ""}${c.telefono ? " · " + esc(c.telefono) : ""}</p>
         </div>
       </div>
       <div class="flex flex-wrap gap-1.5">
@@ -1490,6 +1604,15 @@ function renderClientes() {
   }).join("") : `<div class="sm:col-span-2 xl:col-span-3 rounded-xl border border-dashed border-line p-8 text-center text-sm text-slate-500">${clientes.length ? "Ningún cliente coincide con la búsqueda." : "Todavía no se ha registrado ningún cliente en el portal."}</div>`;
 }
 $("cli-buscar").addEventListener("input", renderClientes);
+// 13: el día 1 de cada mes se hace solo; este botón (solo propietarios) lo hace al momento
+$("cerrar-mes").addEventListener("click", async () => {
+  const mes = new Date().toLocaleDateString("es-ES", { month: "long", year: "numeric" });
+  if (!confirm("Se guardarán en el historial los datos de " + mes + " de cada cliente y se pondrán a cero los contadores del mes (ataques, actualizaciones, cambios, horas). ¿Seguir?")) return;
+  const hoy = new Date(), m = hoy.getFullYear() + "-" + String(hoy.getMonth() + 1).padStart(2, "0") + "-01";
+  const { data, error } = await db.rpc("cerrar_mes", { p_mes: m });
+  if (error) { toast("No se pudo cerrar el mes: " + error.message + " (¿has ejecutado supabase_mejoras.sql?)", 8000); return; }
+  toast("Mes cerrado para " + data + " cliente" + (data === 1 ? "" : "s"), 5000); recargarClientes();
+});
 
 const aLocal = d => { if (!d) return ""; const x = new Date(d); return new Date(x - x.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
 function campoF(id, label, val, tipo = "text", extra = "") {
@@ -1532,6 +1655,11 @@ function abrirFicha(id) {
         <label class="block"><span class="block text-xs text-slate-400 mb-1">Certificado SSL</span>
           <select id="f-ssl_activo" class="campo text-sm" style="padding:.5rem .7rem"><option value="">Sin dato</option><option value="true" ${w.ssl_activo === true ? "selected" : ""}>Activo</option><option value="false" ${w.ssl_activo === false ? "selected" : ""}>Inactivo</option></select></label>
         ${campoF("velocidad", "Velocidad de carga (s)", w.velocidad, "number", 'min="0" step="0.1" placeholder="3,1"')}
+        <div class="col-span-2 sm:col-span-4 flex flex-wrap items-center gap-3 rounded-lg border border-line bg-panel px-3 py-2.5">
+          <label class="flex items-center gap-2 text-sm text-slate-200"><input id="f-medir_auto" type="checkbox" ${w.medir_auto === false ? "" : "checked"}> Medición automática</label>
+          <span class="text-[11px] text-slate-500 flex-1 min-w-[12rem]">Cada hora se comprueba si su web está en línea y una vez al día su velocidad con Google PageSpeed (rellena % online, SSL, velocidad y puntuación). ${w.pagespeed_en ? "Última medición de velocidad: " + esc(fechaCorta(w.pagespeed_en)) + "." : ""}</span>
+          <button type="button" id="ficha-medir" class="rounded-md border border-line px-3 py-1.5 text-xs text-slate-200 hover:border-fx">Medir ahora</button>
+        </div>
         <div class="col-span-2">${campoF("ultima_copia", "Última copia de seguridad", aLocal(w.ultima_copia), "datetime-local")}</div>
         <div class="col-span-2">${campoF("copias_guardadas", "Copias guardadas", w.copias_guardadas, "number", 'min="0" step="1"')}</div></div>`)}
       ${bloqueF("Este mes hemos hecho por ti", "", `<div class="${g4}">
@@ -1555,6 +1683,7 @@ function abrirFicha(id) {
       ${bloqueF("Facturación", "", `${campoF("metodo_pago", "Método de pago", w.metodo_pago, "text", 'placeholder="Visa terminada en 4242"')}
         <p class="mt-4 mb-2 text-xs font-semibold text-slate-300">Facturas</p>${filasHTML("facturas", w.facturas)}`)}
       <p id="ficha-error" class="hidden text-sm text-red-300"></p>
+      ${bloqueF("Historial de cambios", "Quién cambió qué en esta ficha (las mediciones automáticas no se apuntan).", `<ol id="ficha-cambios" class="space-y-2 text-sm text-slate-300"><li class="text-slate-500">Cargando…</li></ol>`)}
     </form>
     <div class="sticky bottom-0 bg-panel border-t border-line px-5 sm:px-6 py-3 flex items-center gap-2">
       <span class="text-xs text-slate-500">${webs.get(id) ? "Última edición " + esc(hace(Date.now() - new Date(w.actualizado_en)).toLowerCase()) + (w.actualizado_por ? " por " + esc(bonito(w.actualizado_por)) : "") : "Esta ficha todavía está vacía."}</span>
@@ -1564,6 +1693,48 @@ function abrirFicha(id) {
   $("ficha-modal").classList.remove("hidden");
   $("ficha-cuerpo").scrollTop = 0;
   $("f-nombre").focus();
+  cargarCambiosFicha(id);
+}
+const ETIQUETAS_FICHA = { plan: "Plan", puntuacion: "Puntuación", resumen: "Mensaje de estado", revisado_en: "Última revisión", disponibilidad: "% online",
+  amenazas: "Amenazas", ssl_activo: "SSL", ultima_copia: "Última copia", copias_guardadas: "Copias guardadas", velocidad: "Velocidad (s)",
+  mes_actualizaciones: "Actualizaciones del mes", mes_ataques: "Ataques del mes", mes_cambios: "Cambios del mes", mes_horas: "Horas de trabajo",
+  horas_incluidas: "Horas incluidas", horas_usadas: "Horas usadas", recomendacion: "Recomendación", proximos: "Próximamente",
+  seo_periodo: "Periodo SEO", seo_visitas: "% visitas", seo_impresiones: "% impresiones", seo_clics: "% clics", seo_primera_pagina: "Palabras en 1.ª página",
+  seo_palabras: "Palabras clave", seo_acciones: "Trabajo SEO", seo_informe_url: "Informe SEO", metodo_pago: "Método de pago", facturas: "Facturas", medir_auto: "Medición automática" };
+function valorFicha(v) {
+  if (v === null || v === undefined || v === "") return "—";
+  if (Array.isArray(v)) return v.length + (v.length === 1 ? " elemento" : " elementos");
+  if (typeof v === "boolean") return v ? "Sí" : "No";
+  if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}T/.test(v)) return fechaCorta(v);
+  return String(v).length > 60 ? String(v).slice(0, 57) + "…" : String(v);
+}
+async function cargarCambiosFicha(id) {
+  const { data, error } = await db.from("webs_cliente_cambios").select("autor,cambios,creado_en").eq("cliente_id", id).order("creado_en", { ascending: false }).limit(30);
+  const ol = $("ficha-cambios");
+  if (!ol || fichaId !== id) return;
+  if (error) { ol.innerHTML = `<li class="text-slate-500">No disponible: ${esc(error.message)} (¿has ejecutado supabase_mejoras.sql?)</li>`; return; }
+  ol.innerHTML = data.length ? data.map(c => `<li class="rounded-md bg-panel border border-line px-3 py-2">
+      <span class="text-xs text-slate-500">${esc(bonito(c.autor || "sistema"))} · ${esc(fechaCorta(c.creado_en))}</span>
+      <span class="block mt-0.5 break-words">${Object.entries(c.cambios).map(([k, [a, b]]) => `<b class="font-medium text-slate-200">${esc(ETIQUETAS_FICHA[k] || k)}:</b> ${esc(valorFicha(a))} → ${esc(valorFicha(b))}`).join(" · ")}</span></li>`).join("")
+    : `<li class="text-slate-500">Todavía no hay cambios registrados.</li>`;
+}
+async function medirAhora() {
+  const id = fichaId, btn = $("ficha-medir");
+  btn.disabled = true; btn.textContent = "Midiendo… (hasta 1 min)";
+  const { data, error } = await db.functions.invoke("medir", { body: { cliente_id: id } });
+  btn.disabled = false; btn.textContent = "Medir ahora";
+  let msg = error ? error.message : data && data.error;
+  if (error) { try { const j = await error.context.json(); if (j && j.error) msg = j.error; } catch (_) {} }
+  if (msg) { toast("No se pudo medir: " + msg + " (¿has desplegado la función «medir»?)", 8000); return; }
+  const r = data.resultado || {};
+  const { data: w } = await db.from("webs_cliente").select("*").eq("cliente_id", id).maybeSingle();
+  if (w) webs.set(id, w);
+  if (fichaId === id) {
+    const pon = (k, v) => { const el = $("f-" + k); if (el && v !== undefined && v !== null) el.value = v; };
+    pon("disponibilidad", r.disponibilidad); pon("velocidad", r.velocidad); pon("puntuacion", r.puntuacion);
+    if (r.ssl_activo !== undefined) pon("ssl_activo", String(r.ssl_activo)); if (r.revisado_en) pon("revisado_en", aLocal(r.revisado_en));
+  }
+  toast((r.online ? "✅ La web responde" : "⚠️ La web no responde") + (r.velocidad ? " · velocidad " + String(r.velocidad).replace(".", ",") + " s" : "") + (r.puntuacion !== undefined ? " · puntuación " + r.puntuacion : ""), 7000);
 }
 function cerrarFicha(forzar) {
   if (!forzar && fichaId !== null && !$("ficha-modal").classList.contains("hidden") && !confirm("¿Cerrar sin guardar los cambios de la ficha?")) return;
@@ -1605,7 +1776,7 @@ function leerFicha() {
     seo_periodo: texto("seo_periodo"), seo_visitas: num("seo_visitas", "El % de visitas", { entero: true }), seo_impresiones: num("seo_impresiones", "El % de impresiones", { entero: true }),
     seo_clics: num("seo_clics", "El % de clics", { entero: true }), seo_primera_pagina: num("seo_primera_pagina", "Las palabras en primera página", { min: 0, entero: true }),
     seo_palabras: palabras, seo_acciones: filas("seo_acciones").map(a => ({ texto: a.texto })), seo_informe_url: informe,
-    metodo_pago: texto("metodo_pago"), facturas
+    metodo_pago: texto("metodo_pago"), facturas, medir_auto: $("f-medir_auto").checked
   };
   return { errores, datos, cliente: { nombre, dominio: v("dominio").replace(/^https?:\/\//i, "").replace(/\/.*$/, "") || null } };
 }
@@ -1641,6 +1812,7 @@ async function recargarClientes() {
 $("ficha-modal").addEventListener("click", e => {
   if (e.target.closest("[data-ficha-cerrar]")) { cerrarFicha(); return; }
   if (e.target.closest("#ficha-guardar")) { guardarFicha(); return; }
+  if (e.target.closest("#ficha-medir")) { medirAhora(); return; }
   const add = e.target.closest("[data-fila-add]");
   if (add) { const k = add.dataset.filaAdd, box = $("ficha-cuerpo").querySelector(`[data-filas="${k}"]`); box.insertAdjacentHTML("beforeend", filaHTML(FILAS[k])); box.lastElementChild.querySelector("input").focus(); return; }
   const del = e.target.closest("[data-fila-del]");
@@ -1650,6 +1822,36 @@ document.addEventListener("click", e => {
   const f = e.target.closest("[data-ficha]");
   if (f && !e.target.closest("#ficha-modal")) { e.stopPropagation(); abrirFicha(f.dataset.ficha); }
 }, true);
+
+// ---------- 15: respuestas rápidas ----------
+function pintarRespuestas() {
+  $("rr-lista").innerHTML = respuestas.length ? respuestas.map(x => `
+    <li class="rounded-md bg-base border border-line px-3 py-2">
+      <div class="flex items-center gap-2"><span class="text-sm font-medium text-slate-200">${esc(x.titulo)}</span>
+        <button type="button" data-rr-borrar="${x.id}" class="ml-auto text-xs text-slate-500 hover:text-red-300">Borrar</button></div>
+      <p class="mt-1 text-xs text-slate-400 whitespace-pre-wrap break-words">${esc(x.texto)}</p>
+    </li>`).join("") : `<li class="text-sm text-slate-500">Todavía no hay respuestas guardadas.</li>`;
+}
+function abrirRespuestas() { pintarRespuestas(); $("rr-error").classList.add("hidden"); $("rr-modal").classList.remove("hidden"); $("rr-nombre").focus(); }
+const cerrarRespuestas = () => { $("rr-modal").classList.add("hidden"); render(); };
+$("rr-modal").addEventListener("click", async e => {
+  if (e.target === $("rr-modal") || e.target.closest("[data-rr-cerrar]")) { cerrarRespuestas(); return; }
+  const b = e.target.closest("[data-rr-borrar]");
+  if (!b || !confirm("¿Borrar esta respuesta rápida para todo el equipo?")) return;
+  const { error } = await db.from("respuestas_rapidas").delete().eq("id", Number(b.dataset.rrBorrar));
+  if (error) { toast("No se pudo borrar: " + error.message); return; }
+  respuestas = respuestas.filter(x => String(x.id) !== b.dataset.rrBorrar); pintarRespuestas();
+});
+$("rr-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const titulo = $("rr-nombre").value.trim(), texto = $("rr-texto").value.trim(), err = $("rr-error");
+  if (!titulo || !texto) { err.textContent = "Escribe un título y el texto."; err.classList.remove("hidden"); return; }
+  const { data, error } = await db.from("respuestas_rapidas").insert({ titulo, texto, creado_por: usuarioActual }).select().single();
+  if (error) { err.textContent = "No se pudo guardar: " + error.message + " (¿has ejecutado supabase_mejoras.sql?)"; err.classList.remove("hidden"); return; }
+  respuestas = [...respuestas, data].sort((a, b) => a.titulo.localeCompare(b.titulo, "es"));
+  $("rr-nombre").value = ""; $("rr-texto").value = ""; err.classList.add("hidden"); pintarRespuestas(); toast("Respuesta rápida guardada");
+});
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("rr-modal").classList.contains("hidden")) { e.stopPropagation(); cerrarRespuestas(); } }, true);
 
 // ---------- Inicio de sesión ----------
 // (el usuario se convierte en correo con DOMINIO_STAFF; la pertenencia al staff se comprueba en la tabla "staff")
@@ -1679,6 +1881,7 @@ async function entrar(session) {
   listaStaff = data;
   usuarioActual = yo.usuario; soyDueno = yo.es_dueno === true;
   $("admin-abrir").classList.toggle("hidden", !soyDueno);      // solo los propietarios gestionan administradores
+  $("cerrar-mes").classList.toggle("hidden", !soyDueno);
   $("quien").textContent = bonito(yo.usuario);
   $("login").classList.add("hidden");
   cargar();
@@ -1697,8 +1900,10 @@ $("login-form").addEventListener("submit", async e => {
   $("login-error").classList.add("hidden");
   const usuario = $("login-user").value.trim().toLowerCase(), pw = $("login-pass").value;
   if (errorInicial) return errorLogin("No hay conexión con Supabase: " + errorInicial);
-  const email = /^[a-z0-9_.-]{3,30}$/.test(usuario) ? usuario + "@" + DOMINIO_STAFF : null;
-  if (!email || !pw) return errorLogin("Usuario o contraseña incorrectos.");
+  // Se entra con el correo; por compatibilidad, un usuario sin @ se completa con DOMINIO_STAFF
+  const email = usuario.includes("@") ? (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(usuario) ? usuario : null)
+    : /^[a-z0-9_.-]{3,30}$/.test(usuario) ? usuario + "@" + DOMINIO_STAFF : null;
+  if (!email || !pw) return errorLogin("Correo o contraseña incorrectos.");
   $("login-btn").disabled = true; $("login-btn").textContent = "Entrando…";
   const { data, error } = await db.auth.signInWithPassword({ email, password: pw });
   if (error) await new Promise(r => setTimeout(r, 800));        // pequeña pausa ante intentos fallidos
@@ -1722,7 +1927,7 @@ function pintarAdmins() {
       : `<button type="button" data-quitar="${esc(x.usuario)}" class="shrink-0 rounded-md text-slate-400 hover:text-red-300 hover:bg-red-500/15 text-xs px-2.5 py-1 transition-colors" title="Quitar administrador">Quitar</button>`);
     return `
     <li class="flex items-center gap-2 rounded-md bg-base border border-line px-3 py-2 text-sm">
-      <span class="font-medium text-slate-200">${esc(bonito(x.usuario))}</span>
+      <span class="min-w-0"><span class="block font-medium text-slate-200">${esc(bonito(x.usuario))}</span><span class="block text-[11px] text-slate-500 truncate">${esc(x.email)}</span></span>
       <span class="ml-auto text-xs text-slate-500">${esc(info)}</span>${accion}
     </li>`;
   }).join("");
@@ -1776,24 +1981,25 @@ $("admin-ver").addEventListener("click", () => {
   $("admin-pass").type = visible ? "password" : "text"; $("admin-ver").textContent = visible ? "Mostrar" : "Ocultar";
 });
 $("admin-copiar").addEventListener("click", async () => {
-  try { await navigator.clipboard.writeText("Usuario: " + $("admin-ok-usuario").textContent + "\nContraseña: " + $("admin-ok-clave").textContent); toast("Datos copiados"); }
+  try { await navigator.clipboard.writeText("Correo: " + $("admin-ok-usuario").textContent + "\nContraseña: " + $("admin-ok-clave").textContent); toast("Datos copiados"); }
   catch (_) { toast("No se pudo copiar: selecciónalos y cópialos a mano"); }
 });
 $("admin-form").addEventListener("submit", async e => {
   e.preventDefault();
   const fallo = t => { $("admin-error").textContent = t; $("admin-error").classList.remove("hidden"); $("admin-ok").classList.add("hidden"); };
   $("admin-error").classList.add("hidden");
-  const usuario = $("admin-user").value.trim().toLowerCase(), password = $("admin-pass").value;
+  const usuario = $("admin-user").value.trim().toLowerCase(), password = $("admin-pass").value, correo = $("admin-correo").value.trim().toLowerCase();
   if (!/^[a-z0-9_.-]{3,30}$/.test(usuario)) return fallo("El usuario debe tener entre 3 y 30 caracteres: letras sin tildes, números, punto, guion o guion bajo.");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) return fallo("Escribe el correo real de la persona.");
   if (password.length < 12) return fallo("La contraseña debe tener al menos 12 caracteres.");
   if (listaStaff.some(x => x.usuario === usuario)) return fallo("Ese usuario ya existe.");
   $("admin-btn").disabled = true; $("admin-btn").textContent = "Creando…";
-  const { error } = await invocarStaff({ accion: "crear", usuario, password });
+  const { error } = await invocarStaff({ accion: "crear", usuario, password, correo });
   $("admin-btn").disabled = false; $("admin-btn").textContent = "Añadir administrador";
   if (error) return fallo("No se pudo crear: " + await mensajeError(error));
   await recargarStaff();
-  $("admin-ok-usuario").textContent = usuario; $("admin-ok-clave").textContent = password; $("admin-ok").classList.remove("hidden");
-  $("admin-user").value = ""; $("admin-pass").value = ""; $("admin-pass").type = "password"; $("admin-ver").textContent = "Mostrar";
+  $("admin-ok-usuario").textContent = correo; $("admin-ok-clave").textContent = password; $("admin-ok").classList.remove("hidden");
+  $("admin-correo").value = ""; $("admin-user").value = ""; $("admin-pass").value = ""; $("admin-pass").type = "password"; $("admin-ver").textContent = "Mostrar";
   toast("Administrador " + bonito(usuario) + " añadido");
 });
 

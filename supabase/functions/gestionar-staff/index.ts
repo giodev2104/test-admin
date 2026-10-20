@@ -5,7 +5,8 @@
 // SUPABASE_URL, SUPABASE_ANON_KEY y SUPABASE_SERVICE_ROLE_KEY ya los pone Supabase.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
-const DOMINIO_STAFF = "gmail.com"; // igual que en index.html
+// Cada administrador entra con SU correo real (nunca uno inventado: el dueño de ese buzón
+// podría pedir un enlace para cambiar la contraseña y entrar en el panel).
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -26,11 +27,12 @@ Deno.serve(async (req) => {
     const { data: yo } = await admin.from("staff").select("usuario,es_dueno").eq("email", user.email.toLowerCase()).maybeSingle();
     if (!yo?.es_dueno) return responder({ error: "Solo los propietarios pueden gestionar administradores." }, 403);
 
-    const { accion, usuario, password } = await req.json();
+    const { accion, usuario, password, correo } = await req.json();
     if (!/^[a-z0-9_.-]{3,30}$/.test(usuario || "")) return responder({ error: "Usuario no válido." }, 400);
-    const email = usuario + "@" + DOMINIO_STAFF;
 
     if (accion === "crear") {
+      const email = String(correo || "").trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return responder({ error: "Escribe el correo real de la persona." }, 400);
       if (typeof password !== "string" || password.length < 12)
         return responder({ error: "La contraseña debe tener al menos 12 caracteres." }, 400);
       const { data: nuevo, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
@@ -41,12 +43,12 @@ Deno.serve(async (req) => {
     }
 
     if (accion === "borrar") {
-      const { data: obj } = await admin.from("staff").select("usuario,es_dueno").eq("usuario", usuario).maybeSingle();
+      const { data: obj } = await admin.from("staff").select("usuario,email,es_dueno").eq("usuario", usuario).maybeSingle();
       if (!obj) return responder({ error: "Ese administrador no existe." }, 404);
       if (obj.es_dueno || usuario === yo.usuario) return responder({ error: "No se puede quitar a un propietario." }, 400);
       await admin.from("staff").delete().eq("usuario", usuario);
       const { data: lista } = await admin.auth.admin.listUsers({ perPage: 1000 });
-      const u = lista?.users.find((x) => x.email?.toLowerCase() === email);
+      const u = lista?.users.find((x) => x.email?.toLowerCase() === String(obj.email).toLowerCase());
       if (u) await admin.auth.admin.deleteUser(u.id);
       return responder({ ok: true });
     }

@@ -1,0 +1,68 @@
+# Copia de seguridad semanal de la base de datos de Supabase (gratis con GitHub Actions).
+# Guarda un archivo CIFRADO (con tu clave) durante 90 días en la pestaña Actions del repositorio.
+#
+# Configuración (una vez), en GitHub: Settings > Secrets and variables > Actions > New repository secret
+#   SUPABASE_DB_URL  → Supabase > botón «Connect» > «Session pooler» > copia la URI y pon tu contraseña
+#                      de la base de datos en lugar de [YOUR-PASSWORD]
+#   CLAVE_COPIA      → una contraseña larga que inventes y guardes bien: sin ella no se puede abrir la copia
+#
+# Para hacer una copia al momento: pestaña Actions > «Copia de seguridad» > Run workflow.
+# Para restaurarla, mira GUIA.md (apartado «Copias de seguridad»).
+name: Copia de seguridad
+
+on:
+  schedule:
+    - cron: "30 3 * * 1"   # lunes a las 03:30 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  copia:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Comprobar la configuración
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          CLAVE_COPIA: ${{ secrets.CLAVE_COPIA }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ] || [ -z "$CLAVE_COPIA" ]; then
+            echo "::error::Faltan los secretos SUPABASE_DB_URL y/o CLAVE_COPIA (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+
+      - name: Instalar pg_dump 17
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+
+      - name: Exportar y cifrar
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          CLAVE_COPIA: ${{ secrets.CLAVE_COPIA }}
+        run: |
+          set -euo pipefail
+          PGBIN=/usr/lib/postgresql/17/bin
+          f="webcare-$(date -u +%Y-%m-%d).sql"
+          # Tablas de la aplicación (estructura + datos) y cuentas del equipo (solo datos)
+          $PGBIN/pg_dump "$SUPABASE_DB_URL" --schema=public --no-owner --no-privileges > "$f"
+          $PGBIN/pg_dump "$SUPABASE_DB_URL" --data-only --table=auth.users --table=auth.identities --no-owner --no-privileges > "auth-$f"
+          tar -czf "$f.tar.gz" "$f" "auth-$f"
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$CLAVE_COPIA" --symmetric --cipher-algo AES256 -o "$f.tar.gz.gpg" "$f.tar.gz"
+          rm -f "$f" "auth-$f" "$f.tar.gz"
+          ls -lh "$f.tar.gz.gpg"
+          echo "ARCHIVO=$f.tar.gz.gpg" >> "$GITHUB_ENV"
+
+      - name: Guardar la copia (90 días)
+        uses: actions/upload-artifact@v4
+        with:
+          name: copia-${{ env.ARCHIVO }}
+          path: ${{ env.ARCHIVO }}
+          retention-days: 90
+          if-no-files-found: error

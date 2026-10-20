@@ -10,7 +10,8 @@
 -- · Los CLIENTES no usan Supabase Auth: sus cuentas están en la tabla
 --   "clientes" y el portal solo puede usar las funciones cliente_*.
 --
--- Después, para entrar en el panel, sigue el paso 9 (al final).
+-- Después ejecuta también supabase_mejoras.sql (privacidad, correo,
+-- adjuntos, historial…) y, para entrar en el panel, sigue el paso 9.
 -- =====================================================================
 
 create extension if not exists pgcrypto with schema extensions;
