@@ -37,6 +37,8 @@
   .fop .n + .ok { margin-left: 0; padding-left: 8px; }
   @keyframes fop-entra { from { opacity: 0; transform: translateY(-6px); } }
   .tab-op { animation: tab-entra .22s ease-out both; }
+  .tab-ops { display: flex; flex-wrap: wrap; gap: 6px; }
+  @media (min-width: 640px) { .tab-ops { position: absolute; left: 100%; top: -4px; bottom: -4px; z-index: 40; align-items: center; flex-wrap: nowrap; padding: 0 10px 0 6px; background: #0e1117; border-radius: 0 12px 12px 0; box-shadow: 22px 0 22px -4px #0e1117; } }
   @keyframes tab-entra { from { opacity: 0; transform: translateX(-10px); } }
   @media (prefers-reduced-motion: reduce) { .tab-op, .fop { animation: none; } }
   .rail-btn.on { color: #1a1005; background: #f6a01a; box-shadow: 0 6px 18px rgba(246,160,26,.3); }
@@ -160,7 +162,7 @@
           <span id="contador" class="text-xs text-slate-500 pt-2"></span>
         </header>
         <div class="flex flex-wrap items-center gap-2 mb-4 rounded-xl border border-line bg-panel/60 p-2">
-          <nav id="tabs" class="flex flex-wrap items-center gap-1.5" aria-label="Filtrar por tipo"></nav>
+          <nav id="tabs" class="relative flex flex-wrap items-center gap-1.5" aria-label="Filtrar por tipo"></nav>
           <div class="ml-auto flex flex-wrap gap-2">
             <select id="filtro-resp" aria-label="Filtrar por responsable" class="sel">
               <option value="">Todos los responsables</option>
@@ -1168,15 +1170,7 @@ function render() {
   $("badge-msg").classList.toggle("hidden", !nResp);
   $("badge-msg").classList.toggle("grid", !!nResp);
 
-  // Filtro por tipo: un botón con el tipo elegido que se despliega en horizontal para cambiarlo
-  const cuenta = v => v.id === "Todos" ? activos().length : activos().filter(r => tipoDe(r) === v.id).length;
-  const actual = VISTAS.find(v => v.id === filtro) || VISTAS[0];
-  $("tabs").innerHTML = `<button type="button" class="tab tab-actual fbtn${filtro !== "Todos" ? " usado" : ""}" data-vista="${actual.id}" aria-expanded="${tabsAbiertas}" aria-label="Tipo: ${actual.label}. ${tabsAbiertas ? "Cerrar" : "Cambiar"}">
-      <span class="w-2 h-2 rounded-full ${actual.dot}"></span>${actual.label}<span class="n">${cuenta(actual)}</span>
-      <svg class="fl" style="${tabsAbiertas ? "transform:rotate(180deg)" : ""}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>`
-    + (tabsAbiertas ? VISTAS.filter(v => v.id !== actual.id).map((v, i) => `<button type="button" data-vista="${v.id}" aria-pressed="false" style="animation-delay:${i * 35}ms"
-      class="tab tab-op flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px] font-medium whitespace-nowrap text-slate-400 hover:text-white hover:bg-raised transition-colors">
-      <span class="w-2 h-2 rounded-full ${v.dot}"></span>${v.label}<span class="text-xs text-slate-600">${cuenta(v)}</span></button>`).join("") : "");
+  pintarTabs();
   $("titulo-vista").textContent = (filtro === "Todos" ? "Leads" : VISTAS.find(v => v.id === filtro).label) + " · Pipeline CRM";
 
   const raw = busqueda.trim(), q = norm(raw.replace(/^#/, "")), porId = /^#\d+$/.test(raw);
@@ -1414,7 +1408,7 @@ document.addEventListener("click", e => {
   if (reset) { fijarUrgencia(Number(reset.dataset.resetUrg), null); render(); return; }
   if (bloquearClick) { e.preventDefault(); e.stopPropagation(); return; }
   const tab = e.target.closest(".tab");
-  if (tab) { if (tab.classList.contains("tab-actual")) tabsAbiertas = !tabsAbiertas; else { filtro = tab.dataset.vista; tabsAbiertas = false; } render(); return; }
+  if (tab) { if (tab.classList.contains("tab-actual")) tabsAbiertas = conRaton || !tabsAbiertas; else { filtro = tab.dataset.vista; tabsAbiertas = false; } render(); return; }
   if (tabsAbiertas && !e.target.closest("#tabs")) { tabsAbiertas = false; render(); }
   // Clic en el cuerpo de una tarjeta (no en botones, listas, barra…) → detalle del caso
   const tarj = e.target.closest(".card-wrap");
@@ -2132,6 +2126,20 @@ function aplicarFiltroGuardado(v) {
   render();
 }
 $("filtro-etq").addEventListener("change", e => { filtroEtiqueta = e.target.value; render(); });
+// Filtro por tipo: un botón con el tipo elegido que se despliega en horizontal (al pasar el ratón o al pulsarlo)
+function pintarTabs() {
+  const cuenta = v => v.id === "Todos" ? activos().length : activos().filter(r => tipoDe(r) === v.id).length;
+  const actual = VISTAS.find(v => v.id === filtro) || VISTAS[0];
+  $("tabs").innerHTML = `<button type="button" class="tab tab-actual fbtn${filtro !== "Todos" ? " usado" : ""}" data-vista="${actual.id}" aria-expanded="${tabsAbiertas}" aria-label="Tipo: ${actual.label}. ${tabsAbiertas ? "Cerrar" : "Cambiar"}">
+      <span class="w-2 h-2 rounded-full ${actual.dot}"></span>${actual.label}<span class="n">${cuenta(actual)}</span>
+      <svg class="fl" style="${tabsAbiertas ? "transform:rotate(180deg)" : ""}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>`
+    + (tabsAbiertas ? `<div class="tab-ops">` + VISTAS.filter(v => v.id !== actual.id).map((v, i) => `<button type="button" data-vista="${v.id}" aria-pressed="false" style="animation-delay:${i * 35}ms"
+      class="tab tab-op flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px] font-medium whitespace-nowrap text-slate-400 hover:text-white hover:bg-raised transition-colors">
+      <span class="w-2 h-2 rounded-full ${v.dot}"></span>${v.label}<span class="text-xs text-slate-600">${cuenta(v)}</span></button>`).join("") + `</div>` : "");
+}
+const conRaton = matchMedia("(hover: hover)").matches;
+$("tabs").addEventListener("mouseenter", () => { if (!conRaton) return; clearTimeout(pintarTabs.t); if (!tabsAbiertas) { tabsAbiertas = true; pintarTabs(); } });
+$("tabs").addEventListener("mouseleave", () => { if (!conRaton) return; pintarTabs.t = setTimeout(() => { if (tabsAbiertas) { tabsAbiertas = false; pintarTabs(); } }, 300); });
 // Los demás filtros: el <select> sigue guardando el valor, pero se ve como un botón con menú vertical
 const EMOJI_FILTRO = {
   "filtro-resp": { "": "👥", __mios: "🙋", __sin: "◌", "*": "👤" },
@@ -2141,6 +2149,8 @@ const EMOJI_FILTRO = {
   "filtros-guardados": { "": "☆", __nuevo: "＋", __borrar: "🗑", "*": "★" },
   orden: { prioridad: "⚡", recientes: "🕒" }
 };
+// Nombre corto en el botón para que todos los filtros quepan en una fila (el menú muestra el texto completo)
+const CORTO = { "filtro-resp": { "": "Responsable" }, "filtro-cat": { "": "Servicio" }, "filtro-cli": { "": "Cliente" }, "filtro-etq": { "": "Etiquetas" }, "filtros-guardados": { "": "Guardados" }, orden: { prioridad: "Recomendado", recientes: "Recientes" } };
 let menuAbierto = null;
 const FLECHA = '<svg class="fl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
 function pintarMenus() {
@@ -2151,7 +2161,8 @@ function pintarMenus() {
     if (!caja) { caja = document.createElement("div"); caja.id = "m-" + id; caja.className = "fsel"; sel.after(caja); }
     const em = v => EMOJI_FILTRO[id][v] ?? EMOJI_FILTRO[id]["*"] ?? "";
     const partes = o => { const t = o.textContent.replace(/^[☆＋🗑⚡#]\s*/u, "").replace(/^(Orden|Tipo):\s*/, ""), m = t.match(/^(.*?)\s*\((\d+)\)$/); return m ? [m[1], m[2]] : [t, ""]; };
-    const ops = [...sel.options], act = ops.find(o => o.value === sel.value) || ops[0], [txt, n] = partes(act), abierto = menuAbierto === id;
+    const ops = [...sel.options], act = ops.find(o => o.value === sel.value) || ops[0], abierto = menuAbierto === id;
+    const [txt, n] = CORTO[id]?.[act.value] ? [CORTO[id][act.value], ""] : partes(act);
     caja.innerHTML = `<button type="button" class="fbtn${act.value && id !== "orden" ? " usado" : ""}" data-fmenu="${id}" aria-haspopup="listbox" aria-expanded="${abierto}" aria-label="${esc(sel.getAttribute("aria-label") || "")}: ${esc(txt)}">
         <span class="fe" aria-hidden="true">${em(act.value)}</span>${esc(txt)}${n ? `<span class="n">${n}</span>` : ""}${FLECHA.replace('class="fl"', `class="fl" style="${abierto ? "transform:rotate(180deg)" : ""}"`)}</button>`
       + (abierto ? `<div class="fmenu" role="listbox">${ops.filter(o => !(id === "filtros-guardados" && o.value === "")).map((o, i) => { const [t, k] = partes(o), si = o.value === act.value && id !== "filtros-guardados";
