@@ -260,7 +260,13 @@ Todos los precios están en la tabla `catalogo` de Supabase (`supabase_catalogo.
 - Cambiar un precio no cambia lo que pagan los clientes que ya tienen una suscripción en Stripe.
 - Los textos de qué incluye cada servicio siguen en el portal (`index.html`, bloque CATÁLOGO).
 
-## 19. Publicar
+## 19. Guía para empleados
+
+Dentro del panel, botón **❓** de la barra lateral (encima de «Cerrar sesión»). Se abre sola la primera vez que entra cada persona.
+Tiene buscador y secciones paso a paso: el día a día, el pipeline, responder casos, urgencias, clientes, entregas, pagos, renovaciones, bóveda, valoraciones, atajos y «¿Qué hago si…?».
+Para cambiar el texto: en `index.html`, busca `const GUIA = [`.
+
+## 20. Publicar
 
 GitHub Pages publica la rama principal. Fusiona la rama `claude/dreamy-albattani-j8rm9a` en **los dos repositorios** (o elígela en Settings > Pages).
 

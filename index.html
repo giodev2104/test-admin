@@ -27,6 +27,8 @@
   .sel { background: #0a0c11; border: 1px solid #232837; border-radius: 10px; padding: .45rem .7rem; font-size: 13px; color: #cbd5e1; }
   .sel:focus { outline: none; border-color: #f6a01a; }
   .chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; border: 1px solid; }
+  details.guia[open] .guia-flecha { transform: rotate(180deg); }
+  details.guia summary::-webkit-details-marker { display: none; }
   .acc-rapida { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; font-size: 12px; line-height: 1; }
   .acc-rapida:hover { background: rgba(255,255,255,.08); }
   .avanzar { width: 26px; height: 22px; border-radius: 6px; border: 1px solid #2a2f3a; color: #cbd5e1; font-weight: 700; font-size: 13px; line-height: 1; }
@@ -92,7 +94,10 @@
     <button id="admin-abrir" type="button" class="rail-btn" title="Equipo y administradores" aria-label="Administradores">
       <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
     </button>
-    <button id="salir" type="button" class="rail-btn mt-auto" title="Cerrar sesión" aria-label="Cerrar sesión">
+    <button id="guia-abrir" type="button" class="rail-btn mt-auto" title="Guía del panel" aria-label="Guía del panel">
+      <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14"/><path d="M12 17h.01"/></svg>
+    </button>
+    <button id="salir" type="button" class="rail-btn" title="Cerrar sesión" aria-label="Cerrar sesión">
       <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>
     </button>
   </aside>
@@ -291,6 +296,21 @@
   <div id="cliente-cuerpo" class="w-full max-w-3xl max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl border border-line bg-panel shadow-2xl"></div>
 </div>
 
+<div id="guia-modal" class="hidden fixed inset-0 z-[70] grid place-items-center bg-black/70 backdrop-blur-sm p-3 sm:p-4" role="dialog" aria-modal="true" aria-labelledby="guia-titulo">
+  <div class="w-full max-w-4xl h-[92vh] flex flex-col rounded-2xl border border-line bg-panel shadow-2xl overflow-hidden">
+    <div class="px-5 sm:px-7 pt-5 pb-4 border-b border-line">
+      <div class="flex items-start gap-3">
+        <span class="w-10 h-10 shrink-0 rounded-xl grid place-items-center bg-fx/15 text-xl">📘</span>
+        <div class="min-w-0"><h2 id="guia-titulo" class="font-display text-xl sm:text-2xl font-bold text-white">Guía del panel</h2>
+          <p class="text-sm text-slate-400">Todo lo que necesitas para atender a los clientes. Busca o abre una sección.</p></div>
+        <button type="button" data-guia-cerrar class="ml-auto text-slate-400 hover:text-white p-1" aria-label="Cerrar">✕</button>
+      </div>
+      <input id="guia-buscar" type="search" placeholder="Busca: responder, urgente, entrega, pagado, renovación…" autocomplete="off"
+        class="campo text-sm mt-4" style="padding:.6rem .8rem" aria-label="Buscar en la guía">
+    </div>
+    <div id="guia-cuerpo" class="flex-1 overflow-y-auto px-5 sm:px-7 py-5 space-y-3"></div>
+  </div>
+</div>
 <div id="precios-modal" class="hidden fixed inset-0 z-[66] grid place-items-center bg-black/70 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="precios-titulo">
   <div class="w-full max-w-3xl max-h-[90vh] flex flex-col rounded-xl border border-line bg-panel shadow-2xl">
     <div class="flex items-start justify-between gap-3 px-5 sm:px-6 pt-5 pb-3 border-b border-line">
@@ -2341,6 +2361,126 @@ async function borrarNotaCliente(id) {
   if (error) { toast("No se pudo borrar: " + error.message); return; }
   notasCliente = notasCliente.filter(n => n.id !== id); pintarCliente();
 }
+// ---------- Guía para el equipo (botón ❓ de la barra lateral; se abre sola la primera vez) ----------
+const paso = (n, t) => `<li class="flex gap-3"><span class="w-6 h-6 shrink-0 rounded-full grid place-items-center text-xs font-bold bg-fx text-[#1a1005]">${n}</span><span class="pt-0.5">${t}</span></li>`;
+const pasos = l => `<ol class="space-y-2.5">${l.map((t, i) => paso(i + 1, t)).join("")}</ol>`;
+const ojo = t => `<p class="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-amber-200">💡 ${t}</p>`;
+const tecla = t => `<kbd class="px-1.5 py-0.5 rounded border border-line bg-base text-xs text-slate-200">${t}</kbd>`;
+const GUIA = [
+  { i: "🚀", t: "Tu día en 5 pasos", k: "empezar inicio rutina dia primeros pasos", abierta: true, h: pasos([
+      "Abre <b>Inicio</b> (primer icono). Arriba ves lo más importante: casos <b>vencidos</b>, <b>sin responder</b> y <b>sin asignar</b>.",
+      "Pulsa «Yo» o «Equipo» para ver solo lo tuyo o lo de todos.",
+      "Empieza por el caso de «Siguiente mejor acción»: el panel ya te dice si toca Responder, Asignar o Resolver.",
+      "Ábrelo, <b>asígnatelo</b> si no tiene responsable y contesta al cliente en el chat.",
+      "Cuando avance, muévelo de columna en el Pipeline (botón <b>→</b>). Al terminar, márcalo como <b>Aceptado</b>."]) },
+  { i: "🗂️", t: "El Pipeline: las 5 columnas", k: "pipeline columnas mover arrastrar estado etapa nuevos contacto propuesta aceptado denegado", h: `
+      <div class="grid sm:grid-cols-5 gap-2 text-center text-xs">${[["Nuevos", "59,130,246", "Acaba de llegar. Responde en menos de 2 h."], ["En contacto", "245,158,11", "Ya hablas con el cliente. 1 día para avanzar."], ["Propuesta", "217,70,239", "Le has enviado precio o propuesta. 2 días."], ["Aceptado", "34,197,94", "Hecho o contratado. Se archiva a los 30 días."], ["Denegado", "239,68,68", "No sigue adelante. Se archiva a los 30 días."]].map(([n, c, d]) =>
+        `<div class="rounded-lg border border-line bg-base p-2.5" style="border-top:3px solid rgb(${c})"><b class="block text-white text-[13px]">${n}</b><span class="text-slate-400">${d}</span></div>`).join("")}</div>
+      <p class="mt-3"><b>Para mover una tarjeta:</b> arrástrala a otra columna, pulsa la flecha <b>→</b> (pasa a la siguiente) o ábrela y pulsa el estado que quieras. En el móvil, arrastra desde el icono de puntitos ⋮⋮.</p>
+      <p class="mt-2"><b>Arriba</b> puedes filtrar por tipo (Leads, Cambios, Incidencias, Dudas), por responsable y por etiqueta, y guardar tus filtros favoritos en «☆ Filtros guardados».</p>
+      ${ojo("Al pasar un caso a <b>Aceptado</b> o <b>Denegado</b>, el cliente recibe un aviso. Si era un cambio de plan, su plan cambia solo en el portal.")}` },
+  { i: "🃏", t: "Cómo leer una tarjeta", k: "tarjeta etiquetas colores temporizador sla temperatura chip", h: `
+      <ul class="space-y-2">
+        <li><b>Etiqueta de color</b> arriba: Lead (cliente nuevo), Cambio, Incidencia o Duda.</li>
+        <li><b>⏱ 5h</b>: tiempo desde que llegó.</li>
+        <li><b>Temporizador abajo a la derecha</b>: tiempo que queda para cumplir el plazo de esa columna. <span class="text-emerald-300">Verde</span> = vas bien · <span class="text-amber-300">Ámbar</span> = quedan menos de 6 h · <span class="text-red-300">Rojo con «-»</span> = plazo vencido.</li>
+        <li><b>● Sin responder</b>: el último mensaje es del cliente. <b>Sin asignar</b>: nadie se ha hecho cargo.</li>
+        <li><b>🚨 Urgente</b>: el cliente pulsó «Es urgente». Tiene su propio plazo (ver «Urgencias»).</li>
+        <li><b>💬 3 · 📝 1</b>: mensajes y notas internas. <b>🟢</b> abre WhatsApp y <b>✉️</b> el correo del cliente.</li>
+        <li><b>Barrita de color</b>: la «temperatura» (prioridad). Azul = tranquilo, rojo = caliente.</li>
+      </ul>` },
+  { i: "💬", t: "Atender un caso y responder al cliente", k: "responder chat mensaje caso asignar responsable respuestas rapidas adjuntar archivo notas internas etiquetas", h: pasos([
+      "Haz clic en la tarjeta para abrir el caso.",
+      "En <b>Responsable</b>, elige tu nombre. Así el equipo sabe que es tuyo.",
+      "Escribe en <b>Chat con el cliente</b>. Lo que pongas ahí <b>lo ve el cliente</b> en su portal y le llega un aviso.",
+      "¿Respuesta habitual? Usa el desplegable de <b>respuestas rápidas</b> y retócala antes de enviar.",
+      "Para mandar un archivo (PDF, imagen, ZIP…) pulsa 📎. Máximo 10 MB.",
+      "Lo que el cliente <b>no</b> debe ver va en <b>Notas internas</b> (solo el equipo).",
+      "Añade <b>etiquetas</b> (#wordpress, #cliente vip…) para encontrar casos parecidos."]) + ojo("Cuando el cliente lee tu mensaje verás <b>✓✓ Visto por el cliente</b>.") },
+  { i: "🚨", t: "Urgencias", k: "urgente urgencia plazo whatsapp prioridad sla vencida", h: `
+      <p>Los clientes con plan pueden marcar un caso como <b>urgente</b>. El plazo para la primera respuesta depende de su plan:</p>
+      <ul class="mt-2 space-y-1"><li>• <b>Mantenimiento Pro</b> y <b>Renting Ecommerce</b>: <b>4 horas</b>.</li><li>• Resto de planes: <b>24 horas</b>.</li></ul>
+      <p class="mt-2">En Inicio aparecen arriba del todo. Responde primero por el chat del caso: en cuanto el equipo contesta, la urgencia queda «atendida».</p>
+      ${ojo("Si ves «Urgencia vencida» en rojo, es lo primero que hay que hacer.")}` },
+  { i: "👤", t: "Clientes y su ficha", k: "cliente ficha web plan datos ver como cliente notas historial servicios", h: `
+      <p>En <b>Clientes</b> (tercer icono) están todas las cuentas del portal. En cada cliente:</p>
+      <ul class="mt-2 space-y-1.5">
+        <li>• <b>Ver cliente</b>: su ficha completa (casos, mensajes, servicios, renovaciones, notas y valoraciones).</li>
+        <li>• <b>Editar ficha</b>: los datos de su web que ve en el portal: plan, tokens del mes, velocidad, seguridad, SEO, cambios realizados…</li>
+        <li>• <b>👁 Ver como cliente</b>: abre su portal tal cual lo ve él, sin poder tocar nada. Ideal para explicarle algo por teléfono.</li>
+        <li>• <b>Notas sobre el cliente</b>: cosas a recordar (prefiere WhatsApp, es exigente con los plazos…).</li>
+      </ul>` },
+  { i: "📦", t: "Entregar un trabajo (web, ZIP, PDF…)", k: "entrega subir archivo zip html pdf descargar pagado pago marcar", h: pasos([
+      "Abre la ficha del cliente → <b>Servicios contratados</b> → el pedido.",
+      "Pulsa <b>📦 Subir entrega</b> y elige el archivo (hasta 50 MB). Puedes añadir una nota.",
+      "El cliente recibe un aviso y ve «Tu entrega está lista».",
+      "<b>Solo puede descargarla cuando el pedido está pagado.</b> Si pagó con tarjeta en el portal, se marca solo. Si pagó por transferencia o Bizum, pulsa <b>Marcar como pagado</b>.",
+      "Tras descargarla, el portal le pide una valoración."]) + ojo("Si lo que entregas es una web, súbela en .zip con todos sus archivos.") },
+  { i: "💶", t: "Pagos, presupuestos y financiación", k: "pago pagar stripe presupuesto plan web precio financiar plazos cuotas", h: `
+      <ul class="space-y-2">
+        <li><b>Extras, packs, mantenimiento y renting</b>: el cliente paga con tarjeta en el portal. El caso aparece <b>solo cuando el pago está confirmado</b> y el mensaje del chat lo indica («💶 Pago recibido por Stripe»).</li>
+        <li><b>Planes de web</b>: van por presupuesto. Llega un caso «Presupuesto: Plan …». Escríbele el precio final por el chat y, cuando pague, pulsa <b>Marcar como pagado</b> en su ficha.</li>
+        <li><b>💳 Financiar</b>: en pedidos desde 150 € el cliente puede pedir pagarlo en 3, 6 o 12 plazos. Te llega como mensaje en el chat del pedido: prepárale el enlace de pago a plazos en Stripe.</li>
+      </ul>
+      ${ojo("Nunca cambies precios por el chat sin consultarlo: los precios oficiales están en Negocio > 💶 Precios.")}` },
+  { i: "📅", t: "Renovaciones", k: "renovacion dominio ssl hosting vencimiento calendario", h: `
+      <p>En <b>Renovaciones</b> (icono del calendario) apuntas lo que caduca: dominios, certificados SSL, hosting, licencias… El número rojo del icono indica las que están cerca.</p>
+      ${pasos(["Pulsa <b>Nueva renovación</b> (también desde la ficha del cliente con 📅).", "Elige el cliente, qué se renueva y la fecha.", "Cuando lo renueves, pulsa <b>✓ Hecha</b>."])}
+      <p class="mt-2">El cliente ve en su portal sus próximas renovaciones.</p>` },
+  { i: "🔒", t: "Bóveda de accesos", k: "boveda contraseña acceso clave credenciales wordpress hosting", h: `
+      <p>En la ficha del cliente, <b>🔒 Bóveda de accesos</b> guarda cifradas las contraseñas de su web, hosting, correo…</p>
+      <ul class="mt-2 space-y-1"><li>• Pulsa «Ver contraseña» para mostrarla. <b>Queda registrado quién la ha visto y cuándo.</b></li><li>• No copies contraseñas en el chat ni en notas.</li></ul>` },
+  { i: "⭐", t: "Valoraciones y opiniones", k: "valoracion opinion estrellas reseña web portada ocultar", h: `
+      <p>Al cerrar un caso o descargar una entrega, el cliente puede valorar de 1 a 5 estrellas. Si lo autoriza, su opinión aparece en la <b>página principal del portal</b>.</p>
+      <p class="mt-2">En <b>Negocio → Últimas valoraciones</b> puedes <b>Ocultar</b> una opinión pública si no debe salir en la web.</p>` },
+  { i: "📊", t: "Negocio y ranking", k: "negocio ingresos mrr ranking estadisticas", h: `
+      <p>Resumen del negocio: ingresos mensuales por planes, clientes nuevos, tiempo medio de resolución, satisfacción y el <b>ranking del equipo</b> (casos resueltos, rapidez y valoraciones). Cambia el periodo arriba a la derecha (30 días, 90 días, todo).</p>` },
+  { i: "🔑", t: "Solo propietarios", k: "propietario dueño administrador precios borrar cliente papelera cerrar mes equipo", h: `
+      <ul class="space-y-2">
+        <li><b>💶 Precios</b> (en Negocio): cambia precios u oculta servicios. El portal y los cobros usan esos precios al momento.</li>
+        <li><b>Equipo y administradores</b> (icono de persona con +): dar de alta o de baja a empleados.</li>
+        <li><b>Papelera</b>: los casos borrados se pueden <b>restaurar</b> desde aquí.</li>
+        <li><b>🗑 Borrar cliente</b> (al final de su ficha): borra todo lo suyo. Pide escribir su correo y <b>no se puede deshacer</b>.</li>
+        <li><b>Cerrar el mes ahora</b> (en Clientes): no hace falta, se hace solo el día 1. Guarda los datos del mes en el historial de cada web y pone a cero los contadores.</li>
+      </ul>` },
+  { i: "⌨️", t: "Atajos y trucos", k: "atajo buscar teclado sonido avisos notificaciones filtros", h: `
+      <ul class="space-y-2">
+        <li>${tecla("Ctrl")} + ${tecla("K")} para buscar cualquier caso, cliente o nota. Escribe <b>#25</b> para ir directo al caso 25.</li>
+        <li>${tecla("Esc")} cierra la ventana abierta.</li>
+        <li><b>🖥 Avisos</b> (arriba): activa las notificaciones del ordenador para enterarte de casos y mensajes nuevos aunque estés en otra pestaña.</li>
+        <li><b>🔔</b>: activa o silencia el sonido de aviso.</li>
+        <li>«Orden: recomendado» pone primero lo vencido y lo más urgente.</li>
+      </ul>` },
+  { i: "🙋", t: "¿Qué hago si…?", k: "problema error ayuda faq duda cliente no puede entrar contraseña", h: `
+      <div class="space-y-3">
+        <div><b class="text-white">El cliente no puede entrar en su portal.</b><p>Dile que pulse «¿Has olvidado tu contraseña?» en la pantalla de acceso: le llega un correo para cambiarla.</p></div>
+        <div><b class="text-white">El cliente dice que ha pagado pero no lo veo.</b><p>Mira el chat del pedido: si pagó con tarjeta aparece «💶 Pago recibido». Si no está, compruébalo en Stripe antes de marcarlo como pagado a mano.</p></div>
+        <div><b class="text-white">Un caso automático «Tu web no responde».</b><p>Lo abre la vigilancia de webs (🤖 Automático). Comprueba la web y avisa al cliente por el chat del caso.</p></div>
+        <div><b class="text-white">Me he equivocado de columna.</b><p>Vuelve a moverla. Todo queda en el <b>Historial</b> del caso.</p></div>
+        <div><b class="text-white">He borrado un caso sin querer.</b><p>Pide a un propietario que lo restaure desde la Papelera.</p></div>
+      </div>` },
+  { i: "👁️", t: "Qué ve el cliente en cada estado", k: "cliente ve estado portal recibida en curso completada cerrada", h: `
+      <table class="w-full text-left text-sm"><thead><tr class="text-xs text-slate-500"><th class="py-1.5">En el panel</th><th class="py-1.5">En su portal</th></tr></thead><tbody class="divide-y divide-line/70">
+        <tr><td class="py-1.5">Nuevos</td><td>Recibida</td></tr><tr><td class="py-1.5">En contacto · Propuesta</td><td>En curso</td></tr>
+        <tr><td class="py-1.5">Aceptado</td><td>Completada</td></tr><tr><td class="py-1.5">Denegado</td><td>Cerrada</td></tr></tbody></table>
+      <p class="mt-2">Las notas internas, las etiquetas, la temperatura y el responsable <b>no</b> los ve el cliente.</p>` }
+];
+function pintarGuia() {
+  const q = norm($("guia-buscar").value.trim());
+  const l = GUIA.filter(g => !q || norm(g.t + " " + g.k + " " + g.h.replace(/<[^>]+>/g, " ")).includes(q));
+  $("guia-cuerpo").innerHTML = l.length ? l.map(g => `
+    <details class="guia rounded-xl border border-line bg-base/60 open:border-fx/40" ${g.abierta || q ? "open" : ""}>
+      <summary class="flex items-center gap-3 cursor-pointer select-none px-4 py-3"><span class="text-xl" aria-hidden="true">${g.i}</span><span class="font-semibold text-white">${g.t}</span><span class="ml-auto text-slate-500 text-xs guia-flecha">▼</span></summary>
+      <div class="px-4 pb-4 pt-1 text-sm text-slate-300 leading-relaxed">${g.h}</div>
+    </details>`).join("") : `<p class="text-center text-sm text-slate-500 py-10">No hay nada sobre «${esc($("guia-buscar").value)}». Prueba con otra palabra.</p>`;
+}
+function abrirGuia() { $("guia-buscar").value = ""; pintarGuia(); $("guia-modal").classList.remove("hidden"); $("guia-cuerpo").scrollTop = 0; try { localStorage.setItem("guia-vista", "1"); } catch (_) {} }
+const cerrarGuia = () => $("guia-modal").classList.add("hidden");
+$("guia-abrir").addEventListener("click", abrirGuia);
+$("guia-buscar").addEventListener("input", pintarGuia);
+$("guia-modal").addEventListener("click", e => { if (e.target === $("guia-modal") || e.target.closest("[data-guia-cerrar]")) cerrarGuia(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("guia-modal").classList.contains("hidden")) { e.stopImmediatePropagation(); cerrarGuia(); } }, true);
+
 // ---------- Precios (tabla catalogo): la única fuente de precios del portal, del cobro con Stripe y de los ingresos ----------
 const TIPOS_CAT = [["web", "Planes de web (por presupuesto)"], ["mantenimiento", "Mantenimiento"], ["renting", "Renting"], ["pack", "Packs"], ["extra", "Extras"]];
 const CADA_TXT = { 0: "pago único", 1: "al mes", 3: "cada 3 meses", 6: "cada 6 meses", 12: "al año" };
@@ -2791,6 +2931,7 @@ async function entrar(session) {
   }
   listaStaff = data;
   usuarioActual = yo.usuario; soyDueno = yo.es_dueno === true;
+  try { if (!localStorage.getItem("guia-vista")) setTimeout(abrirGuia, 800); } catch (_) {}
   $("admin-abrir").classList.toggle("hidden", !soyDueno);      // solo los propietarios gestionan administradores
   $("cerrar-mes").classList.toggle("hidden", !soyDueno);
   $("quien").textContent = bonito(yo.usuario);
