@@ -402,7 +402,7 @@ returns json language plpgsql security definer set search_path = public, extensi
 declare cid uuid := _cliente_de_token(p_token); c clientes; r reportes; actual text;
 begin
   if cid is null then raise exception 'SESION_CADUCADA'; end if;
-  if p_plan is null or p_plan not in ('Mantenimiento Básico', 'Mantenimiento Pro', 'Mantenimiento Pro + SEO') then
+  if p_plan is null or p_plan not in ('Mantenimiento Esencial', 'Mantenimiento Pro', 'Renting Plan Lanzamiento', 'Renting Plan Negocio', 'Renting Plan Ecommerce') then
     raise exception 'Plan no válido.';
   end if;
   select plan into actual from webs_cliente where cliente_id = cid;

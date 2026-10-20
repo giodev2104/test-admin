@@ -137,7 +137,7 @@ psql "URI_DE_LA_BASE" -f auth-webcare-AAAA-MM-DD.sql        # cuentas del equipo
 
 Todo está al principio del `<script>` de `test-cliente/index.html`:
 
-- **Tokens de cada plan**: `const TOKENS={"Básico":2,"Pro":5};`. Son los que se anuncian en la portada y en Facturación. Los que tiene cada cliente se rellenan en su ficha del panel («Tokens incluidos en su plan» / «Tokens usados este mes»), y el día 1 los usados vuelven a 0.
+- **Tokens**: el Mantenimiento Pro incluye 1-2 tokens/mes de cambios de contenido (texto en el bloque `CATÁLOGO`). Los que tiene cada cliente se rellenan en su ficha del panel («Tokens incluidos en su plan» / «Tokens usados este mes»), y el día 1 los usados vuelven a 0.
 - **Reservar una llamada (Cal.com, gratis)**: crea una cuenta en cal.com, un evento de 15–30 min y pega su enlace en `const CITA={url:"https://cal.com/tu-usuario/llamada"};`. Si lo dejas vacío, el botón no aparece.
 - **Preguntas frecuentes**: la lista `const FAQ=[…]`. Cada una tiene `p` (pregunta), `r` (respuesta) y `k` (palabras con las que se sugiere mientras el cliente escribe).
 - **App instalable**: el portal ya se puede instalar en el móvil («Mi cuenta > App y avisos»). Funciona solo con https (GitHub Pages lo es).
@@ -164,8 +164,8 @@ Si actualizaste la función **medir**, vuelve a desplegarla (Edge Functions > me
 **Enlaces rotos.** No hay que configurar nada: cada hora se revisa una web (cada web, una vez al mes). En la ficha: «Revisar enlaces ahora».
 
 **Urgencias, WhatsApp y bajas** (al principio del `<script>` de `test-cliente/index.html`):
-- `SOPORTE`: plazos de respuesta y de urgencias de cada plan. Si los cambias, cambia también `PLAZO_URGENTE_H` en el panel y en `supabase/functions/correo/index.ts`.
-- `WHATSAPP={numero:"34600000000"}`: el botón de WhatsApp para urgencias (planes Pro y Pro + SEO). Vacío = no sale.
+- `SOPORTE`: canal de atención de cada plan (Esencial: email; Pro: WhatsApp prioritario). `PLAZO_URGENTE_H` en el panel y en `supabase/functions/correo/index.ts` es solo el objetivo interno del equipo.
+- `WHATSAPP={numero:"34600000000"}`: el botón de WhatsApp para urgencias (Mantenimiento Pro y Renting Plan Ecommerce). Vacío = no sale.
 - `STRIPE_PORTAL`: enlace del portal de clientes de Stripe (Stripe > Configuración > Facturación > Portal de clientes). Así el cliente cancela la suscripción, cambia la tarjeta y ve sus facturas.
 - Las bajas llegan al panel como un caso «Baja del plan…». Al pasarlo a «Aceptado» se le quita el plan del portal; **cancela tú su suscripción en Stripe** (o deja que lo haga él con `STRIPE_PORTAL`).
 
@@ -173,7 +173,15 @@ Vuelve a desplegar `correo`: ahora avisa a todo el equipo cuando entra una urgen
 
 ---
 
-## 10. Publicar
+## 10. Tarifas 2026
+
+Todos los productos, servicios y precios salen de la «Propuesta Comercial & Tarifas Web» (versión 2026) y están en un solo sitio: el bloque `CATÁLOGO` del `<script>` de `test-cliente/index.html` (`WP` creación web, `PD` mantenimiento, `SECT` plantillas por sector, `RENT` renting, `EX` extras EXT-01…21, `PK` packs). Las cuotas mensuales están también en `PLANES` y `PRECIO_PLAN` del panel.
+
+Ejecuta `supabase_tarifas_2026.sql` en el SQL Editor: acepta los planes nuevos y pasa los clientes de Básico a Mantenimiento Esencial y de Pro + SEO a Mantenimiento Pro.
+
+---
+
+## 11. Publicar
 
 GitHub Pages publica la rama principal. Fusiona la rama `claude/dreamy-albattani-j8rm9a` en **los dos repositorios** (o elígela en Settings > Pages).
 
@@ -228,7 +236,7 @@ GitHub Pages publica la rama principal. Fusiona la rama `claude/dreamy-albattani
 |---|---|---|
 | 1 | Informe mensual por correo (día 1) y en PDF desde el portal | Correo del cliente · Portal: Mi web > Meses anteriores · Panel: ficha > «Enviar el informe» |
 | 2 | Datos reales de Google: clics, impresiones, visitas, palabras en primera página y posiciones | Portal: Mi web y SEO · Panel: ficha > «Actualizar desde Google» |
-| 6 | Sin permanencia: el cliente pide la baja desde el portal (con alternativa de bajar a Básico) | Portal: Facturación · Panel: caso «Baja del plan», dato «bajas» en Negocio |
+| 6 | Sin permanencia: el cliente pide la baja desde el portal (con alternativa de bajar a Mantenimiento Esencial) | Portal: Facturación · Panel: caso «Baja del plan», dato «bajas» en Negocio |
 | 8 | Urgencias con plazo por plan, aviso a todo el equipo, cuenta atrás y WhatsApp | Portal: Soporte · Panel: Inicio («Urgencias sin responder») y tarjetas |
 | 10 | Bóveda cifrada de accesos con registro de quién los ve | Portal: Mi cuenta · Panel: ficha completa del cliente |
 | 14 | Revisión mensual de enlaces rotos y errores 404 | Portal: Mi web · Panel: ficha y ficha completa del cliente |

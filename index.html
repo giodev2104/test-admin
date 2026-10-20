@@ -1648,7 +1648,7 @@ document.addEventListener("keydown", e => {
 
 // ---------- Clientes y ficha de su web ----------
 // La ficha (tabla webs_cliente) es lo que el cliente ve en «Mi web», «SEO» y «Facturación» de su portal.
-const PLANES = ["Mantenimiento Básico", "Mantenimiento Pro", "Mantenimiento Pro + SEO"];
+const PLANES = ["Mantenimiento Esencial", "Mantenimiento Pro", "Renting Plan Lanzamiento", "Renting Plan Negocio", "Renting Plan Ecommerce"];
 const FILAS = {
   proximos:     [["texto", "Qué (p. ej. Renovación del dominio)", 2], ["cuando", "Cuándo (p. ej. 12 dic · automática)", 1]],
   seo_palabras: [["palabra", "Palabra clave", 2], ["antes", "Pos. antes", .6], ["ahora", "Pos. ahora", .6]],
@@ -1922,7 +1922,8 @@ document.addEventListener("click", e => {
 
 // ---------- Lote 2: negocio, ficha completa del cliente, renovaciones, etiquetas y vista de cliente ----------
 const URL_PORTAL = "https://giodev2104.github.io/test-cliente/";
-const PRECIO_PLAN = { "Mantenimiento Básico": 49, "Mantenimiento Pro": 89, "Mantenimiento Pro + SEO": 189 };
+// Cuota mensual de cada plan recurrente (Propuesta Comercial 2026). Esencial y Pro también se pueden pagar al año (190 € / 390 €).
+const PRECIO_PLAN = { "Mantenimiento Esencial": 19, "Mantenimiento Pro": 39, "Renting Plan Lanzamiento": 29, "Renting Plan Negocio": 49, "Renting Plan Ecommerce": 79 };
 const TIPOS_RENOV = { dominio: "Dominio", plan: "Plan", ssl: "SSL", hosting: "Hosting", correo: "Correo", otro: "Otro" };
 const DIA = 24 * HORA;
 const euros = n => n.toLocaleString("es-ES", { maximumFractionDigits: 0 }) + " €";
@@ -2332,8 +2333,8 @@ window.addEventListener("keydown", e => {
 }, true);
 
 // ---------- Lote 3: urgencias con plazo, Google, enlaces, informe y bóveda ----------
-// Plazo de respuesta a urgencias según el plan (horas). Igual que SOPORTE en el portal y la función «correo».
-const PLAZO_URGENTE_H = { "Mantenimiento Básico": 8, "Mantenimiento Pro": 4, "Mantenimiento Pro + SEO": 2, "": 24 };
+// Objetivo interno de respuesta a urgencias según el plan (horas; no se muestra al cliente). Igual que en la función «correo».
+const PLAZO_URGENTE_H = { "Mantenimiento Esencial": 24, "Mantenimiento Pro": 4, "Renting Plan Lanzamiento": 24, "Renting Plan Negocio": 24, "Renting Plan Ecommerce": 4, "": 24 };
 const esUrgente = r => r.origen === "urgente";
 const planDe = r => (r.cliente_id && (webs.get(r.cliente_id) || {}).plan) || r.plan || "";
 const urgenciaVence = r => new Date(r.created_at).getTime() + (PLAZO_URGENTE_H[planDe(r)] ?? PLAZO_URGENTE_H[""]) * HORA;

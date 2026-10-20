@@ -21,8 +21,8 @@ const env = (k: string) => Deno.env.get(k) || "";
 const URL_PORTAL = env("URL_PORTAL") || "https://giodev2104.github.io/test-cliente/";
 const URL_PANEL = env("URL_PANEL") || "https://giodev2104.github.io/test-admin/";
 const MINUTOS_ENTRE_AVISOS = 10;
-// Plazo de respuesta a urgencias según el plan (horas). Igual que PLAZO_URGENTE_H en el panel y SOPORTE en el portal.
-const PLAZO_URGENTE_H: Record<string, number> = { "Mantenimiento Básico": 8, "Mantenimiento Pro": 4, "Mantenimiento Pro + SEO": 2, "": 24 };
+// Objetivo interno de respuesta a urgencias según el plan (horas). Igual que PLAZO_URGENTE_H en el panel.
+const PLAZO_URGENTE_H: Record<string, number> = { "Mantenimiento Esencial": 24, "Mantenimiento Pro": 4, "Renting Plan Lanzamiento": 24, "Renting Plan Negocio": 24, "Renting Plan Ecommerce": 4, "": 24 };
 const esc = (s: unknown) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 const estadoCliente = (e: string) =>
   e === "Aceptado" ? "Completada" : e === "Denegado" ? "Cerrada" : !e || e === "Entrada de leads" ? "Recibida" : "En curso";
