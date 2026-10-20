@@ -23,14 +23,23 @@ const URL_PORTAL = env("URL_PORTAL") || "https://giodev2104.github.io/test-clien
 
 // Los importes salen de la tabla «catalogo» (la misma que muestra el portal y se edita en el panel),
 // con la oferta aplicada si está en vigor. Los planes de web van por presupuesto: no se cobran aquí.
-type Item = { tipo: string; eur: number; cada: number; activo: boolean; oferta: number };
+// En las suscripciones la oferta solo rebaja el primer cobro (cupón de Stripe de un solo uso); después, precio normal.
+type Item = { tipo: string; eur: number; normal: number; cada: number; activo: boolean; oferta: number };
 async function delCatalogo(db: SupabaseClient, nombre: string): Promise<Item | null> {
   const { data } = await db.from("catalogo").select("tipo,precio,cada,activo,oferta_pct,oferta_hasta").eq("nombre", nombre).maybeSingle();
   if (!data || data.tipo === "web") return null;
   const hoy = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Madrid" });
   const oferta = data.oferta_pct && (!data.oferta_hasta || data.oferta_hasta >= hoy) ? Number(data.oferta_pct) : 0;
   const eur = Math.round(Number(data.precio) * (100 - oferta)) / 100;
-  return { tipo: data.tipo, eur, cada: data.cada || 0, activo: data.activo !== false, oferta };
+  return { tipo: data.tipo, eur, normal: Number(data.precio), cada: data.cada || 0, activo: data.activo !== false, oferta };
+}
+
+// Cupón «X% solo el primer cobro» (se crea una vez en Stripe y se reutiliza)
+async function cuponPrimerMes(pct: number) {
+  const id = "oferta-" + pct + "-primer-mes";
+  try { await stripe("coupons/" + id); }
+  catch { await stripe("coupons", { id, percent_off: String(pct), duration: "once", name: "Oferta " + pct + "% (primer mes)" }); }
+  return id;
 }
 
 async function stripe(ruta: string, datos?: Record<string, string>) {
@@ -66,7 +75,7 @@ async function registrar(db: SupabaseClient, s: Record<string, any>) {
   const m = s.metadata || {};
   const { data, error } = await db.rpc("servidor_registrar_pago", {
     p_sesion: s.id, p_cliente: m.cliente_id, p_tipo: m.tipo, p_nombre: m.nombre,
-    p_importe: Number(s.amount_total || 0) / 100, p_modo: s.mode, p_servicio: m.servicio_id ? Number(m.servicio_id) : null,
+    p_importe: m.cuota ? Number(m.cuota) : Number(s.amount_total || 0) / 100, p_modo: s.mode, p_servicio: m.servicio_id ? Number(m.servicio_id) : null,
   });
   if (error) throw error;
   await metodoPago(db, s.id, m.cliente_id).catch(() => {});
@@ -119,8 +128,8 @@ Deno.serve(async (req) => {
         mode: it.cada ? "subscription" : "payment",
         "line_items[0][quantity]": "1",
         "line_items[0][price_data][currency]": "eur",
-        "line_items[0][price_data][unit_amount]": String(Math.round(it.eur * 100)),
-        "line_items[0][price_data][product_data][name]": nombre + (it.oferta ? " (oferta -" + it.oferta + "%)" : ""),
+        "line_items[0][price_data][unit_amount]": String(Math.round((it.cada ? it.normal : it.eur) * 100)),
+        "line_items[0][price_data][product_data][name]": nombre + (it.oferta && !it.cada ? " (oferta -" + it.oferta + "%)" : ""),
         client_reference_id: cid,
         "metadata[cliente_id]": cid, "metadata[tipo]": it.tipo, "metadata[nombre]": nombre,
         success_url: URL_PORTAL + (URL_PORTAL.includes("?") ? "&" : "?") + "pago=ok&sesion={CHECKOUT_SESSION_ID}",
@@ -134,6 +143,8 @@ Deno.serve(async (req) => {
         d["line_items[0][price_data][recurring][interval_count]"] = String(it.cada);
         d["subscription_data[metadata][cliente_id]"] = cid;
         d["subscription_data[metadata][nombre]"] = nombre;
+        d["metadata[cuota]"] = String(it.normal);
+        if (it.oferta) d["discounts[0][coupon]"] = await cuponPrimerMes(it.oferta);
       }
       const s = await stripe("checkout/sessions", d);
       return responder({ url: s.url });
