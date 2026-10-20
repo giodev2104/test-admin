@@ -2,6 +2,8 @@
 // (El equipo usa Storage directamente con su sesión; los clientes no tienen sesión de Supabase.)
 //   · subir {token, caso_id, nombre, tipo, tamano} → URL firmada para subir el archivo (5 min)
 //   · ver   {token, ruta}                          → URL firmada para verlo/descargarlo (10 min)
+//   · entrega {token, id}                          → URL firmada para descargar un archivo de la entrega de un pedido
+//                                                    (bucket «entregas»; solo si el pedido está marcado como pagado)
 // Los archivos se guardan en el bucket privado «adjuntos», en la carpeta del nº de caso.
 // Despliegue: Edge Functions > Deploy a new function > Via Editor, nombre "adjuntos",
 // y DESACTIVA «Verify JWT» (la función comprueba ella misma el token del cliente).
@@ -28,7 +30,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   try {
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-    const { accion, token, caso_id, nombre, tipo, tamano, ruta } = await req.json().catch(() => ({}));
+    const { accion, token, caso_id, nombre, tipo, tamano, ruta, id } = await req.json().catch(() => ({}));
     const esSuyo = async (caso: number) => {
       const { data } = await admin.rpc("servidor_caso_del_cliente", { p_token: String(token || ""), p_caso: caso });
       return data === true;
@@ -53,6 +55,21 @@ Deno.serve(async (req) => {
       if (!m || !m.length) return responder({ error: "No se encontró el archivo." }, 404);
       const { data, error } = await admin.storage.from("adjuntos").createSignedUrl(r, 600);
       if (error) throw error;
+      return responder({ url: data.signedUrl });
+    }
+
+    if (accion === "entrega") {
+      const { data: cid } = await admin.rpc("servidor_cliente_de_token", { p_token: String(token || "") });
+      if (!cid) return responder({ error: "Tu sesión ha caducado. Vuelve a entrar." }, 401);
+      const { data: e } = await admin.from("entregas").select("id,cliente_id,servicio_id,nombre,ruta,descargas").eq("id", Number(id)).eq("cliente_id", cid).maybeSingle();
+      if (!e) return responder({ error: "No se encontró el archivo." }, 404);
+      if (e.servicio_id) {
+        const { data: s } = await admin.from("servicios_cliente").select("pagado_en").eq("id", e.servicio_id).maybeSingle();
+        if (!s?.pagado_en) return responder({ error: "La entrega se desbloquea cuando completes el pago." }, 402);
+      }
+      const { data, error } = await admin.storage.from("entregas").createSignedUrl(e.ruta, 600, { download: e.nombre });
+      if (error) throw error;
+      await admin.from("entregas").update({ descargado_en: new Date().toISOString(), descargas: (e.descargas || 0) + 1 }).eq("id", e.id);
       return responder({ url: data.signedUrl });
     }
 

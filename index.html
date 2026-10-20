@@ -399,7 +399,7 @@ const expandidas = new Set();                    // descripciones largas despleg
 let filtroResp = "", sonidoOn = true;
 let clientes = [], webs = new Map();             // cuentas del portal y la ficha de su web (webs_cliente)
 const COLS_CLIENTE = "id,email,nombre,dominio,telefono,acepta_privacidad_en,creado_en";   // nunca clave_hash
-let valoraciones = [], notasCliente = [], renovaciones = [], servicios = [];   // lote 2: valoraciones, notas por cliente y renovaciones
+let valoraciones = [], notasCliente = [], renovaciones = [], servicios = [], entregas = [];   // lote 2: valoraciones, notas por cliente y renovaciones
 let respuestas = [];                             // respuestas rápidas del chat (tabla respuestas_rapidas)
 const adjuntosStaff = new Map();                 // archivo elegido para enviar en cada caso
 const fechaCorta = d => new Date(d).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" });
@@ -493,11 +493,12 @@ async function pedirDatos() {
     db.from("valoraciones").select("*"),
     db.from("notas_cliente").select("*"),
     db.from("renovaciones").select("*").order("fecha"),
-    db.from("servicios_cliente").select("*").order("creado_en", { ascending: false })
+    db.from("servicios_cliente").select("*").order("creado_en", { ascending: false }),
+    db.from("entregas").select("*").order("creado_en", { ascending: false })
   ]);
   const espera = new Promise((_, rej) => setTimeout(() => rej(new Error("Supabase no responde (10 s). Revisa la URL y que el proyecto no esté pausado.")), 10000));
-  const [rep, not, msg, act, cli, web, rr, val, ncl, ren, srv] = await Promise.race([consulta, espera]);
-  servicios = srv.error ? [] : srv.data;
+  const [rep, not, msg, act, cli, web, rr, val, ncl, ren, srv, ent] = await Promise.race([consulta, espera]);
+  servicios = srv.error ? [] : srv.data; entregas = ent.error ? [] : ent.data;
   if (val.error || ncl.error || ren.error) toast("Faltan las tablas nuevas (valoraciones, notas de cliente, renovaciones): ejecuta supabase_mejoras_2.sql.", 8000);
   valoraciones = val.error ? [] : val.data; notasCliente = ncl.error ? [] : ncl.data; renovaciones = ren.error ? [] : ren.data;
   respuestas = rr.error ? [] : rr.data;
@@ -2482,7 +2483,8 @@ function serviciosStaffHTML(id) {
       <span class="min-w-0 flex-1"><span class="block text-sm text-slate-100 break-words">${esc(s.nombre)}</span>
         <span class="block text-[11px] text-slate-500">${s.precio ? esc(s.precio) + " · " : ""}${s.estado === "activo" && s.activado_en ? "activo desde " + esc(fechaDia(s.activado_en)) : s.estado === "baja" && s.baja_en ? "baja el " + esc(fechaDia(s.baja_en)) : "pedido el " + esc(fechaDia(s.creado_en))}${s.caso_id ? ` · <button type="button" data-detalle="${s.caso_id}" class="underline hover:text-fx">caso #${s.caso_id}</button>` : ""}${s.caso_baja_id ? ` · <button type="button" data-detalle="${s.caso_baja_id}" class="underline hover:text-fx">baja #${s.caso_baja_id}</button>` : ""}</span></span>
       <select data-serv-estado="${s.id}" aria-label="Estado de ${esc(s.nombre)}" class="sel !py-1 text-xs ${ESTILO_SERV[s.estado] || ""}">${["pendiente", "activo", "baja", "rechazado"].map(e => `<option value="${e}" ${e === s.estado ? "selected" : ""}>${bonito(e)}</option>`).join("")}</select>
-      <button type="button" data-serv-borrar="${s.id}" class="px-1 text-xs text-slate-500 hover:text-red-300" aria-label="Quitar servicio">✕</button></li>`).join("")}</ul>` : '<p class="text-sm text-slate-500">Sin servicios todavía.</p>'}
+      <button type="button" data-serv-borrar="${s.id}" class="px-1 text-xs text-slate-500 hover:text-red-300" aria-label="Quitar servicio">✕</button>
+      ${entregaStaffHTML(s)}</li>`).join("")}</ul>` : '<p class="text-sm text-slate-500">Sin servicios todavía.</p>'}
     <details class="mt-2"><summary class="cursor-pointer text-xs font-semibold text-fx">＋ Añadir un servicio a mano</summary>
       <div class="mt-2 grid gap-2 sm:grid-cols-[auto_1fr_auto]">
         <select id="srv-tipo" class="sel">${Object.entries(TIPOS_SERV).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>
@@ -2524,6 +2526,94 @@ document.addEventListener("click", async e => {
   }
 });
 
+// ---------- Entregas: archivos de cada pedido (bucket «entregas»); el cliente los descarga cuando está pagado ----------
+const MAX_ENTREGA = 50 * 1024 * 1024;
+function entregaStaffHTML(s) {
+  const lista = entregas.filter(e => e.servicio_id === s.id);
+  return `<div class="basis-full w-full mt-1 rounded-lg border border-line/70 bg-panel/60 px-3 py-2">
+    <div class="flex flex-wrap items-center gap-2">
+      ${s.pagado_en ? `<span class="mini bg-emerald-500/10 text-emerald-300 border-emerald-500/30">💶 Pagado el ${esc(fechaDia(s.pagado_en))}</span><button type="button" data-serv-pago="${s.id}" data-pagado="0" class="text-[11px] text-slate-500 hover:text-white underline">Desmarcar</button>`
+        : `<button type="button" data-serv-pago="${s.id}" data-pagado="1" class="rounded-md border border-emerald-500/40 px-2 py-0.5 text-xs text-emerald-300 hover:bg-emerald-500/15">Marcar como pagado</button>`}
+      <label class="ml-auto cursor-pointer rounded-md border border-line px-2.5 py-1 text-xs text-slate-200 hover:border-fx">📦 Subir entrega<input type="file" multiple data-entrega-subir="${s.id}" class="hidden"></label>
+    </div>
+    ${lista.length ? `<ul class="mt-1.5 space-y-1">${lista.map(e => `<li class="flex items-center gap-2 text-xs">
+      <span class="min-w-0 flex-1 truncate text-slate-200" title="${esc(e.nombre)}">📄 ${esc(e.nombre)} <span class="text-slate-500">· ${tamano(e.tamano || 0)}</span></span>
+      <span class="${e.descargado_en ? "text-emerald-300" : "text-slate-500"}">${e.descargado_en ? "Descargado " + esc(fechaCorta(e.descargado_en)) : s.pagado_en ? "Sin descargar" : "Bloqueado hasta el pago"}</span>
+      <button type="button" data-entrega-ver="${e.id}" class="text-slate-400 hover:text-white underline">Ver</button>
+      <button type="button" data-entrega-borrar="${e.id}" class="px-1 text-slate-500 hover:text-red-300" aria-label="Borrar archivo">✕</button></li>`).join("")}</ul>`
+      : `<p class="mt-1 text-[11px] text-slate-500">Sin archivos de entrega. ${s.pagado_en ? "" : "El cliente podrá descargarlos cuando lo marques como pagado."}</p>`}
+  </div>`;
+}
+async function recargarEntregas() {
+  const { data, error } = await db.from("entregas").select("*").order("creado_en", { ascending: false });
+  if (!error) entregas = data;
+  await recargarServicios();
+}
+async function subirEntrega(servId, archivos) {
+  const s = servicios.find(x => x.id === servId);
+  if (!s) return;
+  const grandes = archivos.filter(f => f.size > MAX_ENTREGA);
+  if (grandes.length) { toast("Máximo 50 MB por archivo: " + grandes.map(f => f.name).join(", "), 7000); return; }
+  toast("Subiendo " + archivos.length + " archivo" + (archivos.length === 1 ? "" : "s") + "…", 3000);
+  let ok = 0;
+  for (const f of archivos) {
+    const ruta = s.cliente_id + "/" + s.id + "/" + crypto.randomUUID() + "-" + nombreSeguro(f.name);
+    const { error: eSub } = await db.storage.from("entregas").upload(ruta, f, { contentType: f.type || "application/octet-stream" });
+    if (eSub) { toast("No se pudo subir " + f.name + ": " + eSub.message + " (¿has ejecutado supabase_entregas.sql?)", 8000); continue; }
+    const { error } = await db.from("entregas").insert({ cliente_id: s.cliente_id, servicio_id: s.id, nombre: f.name.slice(0, 200), ruta, tipo: f.type || null, tamano: f.size, subido_por: usuarioActual });
+    if (error) { toast("No se pudo guardar " + f.name + ": " + error.message, 8000); continue; }
+    ok++;
+  }
+  if (ok && s.caso_id) {
+    await db.from("mensajes_caso").insert({ caso_id: s.caso_id, autor_tipo: "staff", autor: usuarioActual,
+      texto: "📦 Tu entrega de «" + s.nombre + "» está lista (" + ok + " archivo" + (ok === 1 ? "" : "s") + "). " + (s.pagado_en ? "Ya puedes descargarla en tu portal." : "Podrás descargarla en tu portal en cuanto completes el pago.") });
+    avisarCorreo({ accion: "aviso_cliente", caso_id: s.caso_id });
+  }
+  if (ok) toast("Entrega subida: " + ok + " archivo" + (ok === 1 ? "" : "s") + (s.caso_id ? " · hemos avisado al cliente" : ""), 5000);
+  recargarEntregas();
+}
+document.addEventListener("change", e => {
+  const inp = e.target.closest?.("[data-entrega-subir]");
+  if (!inp || !inp.files.length) return;
+  subirEntrega(Number(inp.dataset.entregaSubir), [...inp.files]);
+  inp.value = "";
+});
+document.addEventListener("click", async e => {
+  const pago = e.target.closest?.("[data-serv-pago]");
+  if (pago) {
+    const id = Number(pago.dataset.servPago), pagado = pago.dataset.pagado === "1";
+    if (!pagado && !confirm("¿Quitar la marca de pagado? El cliente dejará de poder descargar la entrega.")) return;
+    const { error } = await db.from("servicios_cliente").update(pagado ? { pagado_en: new Date().toISOString(), pagado_por: usuarioActual } : { pagado_en: null, pagado_por: null }).eq("id", id);
+    if (error) toast("No se pudo guardar: " + error.message + " (¿has ejecutado supabase_entregas.sql?)", 7000);
+    else {
+      toast(pagado ? "Marcado como pagado: el cliente ya puede descargar la entrega" : "Marca de pago quitada", 5000);
+      const s = servicios.find(x => x.id === id);
+      if (pagado && s && s.caso_id && entregas.some(x => x.servicio_id === id)) {
+        await db.from("mensajes_caso").insert({ caso_id: s.caso_id, autor_tipo: "staff", autor: usuarioActual, texto: "✅ Pago recibido. Ya puedes descargar tu entrega de «" + s.nombre + "» en tu portal." });
+        avisarCorreo({ accion: "aviso_cliente", caso_id: s.caso_id });
+      }
+    }
+    recargarServicios(); return;
+  }
+  const ver = e.target.closest?.("[data-entrega-ver]");
+  if (ver) {
+    const x = entregas.find(y => y.id === Number(ver.dataset.entregaVer));
+    if (!x) return;
+    const { data, error } = await db.storage.from("entregas").createSignedUrl(x.ruta, 600, { download: x.nombre });
+    if (error) { toast("No se pudo abrir: " + error.message, 6000); return; }
+    window.open(data.signedUrl, "_blank", "noopener"); return;
+  }
+  const del = e.target.closest?.("[data-entrega-borrar]");
+  if (del) {
+    const x = entregas.find(y => y.id === Number(del.dataset.entregaBorrar));
+    if (!x || !confirm("¿Borrar «" + x.nombre + "» de la entrega? El cliente ya no podrá descargarlo.")) return;
+    await db.storage.from("entregas").remove([x.ruta]);
+    const { error } = await db.from("entregas").delete().eq("id", x.id);
+    if (error) toast("No se pudo borrar: " + error.message, 6000);
+    recargarEntregas();
+  }
+});
+
 // ---------- 15: respuestas rápidas ----------
 function pintarRespuestas() {
   $("rr-lista").innerHTML = respuestas.length ? respuestas.map(x => `
@@ -2561,7 +2651,7 @@ function mostrarLogin() {
   if (canal && db) { db.removeChannel(canal); canal = null; }
   reportes = []; notas = []; indexarNotas(); mensajes = []; indexarMensajes(); actividad = []; indexarActividad(); clientes = []; webs = new Map(); render();
   cerrarFicha(true); cerrarCliente(); cerrarRenov();
-  valoraciones = []; notasCliente = []; renovaciones = []; servicios = []; renovAvisadas = false;
+  valoraciones = []; notasCliente = []; renovaciones = []; servicios = []; entregas = []; renovAvisadas = false;
   estadoConexion("Sesión cerrada", "bg-slate-500");
   $("quien").textContent = "";
   $("login-pass").value = "";

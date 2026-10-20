@@ -191,7 +191,19 @@ Ejecuta `supabase_servicios.sql` en el SQL Editor (después de `supabase_tarifas
 
 ---
 
-## 12. Publicar
+## 12. Entregas de archivos (web en .html, .zip, PDF…)
+
+1. Ejecuta `supabase_entregas.sql` en el SQL Editor (después de `supabase_servicios.sql`). Crea el almacén privado «entregas» (hasta 50 MB por archivo, cualquier tipo) y la lista de entregas.
+2. Vuelve a desplegar la función `adjuntos` (`supabase/functions/adjuntos/index.ts`): ahora también sirve las descargas de las entregas y comprueba que el pedido está pagado.
+
+Cómo se usa: en el panel, ficha completa del cliente → «Servicios contratados». En cada pedido:
+- **📦 Subir entrega**: eliges uno o varios archivos. Al cliente le llega un mensaje en el chat del pedido (y un correo si Brevo está configurado).
+- **Marcar como pagado**: cuando veas el cobro en Stripe. Hasta entonces el cliente ve «Tu entrega está lista» con el botón de pago, pero no puede descargarla.
+- Ves si el cliente ya la ha descargado, puedes abrir cada archivo («Ver») o borrarlo.
+
+---
+
+## 13. Publicar
 
 GitHub Pages publica la rama principal. Fusiona la rama `claude/dreamy-albattani-j8rm9a` en **los dos repositorios** (o elígela en Settings > Pages).
 
