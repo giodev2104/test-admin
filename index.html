@@ -358,7 +358,6 @@ const SUPABASE_KEY = "sb_publishable_qxIupQGDLTM9ZXf4uAB60A_FHyRBws_";
 // El correo de cada uno es  usuario@DOMINIO_STAFF  (debe coincidir con la función gestionar-staff y con supabase.sql).
 const DOMINIO_STAFF = "gmail.com";
 const DIAS_ARCHIVO = 30;   // los casos resueltos hace más de estos días se ocultan
-// =================================================
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -644,7 +643,7 @@ async function avisarCorreo(body) {
 // Lo que ve el cliente de cada etapa (igual que en su portal)
 const estadoCliente = e => e === "Aceptado" ? "Completada" : e === "Denegado" ? "Cerrada" : !e || e === ESTADO0 ? "Recibida" : "En curso";
 
-// 16: avisos al responsable
+// Avisos al responsable
 function avisarAsignado(r) {
   avisoSistema("Te han asignado el caso #" + r.id, r.titulo || "Sin título", r.id, true);
   toast("Te han asignado el caso #" + r.id + " · " + (r.titulo || "Sin título"), 7000);
@@ -797,7 +796,7 @@ document.addEventListener("change", e => {
   if (f) adjuntosStaff.set(id, f); else adjuntosStaff.delete(id);
   render();
 });
-// 15: respuesta rápida → se escribe en el cuadro del chat ({nombre} = nombre del cliente)
+// Respuesta rápida → se escribe en el cuadro del chat ({nombre} = nombre del cliente)
 document.addEventListener("change", e => {
   const sel = e.target.closest?.("select[data-rr-caso]");
   if (!sel || !sel.value) return;
@@ -1729,7 +1728,7 @@ function renderClientes() {
   }).join("") : `<div class="sm:col-span-2 xl:col-span-3 rounded-xl border border-dashed border-line p-8 text-center text-sm text-slate-500">${clientes.length ? "Ningún cliente coincide con la búsqueda." : "Todavía no se ha registrado ningún cliente en el portal."}</div>`;
 }
 $("cli-buscar").addEventListener("input", renderClientes);
-// 13: el día 1 de cada mes se hace solo; este botón (solo propietarios) lo hace al momento
+// El día 1 de cada mes se hace solo; este botón (solo propietarios) lo hace al momento
 $("cerrar-mes").addEventListener("click", async () => {
   const mes = new Date().toLocaleDateString("es-ES", { month: "long", year: "numeric" });
   if (!confirm("Se guardarán en el historial los datos de " + mes + " de cada cliente y se pondrán a cero los contadores del mes (ataques, actualizaciones, cambios, tokens). ¿Seguir?")) return;
@@ -1963,9 +1962,8 @@ document.addEventListener("click", e => {
   if (f && !e.target.closest("#ficha-modal")) { e.stopPropagation(); abrirFicha(f.dataset.ficha); }
 }, true);
 
-// ---------- Lote 2: negocio, ficha completa del cliente, renovaciones, etiquetas y vista de cliente ----------
+// ---------- Negocio, ficha completa del cliente, renovaciones, etiquetas y vista de cliente ----------
 const URL_PORTAL = "https://giodev2104.github.io/test-cliente/";
-// Cuota mensual de cada plan recurrente (Propuesta Comercial 2026). Esencial y Pro también se pueden pagar al año (190 € / 390 €).
 // Cuota mensual de cada plan: se sustituye al cargar por la de la tabla catalogo (Negocio > Precios)
 const PRECIO_PLAN = { "Mantenimiento Esencial": 19, "Mantenimiento Pro": 39, "Renting Plan Lanzamiento": 29, "Renting Plan Negocio": 49, "Renting Plan Ecommerce": 79 };
 const TIPOS_RENOV = { dominio: "Dominio", plan: "Plan", ssl: "SSL", hosting: "Hosting", correo: "Correo", otro: "Otro" };
@@ -1985,7 +1983,7 @@ const textoDias = d => d === 0 ? "hoy" : d === 1 ? "mañana" : d > 0 ? "en " + d
 const renovPendientes = () => renovaciones.filter(x => !x.hecho_en);
 const renovAvisar = () => renovPendientes().filter(x => diasHasta(x.fecha) <= x.avisar_dias);
 
-// ----- 4: leído / visto -----
+// ----- Leído / visto -----
 async function marcarLeidoStaff(id) {
   const ids = mensajesDe(id).filter(m => m.autor_tipo === "usuario" && !m.leido_staff_en).map(m => m.id);
   if (!ids.length || document.hidden) return;
@@ -1994,7 +1992,7 @@ async function marcarLeidoStaff(id) {
   await db.from("mensajes_caso").update({ leido_staff_en: ahora }).in("id", ids);
 }
 
-// ----- 19: etiquetas y filtros guardados -----
+// ----- Etiquetas y filtros guardados -----
 let filtroEtiqueta = "";
 const todasEtiquetas = () => [...new Set(reportes.flatMap(r => r.etiquetas || []))].sort((a, b) => a.localeCompare(b, "es"));
 const etiquetaChip = (t, quitar) => `<span class="mini bg-sky-500/10 text-sky-300 border-sky-500/30">#${esc(t)}${quitar ? `<button type="button" data-etq-quitar="${quitar}" data-etq="${esc(t)}" class="ml-0.5 hover:text-white" aria-label="Quitar etiqueta ${esc(t)}">✕</button>` : ""}</span>`;
@@ -2048,7 +2046,7 @@ document.addEventListener("keydown", e => {
   if (r && inp.value.trim()) cambiarEtiquetas(id, (r.etiquetas || []).concat(inp.value.split(",")));
 });
 
-// ----- 21: ver el portal como el cliente (solo lectura, 1 hora) -----
+// ----- Ver el portal como el cliente (solo lectura, 1 hora) -----
 async function verComoCliente(id) {
   const w = window.open("", "_blank");
   const { data, error } = await db.rpc("staff_vista_cliente", { p_cliente: id });
@@ -2061,7 +2059,7 @@ async function verComoCliente(id) {
   if (w) { w.opener = null; w.location.href = url; } else location.href = url;
 }
 
-// ----- 13 y 23: negocio y ranking del equipo -----
+// ----- Negocio y ranking del equipo -----
 let periodoNegocio = 30;
 function barrasHTML(titulo, sub, datos, fmt) {
   const W = 320, H = 130, pt = 18, pb = 20, max = Math.max(1, ...datos.map(d => d.v)), n = datos.length, paso = W / n, ancho = Math.min(34, paso - 8);
@@ -2192,7 +2190,7 @@ document.addEventListener("click", async e => {
   toast(oculta ? "Opinión oculta en la web" : "Opinión visible en la web"); render();
 });
 
-// ----- 17: renovaciones -----
+// ----- Renovaciones -----
 let renovEditando = null, renovAvisadas = false;
 function filaRenov(x, conCliente = true) {
   const d = diasHasta(x.fecha), c = x.cliente_id ? clienteDe(x.cliente_id) : null;
@@ -2283,7 +2281,7 @@ $("renov-modal").addEventListener("click", e => {
   else if (e.target.closest("#rv-borrar")) borrarRenov();
 });
 
-// ----- 16: ficha completa del cliente -----
+// ----- Ficha completa del cliente -----
 let clienteAbierto = null;
 function pintarCliente() {
   const c = clienteDe(clienteAbierto);
@@ -2567,7 +2565,7 @@ async function borrarCliente(id) {
 }
 $("cliente-modal").addEventListener("click", e => { if (e.target === $("cliente-modal") || e.target.closest("[data-cliente-cerrar]")) cerrarCliente(); });
 
-// Clics de todo lo nuevo (en captura, para que no los intercepte el clic de las tarjetas)
+// Clics de la ficha, renovaciones y precios (en captura, para que no los intercepte el clic de las tarjetas)
 document.addEventListener("click", e => {
   const t = e.target;
   const cl = t.closest("[data-cliente]");
@@ -2597,7 +2595,7 @@ window.addEventListener("keydown", e => {
   else if (!$("cliente-modal").classList.contains("hidden") && $("detalle-modal").classList.contains("hidden") && $("ficha-modal").classList.contains("hidden")) { e.stopImmediatePropagation(); cerrarCliente(); }
 }, true);
 
-// ---------- Lote 3: urgencias con plazo, Google, enlaces, informe y bóveda ----------
+// ---------- Urgencias con plazo, Google, enlaces, informe y bóveda ----------
 // Objetivo interno de respuesta a urgencias según el plan (horas; no se muestra al cliente). Igual que en la función «correo».
 const PLAZO_URGENTE_H = { "Mantenimiento Esencial": 24, "Mantenimiento Pro": 4, "Renting Plan Lanzamiento": 24, "Renting Plan Negocio": 24, "Renting Plan Ecommerce": 4, "": 24 };
 const esUrgente = r => r.origen === "urgente";
@@ -2873,7 +2871,7 @@ document.addEventListener("click", async e => {
   }
 });
 
-// ---------- 15: respuestas rápidas ----------
+// ---------- Respuestas rápidas ----------
 function pintarRespuestas() {
   $("rr-lista").innerHTML = respuestas.length ? respuestas.map(x => `
     <li class="rounded-md bg-base border border-line px-3 py-2">
