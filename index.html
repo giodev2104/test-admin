@@ -2302,6 +2302,7 @@ function pintarCliente() {
         <span class="block text-sm text-slate-200 line-clamp-2 break-words">${esc(m.texto)}</span></button></li>`).join("")}</ul>` : '<p class="text-sm text-slate-500">Sin mensajes.</p>')}
       ${bloque("Renovaciones", rs.length ? `<ul class="divide-y divide-line/70">${rs.map(x => filaRenov(x, false)).join("")}</ul>` : '<p class="text-sm text-slate-500">Sin renovaciones apuntadas.</p>')}
       ${vs.length ? bloque("Valoraciones", `<ul class="space-y-2">${vs.map(v => `<li class="text-sm"><span class="text-amber-300">${estrellas(v.estrellas)}</span> <span class="text-xs text-slate-500">caso #${v.caso_id} · ${esc(fechaDia(v.creado_en))}</span>${v.comentario ? `<p class="text-slate-300 break-words">«${esc(v.comentario)}»</p>` : ""}</li>`).join("")}</ul>`) : ""}
+      ${soyDueno ? `<section class="rounded-xl border border-red-500/30 bg-red-500/5 p-4 flex flex-wrap items-center gap-3"><div class="min-w-0 flex-1"><h3 class="text-sm font-semibold text-red-300">Borrar cliente</h3><p class="text-xs text-slate-400">Elimina su cuenta del portal y todos sus datos: casos, mensajes, servicios, entregas, archivos y bóveda. No se puede deshacer.</p></div><button type="button" data-borrar-cliente="${esc(c.id)}" class="rounded-md border border-red-500/50 px-3.5 py-1.5 text-sm font-semibold text-red-300 hover:bg-red-500 hover:text-white">🗑 Borrar cliente</button></section>` : ""}
     </div>`;
 }
 function abrirCliente(id) {
@@ -2324,6 +2325,28 @@ async function borrarNotaCliente(id) {
   if (error) { toast("No se pudo borrar: " + error.message); return; }
   notasCliente = notasCliente.filter(n => n.id !== id); pintarCliente();
 }
+// Solo propietarios: borra el cliente y todo lo suyo (hay que escribir su correo para confirmar)
+async function borrarCliente(id) {
+  const c = clienteDe(id);
+  if (!c || !soyDueno) return;
+  const conf = prompt("Vas a borrar a " + c.nombre + " y TODOS sus datos (casos, mensajes, servicios, entregas, archivos y bóveda). No se puede deshacer.\n\nPara confirmar, escribe su correo: " + c.email);
+  if (conf === null) return;
+  if (conf.trim().toLowerCase() !== c.email.toLowerCase()) { toast("El correo no coincide. No se ha borrado nada."); return; }
+  const { data, error } = await db.rpc("staff_borrar_cliente", { p_cliente: id, p_confirmar: conf.trim() });
+  if (error) { toast("No se pudo borrar: " + error.message + (/staff_borrar_cliente/.test(error.message) ? " (¿has ejecutado supabase_borrar_cliente.sql?)" : ""), 8000); return; }
+  // Quita sus archivos del almacenamiento (si alguno falla, solo queda el archivo suelto, sin datos asociados)
+  for (const b of ["adjuntos", "entregas"]) {
+    const rutas = (data.archivos || []).filter(a => a.bucket === b).map(a => a.ruta);
+    if (rutas.length) await db.storage.from(b).remove(rutas).catch(() => {});
+  }
+  const casos = new Set(reportes.filter(r => r.cliente_id === id).map(r => r.id));
+  reportes = reportes.filter(r => !casos.has(r.id));
+  clientes = clientes.filter(x => x.id !== id); webs.delete(id);
+  valoraciones = valoraciones.filter(x => x.cliente_id !== id); notasCliente = notasCliente.filter(x => x.cliente_id !== id);
+  renovaciones = renovaciones.filter(x => x.cliente_id !== id); servicios = servicios.filter(x => x.cliente_id !== id); entregas = entregas.filter(x => x.cliente_id !== id);
+  cerrarCliente(); render();
+  toast("Cliente " + data.nombre + " borrado (" + data.casos + (data.casos === 1 ? " caso" : " casos") + ")", 5000);
+}
 $("cliente-modal").addEventListener("click", e => { if (e.target === $("cliente-modal") || e.target.closest("[data-cliente-cerrar]")) cerrarCliente(); });
 
 // Clics de todo lo nuevo (en captura, para que no los intercepte el clic de las tarjetas)
@@ -2331,6 +2354,8 @@ document.addEventListener("click", e => {
   const t = e.target;
   const cl = t.closest("[data-cliente]");
   if (cl) { e.stopPropagation(); abrirCliente(cl.dataset.cliente); return; }
+  const bc = t.closest("[data-borrar-cliente]");
+  if (bc) { e.stopPropagation(); borrarCliente(bc.dataset.borrarCliente); return; }
   const vc = t.closest("[data-ver-cliente]");
   if (vc) { e.stopPropagation(); verComoCliente(vc.dataset.verCliente); return; }
   const rn = t.closest("[data-renov-nueva]");

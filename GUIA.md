@@ -247,7 +247,12 @@ El pipeline tiene 5 columnas: **Nuevos** (SLA 2 h) · **En contacto** (SLA 1 dí
 Los casos antiguos en «Formulario enviado/recibido» aparecen en «En contacto» y los de «Seguimiento» en «Propuesta»; no hace falta moverlos.
 En cada tarjeta: botón **→** para pasarla a la siguiente etapa, accesos directos a WhatsApp (🟢) y correo (✉️), mensajes (💬) y notas (📝).
 
-## 17. Publicar
+## 17. Borrar clientes
+
+Ejecuta `supabase_borrar_cliente.sql` en el SQL Editor. Después, en Clientes > ficha del cliente, los **propietarios** ven abajo «🗑 Borrar cliente».
+Hay que escribir el correo del cliente para confirmar. Se borra todo: cuenta del portal, casos y mensajes, servicios, entregas, pagos registrados, valoraciones, renovaciones, bóveda y sus archivos. No se puede deshacer (los cobros siguen en Stripe).
+
+## 18. Publicar
 
 GitHub Pages publica la rama principal. Fusiona la rama `claude/dreamy-albattani-j8rm9a` en **los dos repositorios** (o elígela en Settings > Pages).
 
