@@ -1565,7 +1565,7 @@ function pintarDetalle() {
   const listaChat = ms.length ? `<ul class="space-y-2 max-h-72 overflow-y-auto">${ms.map(m => `
       <li class="rounded-md border px-3 py-2 ${m.autor_tipo === "staff" ? "bg-fx/10 border-fx/30" : "bg-base border-line"}">
         <div class="text-xs text-slate-400"><span class="font-medium text-slate-200">${m.autor_tipo === "staff" ? esc(bonito(m.autor || "staff")) + " (Webcare)" : esc(r.usuario_discord || "Cliente")}</span> · ${esc(fechaCorta(m.creado_en))}</div>
-        ${m.adjunto_ruta && m.texto === "📎 " + m.adjunto_nombre ? "" : `<p class="mt-1 text-sm text-slate-200 whitespace-pre-wrap break-words">${esc(m.texto)}</p>`}
+        ${m.adjunto_ruta && m.texto === "📎 " + m.adjunto_nombre ? "" : `<p class="mt-1 text-sm text-slate-200 whitespace-pre-wrap break-words">${textoChat(m.texto)}</p>`}
         ${m.adjunto_ruta ? `<button type="button" data-adj-msg="${m.id}" class="mt-1.5 inline-flex items-center gap-1.5 rounded-md border border-line bg-panel px-2.5 py-1 text-xs text-slate-200 hover:border-fx">📎 ${esc(m.adjunto_nombre || "Archivo")}${m.adjunto_tamano ? " · " + tamano(m.adjunto_tamano) : ""}</button>` : ""}
         ${m.autor_tipo === "staff" && r.cliente_id ? `<p class="mt-1 text-right text-[10.5px] ${m.leido_cliente_en ? "text-sky-300" : "text-slate-500"}">${m.leido_cliente_en ? "✓✓ Visto por el cliente " + esc(fechaCorta(m.leido_cliente_en)) : "✓ Enviado"}</p>` : ""}
       </li>`).join("")}</ul>` : `<p class="text-sm text-slate-500">El cliente aún no ha escrito.</p>`;
@@ -2016,6 +2016,9 @@ document.addEventListener("click", e => {
 
 // ---------- Negocio, ficha completa del cliente, renovaciones, etiquetas y vista de cliente ----------
 const URL_PORTAL = "https://giodev2104.github.io/test-cliente/";
+// El diseño que el cliente hizo en la vista previa llega como enlace: se muestra como botón
+const textoChat = t => esc(t).replace(/https:\/\/[^\s<]+/g, u => !u.startsWith(esc(URL_PORTAL + "plantillas/plantilla.html?")) ? u :
+  `<a href="${u}" target="_blank" rel="noopener" class="mt-1.5 inline-flex items-center gap-1.5 rounded-md border border-fx/40 bg-fx/10 px-2.5 py-1 text-xs font-semibold text-fx hover:bg-fx/20">🖥 Abrir el diseño del cliente</a>`);
 // Cuota mensual de cada plan: se sustituye al cargar por la de la tabla catalogo (Negocio > Precios)
 const PRECIO_PLAN = { "Mantenimiento Esencial": 19, "Mantenimiento Pro": 39, "Mantenimiento Tienda": 89, "Renting Plan Lanzamiento": 29, "Renting Plan Negocio": 49, "Renting Plan Ecommerce": 79 };
 const TIPOS_RENOV = { dominio: "Dominio", plan: "Plan", ssl: "SSL", hosting: "Hosting", correo: "Correo", otro: "Otro" };
