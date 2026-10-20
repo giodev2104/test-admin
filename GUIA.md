@@ -261,6 +261,8 @@ Todos los precios están en la tabla `catalogo` de Supabase (`supabase_catalogo.
 - Desmarcar «A la venta» oculta el servicio en el portal; quien ya lo tiene no se ve afectado.
 - Cambiar un precio no cambia lo que pagan los clientes que ya tienen una suscripción en Stripe.
 - Los textos de qué incluye cada servicio siguen en el portal (`index.html`, bloque CATÁLOGO).
+- **🏷 Ofertas** (`supabase_ofertas_tokens.sql`, ya aplicado): el botón «Crear oferta» de cada fila pone un descuento (5, 10, 25, 30 % u otro) y, si quieres, una fecha final. El portal le cuelga la etiqueta «X% OFF», tacha el precio anterior y Stripe cobra el rebajado. En los planes de web la oferta se ve en el portal y la aplicas tú al enviar el presupuesto. En suscripciones, el precio rebajado se queda para quien contrate durante la oferta.
+- **🪙 Pagar extras con tokens**: en los extras de pago único, «o N tokens» permite pagarlos con tokens (vacío = solo tarjeta). Se gastan primero los tokens del mes y después los de regalo; el caso entra en «Nuevos» como «Contratar: …» y el pedido ya figura como pagado con tokens. Los renting ya no incluyen tokens: solo los planes de mantenimiento.
 
 ## 19. Guía para empleados
 

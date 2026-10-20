@@ -21,13 +21,16 @@ const responder = (cuerpo: unknown, status = 200) =>
 const env = (k: string) => Deno.env.get(k) || "";
 const URL_PORTAL = env("URL_PORTAL") || "https://giodev2104.github.io/test-cliente/";
 
-// Los importes salen de la tabla «catalogo» (la misma que muestra el portal y se edita en el panel).
-// Los planes de web van por presupuesto: no se cobran aquí.
-type Item = { tipo: string; eur: number; cada: number; activo: boolean };
+// Los importes salen de la tabla «catalogo» (la misma que muestra el portal y se edita en el panel),
+// con la oferta aplicada si está en vigor. Los planes de web van por presupuesto: no se cobran aquí.
+type Item = { tipo: string; eur: number; cada: number; activo: boolean; oferta: number };
 async function delCatalogo(db: SupabaseClient, nombre: string): Promise<Item | null> {
-  const { data } = await db.from("catalogo").select("tipo,precio,cada,activo").eq("nombre", nombre).maybeSingle();
+  const { data } = await db.from("catalogo").select("tipo,precio,cada,activo,oferta_pct,oferta_hasta").eq("nombre", nombre).maybeSingle();
   if (!data || data.tipo === "web") return null;
-  return { tipo: data.tipo, eur: Number(data.precio), cada: data.cada || 0, activo: data.activo !== false };
+  const hoy = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Madrid" });
+  const oferta = data.oferta_pct && (!data.oferta_hasta || data.oferta_hasta >= hoy) ? Number(data.oferta_pct) : 0;
+  const eur = Math.round(Number(data.precio) * (100 - oferta)) / 100;
+  return { tipo: data.tipo, eur, cada: data.cada || 0, activo: data.activo !== false, oferta };
 }
 
 async function stripe(ruta: string, datos?: Record<string, string>) {
@@ -117,7 +120,7 @@ Deno.serve(async (req) => {
         "line_items[0][quantity]": "1",
         "line_items[0][price_data][currency]": "eur",
         "line_items[0][price_data][unit_amount]": String(Math.round(it.eur * 100)),
-        "line_items[0][price_data][product_data][name]": nombre,
+        "line_items[0][price_data][product_data][name]": nombre + (it.oferta ? " (oferta -" + it.oferta + "%)" : ""),
         client_reference_id: cid,
         "metadata[cliente_id]": cid, "metadata[tipo]": it.tipo, "metadata[nombre]": nombre,
         success_url: URL_PORTAL + (URL_PORTAL.includes("?") ? "&" : "?") + "pago=ok&sesion={CHECKOUT_SESSION_ID}",

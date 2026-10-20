@@ -2590,9 +2590,10 @@ const GUIA = [
       <p class="mt-2">En <b>Negocio → Últimas valoraciones</b> puedes <b>Ocultar</b> una opinión pública si no debe salir en la web.</p>` },
   { i: "📊", t: "Negocio y ranking", k: "negocio ingresos mrr ranking estadisticas", h: `
       <p>Resumen del negocio: ingresos mensuales por planes, clientes nuevos, tiempo medio de resolución, satisfacción y el <b>ranking del equipo</b> (casos resueltos, rapidez y valoraciones). Cambia el periodo arriba a la derecha (30 días, 90 días, todo).</p>` },
-  { i: "🔑", t: "Solo propietarios", k: "propietario dueño administrador precios borrar cliente papelera cerrar mes equipo", h: `
+  { i: "🔑", t: "Solo propietarios", k: "propietario dueño administrador precios oferta descuento tokens borrar cliente papelera cerrar mes equipo", h: `
       <ul class="space-y-2">
         <li><b>💶 Precios</b> (en Negocio): cambia precios u oculta servicios. El portal y los cobros usan esos precios al momento.</li>
+        <li><b>🏷 Ofertas y 🪙 tokens</b> (en 💶 Precios): «Crear oferta» pone un descuento con etiqueta «X% OFF» en el portal y Stripe cobra el precio rebajado. En los extras de pago único, «o N tokens» deja pagarlos con tokens.</li>
         <li><b>Equipo y administradores</b> (icono de persona con +): dar de alta o de baja a empleados.</li>
         <li><b>Papelera</b>: los casos borrados se pueden <b>restaurar</b> desde aquí.</li>
         <li><b>🗑 Borrar cliente</b> (al final de su ficha): borra todo lo suyo. Pide escribir su correo y <b>no se puede deshacer</b>.</li>
@@ -2641,6 +2642,43 @@ document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("guia-m
 // ---------- Precios (tabla catalogo): la única fuente de precios del portal, del cobro con Stripe y de los ingresos ----------
 const TIPOS_CAT = [["web", "Planes de web (por presupuesto)"], ["mantenimiento", "Mantenimiento"], ["renting", "Renting"], ["pack", "Packs"], ["extra", "Extras"]];
 const CADA_TXT = { 0: "pago único", 1: "al mes", 3: "cada 3 meses", 6: "cada 6 meses", 12: "al año" };
+// Oferta de cada servicio: el portal le pone la etiqueta «X% OFF» y Stripe cobra el precio rebajado
+const OFERTAS = [5, 10, 25, 30];
+const hoyMadrid = () => new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Madrid" });
+const ofertaVigente = c => c.oferta_pct && (!c.oferta_hasta || c.oferta_hasta >= hoyMadrid()) ? c.oferta_pct : 0;
+const etiquetaOferta = (pct, hasta) => pct ? `🏷 −${pct}%${hasta ? " · hasta " + new Date(hasta + "T12:00").toLocaleDateString("es-ES", { day: "numeric", month: "short" }) : ""}` : "🏷 Crear oferta";
+function ofertaHTML(c, ro) {
+  const pct = c.oferta_pct || "", caducada = c.oferta_pct && !ofertaVigente(c), n = esc(c.nombre);
+  return `<button type="button" data-oferta-abrir="${n}" ${ro} class="rounded-md border px-2 py-1 text-xs font-semibold ${pct && !caducada ? "border-red-500/50 bg-red-500/15 text-red-300" : "border-line text-slate-400 hover:text-white hover:border-slate-500"}">${caducada ? "🏷 Oferta caducada" : etiquetaOferta(pct, c.oferta_hasta)}</button>
+    <div data-oferta-panel="${n}" class="hidden w-full rounded-lg border border-line bg-base/60 p-2.5 flex flex-wrap items-center gap-1.5">
+      <input type="hidden" data-cat="${n}" data-campo="oferta_pct" value="${pct}">
+      <span class="text-xs text-slate-400 mr-1">Descuento:</span>
+      ${["", ...OFERTAS].map(o => `<button type="button" data-oferta-pct="${o}" class="oferta-chip rounded-md border px-2 py-1 text-xs ${String(o) === String(pct) ? "border-red-500/60 bg-red-500/20 text-white" : "border-line text-slate-300 hover:border-slate-500"}">${o ? o + "%" : "Sin oferta"}</button>`).join("")}
+      <label class="flex items-center gap-1 text-xs text-slate-400 ml-1">Otro <input type="number" min="1" max="90" step="1" data-oferta-otro value="${pct && !OFERTAS.includes(Number(pct)) ? pct : ""}" class="campo text-sm w-14 text-right" style="padding:.3rem .4rem"> %</label>
+      <label class="flex items-center gap-1 text-xs text-slate-400 ml-auto">Hasta <input type="date" data-cat="${n}" data-campo="oferta_hasta" value="${c.oferta_hasta || ""}" min="${hoyMadrid()}" class="campo text-sm" style="padding:.3rem .4rem"> <span class="text-slate-500">(vacío = sin fecha)</span></label>
+    </div>`;
+}
+function marcarOferta(panel, pct) {
+  panel.querySelector('[data-campo="oferta_pct"]').value = pct;
+  if (pct === "") panel.querySelector('[data-campo="oferta_hasta"]').value = "";
+  panel.querySelectorAll(".oferta-chip").forEach(b => { const on = b.dataset.ofertaPct === String(pct);
+    b.className = "oferta-chip rounded-md border px-2 py-1 text-xs " + (on ? "border-red-500/60 bg-red-500/20 text-white" : "border-line text-slate-300 hover:border-slate-500"); });
+  const btn = $("precios-cuerpo").querySelector(`[data-oferta-abrir="${CSS.escape(panel.dataset.ofertaPanel)}"]`);
+  btn.textContent = etiquetaOferta(pct, panel.querySelector('[data-campo="oferta_hasta"]').value);
+  btn.className = "rounded-md border px-2 py-1 text-xs font-semibold " + (pct ? "border-red-500/50 bg-red-500/15 text-red-300" : "border-line text-slate-400 hover:text-white hover:border-slate-500");
+}
+$("precios-cuerpo").addEventListener("click", e => {
+  const a = e.target.closest("[data-oferta-abrir]");
+  if (a) { $("precios-cuerpo").querySelector(`[data-oferta-panel="${CSS.escape(a.dataset.ofertaAbrir)}"]`).classList.toggle("hidden"); return; }
+  const ch = e.target.closest("[data-oferta-pct]");
+  if (ch) { const p = ch.closest("[data-oferta-panel]"); p.querySelector("[data-oferta-otro]").value = ""; marcarOferta(p, ch.dataset.ofertaPct); }
+});
+$("precios-cuerpo").addEventListener("input", e => {
+  const p = e.target.closest("[data-oferta-panel]");
+  if (!p) return;
+  if (e.target.matches("[data-oferta-otro]")) { const v = Math.round(Number(e.target.value)); marcarOferta(p, v >= 1 && v <= 90 ? v : ""); }
+  else if (e.target.matches('[data-campo="oferta_hasta"]')) marcarOferta(p, p.querySelector('[data-campo="oferta_pct"]').value);
+});
 function abrirPrecios() {
   if (!catalogo.length) { toast("No hay precios cargados: ejecuta supabase_catalogo.sql en Supabase.", 7000); return; }
   const ro = soyDueno ? "" : "disabled";
@@ -2655,8 +2693,10 @@ function abrirPrecios() {
         <span class="flex items-center gap-1.5 text-xs text-slate-400">${t === "web" ? "desde " : ""}${num(c.nombre, "precio", c.precio, "0")} €</span>
         ${t === "web" ? `<span class="flex items-center gap-1.5 text-xs text-slate-400">hasta ${num(c.nombre, "precio_hasta", c.precio_hasta, "—")} €</span>` : ""}
         ${t === "mantenimiento" ? `<span class="flex items-center gap-1.5 text-xs text-slate-400">o al año ${num(c.nombre, "precio_anual", c.precio_anual, "—")} €</span>` : ""}
-        ${t === "mantenimiento" || t === "renting" ? `<span class="flex items-center gap-1.5 text-xs text-slate-400" title="Tokens incluidos al mes">${num(c.nombre, "tokens_mes", c.tokens_mes, "0")} tokens/mes</span>` : ""}
+        ${t === "mantenimiento" ? `<span class="flex items-center gap-1.5 text-xs text-slate-400" title="Tokens incluidos al mes">${num(c.nombre, "tokens_mes", c.tokens_mes, "0")} tokens/mes</span>` : ""}
+        ${t === "extra" && !c.cada ? `<span class="flex items-center gap-1.5 text-xs text-slate-400" title="Vacío = solo se paga con tarjeta">o ${num(c.nombre, "precio_tokens", c.precio_tokens, "—").replace('step="0.01"', 'step="0.5"').replace("w-24", "w-16")} tokens</span>` : ""}
         <label class="flex items-center gap-1.5 text-xs text-slate-300"><input type="checkbox" data-cat="${esc(c.nombre)}" data-campo="activo" ${c.activo ? "checked" : ""} ${ro}> A la venta</label>
+        ${ofertaHTML(c, ro)}
       </li>`).join("")}</ul></section>`;
   }).join("");
   $("precios-guardar").classList.toggle("hidden", !soyDueno);
@@ -2672,12 +2712,15 @@ async function guardarPrecios() {
     if (!c) continue;
     let v;
     if (k === "activo") v = el.checked;
+    else if (k === "oferta_hasta") v = el.value || null;
+    else if (k === "oferta_pct") v = el.value === "" ? null : Number(el.value);
     else {
       v = el.value.trim() === "" ? null : Math.round(Number(el.value) * 100) / 100;
       if (v !== null && (!isFinite(v) || v < 0)) { el.focus(); $("precios-estado").textContent = "Revisa el precio de «" + c.nombre + "»."; return; }
       if (k === "precio" && v === null) { el.focus(); $("precios-estado").textContent = "«" + c.nombre + "» necesita un precio."; return; }
+      if (k === "precio_tokens" && v !== null) { v = Math.round(v * 2) / 2; if (!v) v = null; }
     }
-    const antes = k === "activo" ? c.activo : c[k] === null ? null : Number(c[k]);
+    const antes = k === "activo" ? c.activo : k === "oferta_hasta" ? c.oferta_hasta || null : c[k] === null || c[k] === undefined ? null : Number(c[k]);
     if (v !== antes) cambios.set(c.nombre, { ...(cambios.get(c.nombre) || {}), [k]: v });
   }
   for (const [n, d] of cambios) {
