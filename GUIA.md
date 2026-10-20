@@ -264,6 +264,9 @@ Todos los precios están en la tabla `catalogo` de Supabase (`supabase_catalogo.
 - **🏷 Ofertas** (`supabase_ofertas_tokens.sql`, ya aplicado): el botón «Crear oferta» de cada fila pone un descuento (5, 10, 25, 30 % u otro) y, si quieres, una fecha final. El portal le cuelga la etiqueta «X% OFF», tacha el precio anterior y Stripe cobra el rebajado. En los planes de web la oferta se ve en el portal y la aplicas tú al enviar el presupuesto. En suscripciones (mantenimiento, renting y extras mensuales o trimestrales) el descuento es **solo para el primer cobro**: Stripe aplica un cupón de un solo uso y desde el segundo mes cobra el precio normal. El portal lo avisa en la tarjeta y en la ficha.
 - **🪙 Pagar extras con tokens**: en los extras de pago único, «o N tokens» permite pagarlos con tokens (vacío = solo tarjeta). Se gastan primero los tokens del mes y después los de regalo; el caso entra en «Nuevos» como «Contratar: …» y el pedido ya figura como pagado con tokens. Los renting ya no incluyen tokens: solo los planes de mantenimiento.
 
+### Marcar pagos desde el caso
+Cada caso con un pedido del cliente muestra el bloque **💶 Pago** al abrirlo, y su tarjeta lleva el aviso «💶 Pendiente de pago» mientras no esté pagado. Si el cliente paga por transferencia, Bizum o en mano, pulsa **✓ Marcar como pagado**: el cliente recibe «Hemos recibido tu pago» en el chat, deja de ver el botón «Pagar» y se desbloquean sus entregas. Si el caso es su alta (Lead), el panel pregunta si pasarlo a «Aceptado» para desbloquear su portal. Los pagos con tarjeta o con tokens se marcan solos.
+
 ## 19. Guía para empleados
 
 Dentro del panel, botón **❓** de la barra lateral (encima de «Cerrar sesión»). Se abre sola la primera vez que entra cada persona.

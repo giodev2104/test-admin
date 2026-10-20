@@ -1004,7 +1004,7 @@ function tarjeta(r) {
     </div>
     <h3 class="mt-2 text-[15px] font-semibold text-white leading-snug line-clamp-2" title="${esc(r.descripcion || "")}">${esc(r.titulo || "Sin título")}</h3>
     <p class="mt-1 text-xs text-slate-300 truncate"><span class="font-medium">${esc(r.usuario_discord || "Anónimo")}</span>${r.dominio ? `<span class="text-slate-500"> · ${esc(r.dominio)}</span>` : ""}</p>
-    ${(r.etiquetas || []).length || r.plan || r.origen === "medicion" || esUrgente(r) || r.plan_solicitado === "Cancelar" || valDe(r.id) ? `<div class="mt-2 flex flex-wrap gap-1">${esUrgente(r) ? urgenciaChip(r) : ""}${r.plan_solicitado === "Cancelar" ? `<span class="mini bg-red-500/10 text-red-300 border-red-500/30">Baja solicitada</span>` : ""}${r.origen === "medicion" ? `<span class="mini bg-red-500/10 text-red-300 border-red-500/30" title="Abierto solo por la vigilancia de la web">🤖 Automático</span>` : ""}${r.plan ? `<span class="mini bg-fx/10 text-fx border-fx/40 max-w-full truncate">${esc(r.plan)}</span>` : ""}${(r.etiquetas || []).map(t => etiquetaChip(t)).join("")}${valDe(r.id) ? `<span class="mini bg-amber-500/10 text-amber-300 border-amber-500/30" title="Valoración del cliente">★ ${valDe(r.id).estrellas}</span>` : ""}</div>` : ""}
+    ${(r.etiquetas || []).length || r.plan || r.origen === "medicion" || esUrgente(r) || r.plan_solicitado === "Cancelar" || valDe(r.id) || pagoPendiente(r) ? `<div class="mt-2 flex flex-wrap gap-1">${esUrgente(r) ? urgenciaChip(r) : ""}${pagoPendiente(r) ? `<span class="mini bg-amber-500/10 text-amber-300 border-amber-500/40" title="El cliente tiene este pedido pendiente de pago">💶 Pendiente de pago</span>` : ""}${r.plan_solicitado === "Cancelar" ? `<span class="mini bg-red-500/10 text-red-300 border-red-500/30">Baja solicitada</span>` : ""}${r.origen === "medicion" ? `<span class="mini bg-red-500/10 text-red-300 border-red-500/30" title="Abierto solo por la vigilancia de la web">🤖 Automático</span>` : ""}${r.plan ? `<span class="mini bg-fx/10 text-fx border-fx/40 max-w-full truncate">${esc(r.plan)}</span>` : ""}${(r.etiquetas || []).map(t => etiquetaChip(t)).join("")}${valDe(r.id) ? `<span class="mini bg-amber-500/10 text-amber-300 border-amber-500/30" title="Valoración del cliente">★ ${valDe(r.id).estrellas}</span>` : ""}</div>` : ""}
     <div class="mt-2.5 flex items-center gap-1.5 text-xs text-slate-500">
       ${resp ? `<span class="w-5 h-5 rounded-full grid place-items-center text-[10px] font-bold text-[#1a1005] bg-gradient-to-br from-amber-300 to-orange-500" title="${esc(bonito(resp))}">${inicial(resp)}</span>` : ""}
       <span title="Último contacto: ${esc(fechaCorta(ms.length ? ms[ms.length - 1].creado_en : r.created_at))}">💬 ${ms.length}${ns.length ? " · 📝 " + ns.length : ""}</span>
@@ -1529,6 +1529,23 @@ function historialHTML(r) {
     </li>`).join("")}</ol>`;
 }
 
+// ----- Pago de los pedidos del caso: el cliente ve «Pagar» en su portal hasta que se marca como pagado -----
+const pedidosCaso = r => servicios.filter(s => s.caso_id === r.id && s.estado !== "rechazado");
+const pagoPendiente = r => pedidosCaso(r).some(s => !s.pagado_en);
+function pagoCasoHTML(r, borrado) {
+  const l = pedidosCaso(r);
+  if (!l.length) return "";
+  return `<section class="rounded-xl border ${l.some(s => !s.pagado_en) ? "border-amber-500/40 bg-amber-500/5" : "border-emerald-500/30 bg-emerald-500/5"} p-3.5">
+    <h3 class="text-xs font-bold uppercase tracking-wide text-slate-400 mb-2">💶 Pago</h3>
+    <ul class="space-y-2">${l.map(s => `<li class="flex flex-wrap items-center gap-2">
+      <span class="min-w-0 flex-1 basis-48 text-sm text-slate-200">${esc(s.nombre)}${s.precio ? `<span class="text-slate-500"> · ${esc(s.precio)}</span>` : ""}</span>
+      ${s.pagado_en
+        ? `<span class="mini bg-emerald-500/10 text-emerald-300 border-emerald-500/30">✓ Pagado el ${esc(fechaDia(s.pagado_en))}${s.pagado_por ? " · " + esc(s.pagado_por === "Stripe" || s.pagado_por === "Tokens" ? s.pagado_por : bonito(s.pagado_por)) : ""}</span>${borrado ? "" : `<button type="button" data-serv-pago="${s.id}" data-pagado="0" class="text-xs text-slate-500 hover:text-red-300 underline">Quitar</button>`}`
+        : `<span class="mini bg-amber-500/10 text-amber-300 border-amber-500/40">⏳ Pendiente de pago</span>${borrado ? "" : `<button type="button" data-serv-pago="${s.id}" data-pagado="1" class="rounded-md bg-emerald-500 hover:bg-emerald-400 px-3 py-1.5 text-xs font-semibold text-[#06210f]">✓ Marcar como pagado</button>`}`}
+    </li>`).join("")}</ul>
+    ${l.some(s => !s.pagado_en) ? `<p class="mt-2 text-[11px] text-slate-500">Úsalo si ha pagado por transferencia, Bizum o en mano. Los pagos con tarjeta en el portal se marcan solos.</p>` : ""}
+  </section>`;
+}
 function pintarDetalle() {
   const r = reportes.find(x => x.id === detalleId);
   if (!r) { cerrarDetalle(); return; }
@@ -1631,6 +1648,7 @@ function pintarDetalle() {
     </div>
     ${aviso}
     <div class="px-5 sm:px-6 py-5 space-y-6">
+      ${pagoCasoHTML(r, borrado)}
       <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         ${datoDetalle("Cliente", esc(r.usuario_discord || "Anónimo") + (r.cliente_id ? `<span class="block text-xs text-emerald-300">● Cuenta del portal del cliente</span><span class="mt-1 flex flex-wrap gap-x-3 gap-y-1"><button type="button" data-cliente="${esc(r.cliente_id)}" class="text-xs font-semibold text-fx hover:underline">Ficha del cliente →</button><button type="button" data-ficha="${esc(r.cliente_id)}" class="text-xs font-semibold text-fx hover:underline">Editar su web →</button><button type="button" data-ver-cliente="${esc(r.cliente_id)}" class="text-xs font-semibold text-slate-300 hover:text-white hover:underline">👁 Ver como cliente</button></span>` : ""))}
         ${r.email ? datoDetalle("Correo", `<a class="text-fx hover:underline" href="mailto:${esc(r.email)}">${esc(r.email)}</a>`) : ""}
@@ -3047,14 +3065,18 @@ document.addEventListener("click", async e => {
     const { error } = await db.from("servicios_cliente").update(pagado ? { pagado_en: new Date().toISOString(), pagado_por: usuarioActual } : { pagado_en: null, pagado_por: null }).eq("id", id);
     if (error) toast("No se pudo guardar: " + error.message + " (¿has ejecutado supabase_entregas.sql?)", 7000);
     else {
-      toast(pagado ? "Marcado como pagado: el cliente ya puede descargar la entrega" : "Marca de pago quitada", 5000);
-      const s = servicios.find(x => x.id === id);
-      if (pagado && s && s.caso_id && entregas.some(x => x.servicio_id === id)) {
-        await db.from("mensajes_caso").insert({ caso_id: s.caso_id, autor_tipo: "staff", autor: usuarioActual, texto: "✅ Pago recibido. Ya puedes descargar tu entrega de «" + s.nombre + "» en tu portal." });
+      const s = servicios.find(x => x.id === id), conEntrega = entregas.some(x => x.servicio_id === id);
+      toast(pagado ? "Marcado como pagado" + (conEntrega ? ": el cliente ya puede descargar la entrega" : "") : "Marca de pago quitada", 5000);
+      if (pagado && s && s.caso_id) {
+        await db.from("mensajes_caso").insert({ caso_id: s.caso_id, autor_tipo: "staff", autor: usuarioActual,
+          texto: "✅ Hemos recibido tu pago de «" + s.nombre + "». ¡Gracias!" + (conEntrega ? " Ya puedes descargar tu entrega en tu portal." : "") });
         avisarCorreo({ accion: "aviso_cliente", caso_id: s.caso_id });
+        // Si es el alta del cliente, su panel sigue bloqueado hasta que el caso esté «Aceptado»
+        const r = reportes.find(x => x.id === s.caso_id);
+        if (r && tipoDe(r) === "Lead" && r.estado !== "Aceptado" && confirm("Pago marcado. ¿Pasar también el caso a «Aceptado» para desbloquear el panel del cliente?")) await cambiarEstado(r.id, "Aceptado");
       }
     }
-    recargarServicios(); return;
+    await recargarServicios(); render(); if (detalleId) pintarDetalle(); return;
   }
   const ver = e.target.closest?.("[data-entrega-ver]");
   if (ver) {
