@@ -1377,6 +1377,7 @@ function pintarDetalle() {
         ${r.telefono ? datoDetalle("Teléfono", `<a class="text-fx hover:underline" href="tel:${esc(r.telefono)}">${esc(r.telefono)}</a>`) : ""}
         ${r.dominio ? datoDetalle("Web", esc(r.dominio)) : ""}
         ${r.plan ? datoDetalle("Plan / servicio", esc(r.plan)) : ""}
+        ${r.plan_solicitado ? datoDetalle("Cambio de plan solicitado", esc(r.plan_solicitado) + `<span class="block text-xs text-slate-500">${r.estado === "Aceptado" ? "Aplicado: ya es su plan en el portal." : "Al pasar el caso a «Aceptado», su plan cambiará solo en el portal."}</span>`) : ""}
         ${datoDetalle("Creado", esc(fechaLarga(r.created_at)) + `<span class="block text-xs text-slate-500">${esc(hace(Date.now() - new Date(r.created_at)))}</span>`)}
         ${cerrado(estado) && r.resuelto_en ? datoDetalle("Cerrado", esc(fechaLarga(r.resuelto_en))) : ""}
         ${datoDetalle("Responsable", responsableHTML)}

@@ -75,6 +75,9 @@ drop trigger if exists webs_cliente_sello on public.webs_cliente;
 create trigger webs_cliente_sello before insert or update on public.webs_cliente
   for each row execute function public.webs_cliente_sello();
 
+-- (columna del cambio de plan automático, ver supabase_cambio_plan.sql)
+alter table public.reportes add column if not exists plan_solicitado text;
+
 -- El portal recibe también la ficha de su web (clave "web"; null si aún no hay datos)
 create or replace function public.cliente_datos(p_token text)
 returns json language plpgsql stable security definer set search_path = public, extensions as $$
@@ -86,7 +89,7 @@ begin
     'cliente', json_build_object('id', c.id, 'email', c.email, 'nombre', c.nombre, 'dominio', c.dominio),
     'web', (select to_json(w) from webs_cliente w where w.cliente_id = cid),
     'casos', coalesce((select json_agg(x order by x.created_at desc) from (
-        select id, tipo_reporte, titulo, estado, plan, dominio, urgencia, created_at
+        select id, tipo_reporte, titulo, estado, plan, plan_solicitado, dominio, urgencia, created_at
         from reportes where cliente_id = cid and eliminado_en is null) x), '[]'::json),
     'mensajes', coalesce((select json_agg(x order by x.creado_en) from (
         select m.id, m.caso_id, m.autor_tipo, m.autor, m.texto, m.creado_en

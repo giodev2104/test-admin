@@ -52,6 +52,7 @@ create table public.reportes (
   telefono            text,
   dominio             text,
   plan                text,
+  plan_solicitado     text,                 -- cambio de plan pedido desde el portal (se aplica al aceptarlo)
   pruebas             text,
   estado              text not null default 'Entrada de leads'
                       check (estado in ('Entrada de leads', 'Formulario enviado', 'Formulario recibido', 'Interesado',
@@ -244,7 +245,7 @@ begin
   return json_build_object(
     'cliente', json_build_object('id', c.id, 'email', c.email, 'nombre', c.nombre, 'dominio', c.dominio),
     'casos', coalesce((select json_agg(x order by x.created_at desc) from (
-        select id, tipo_reporte, titulo, estado, plan, dominio, urgencia, created_at
+        select id, tipo_reporte, titulo, estado, plan, plan_solicitado, dominio, urgencia, created_at
         from reportes where cliente_id = cid and eliminado_en is null) x), '[]'::json),
     'mensajes', coalesce((select json_agg(x order by x.creado_en) from (
         select m.id, m.caso_id, m.autor_tipo, m.autor, m.texto, m.creado_en
@@ -385,13 +386,66 @@ begin
     'cliente', json_build_object('id', c.id, 'email', c.email, 'nombre', c.nombre, 'dominio', c.dominio),
     'web', (select to_json(w) from webs_cliente w where w.cliente_id = cid),
     'casos', coalesce((select json_agg(x order by x.created_at desc) from (
-        select id, tipo_reporte, titulo, estado, plan, dominio, urgencia, created_at
+        select id, tipo_reporte, titulo, estado, plan, plan_solicitado, dominio, urgencia, created_at
         from reportes where cliente_id = cid and eliminado_en is null) x), '[]'::json),
     'mensajes', coalesce((select json_agg(x order by x.creado_en) from (
         select m.id, m.caso_id, m.autor_tipo, m.autor, m.texto, m.creado_en
         from mensajes_caso m join reportes r on r.id = m.caso_id
         where r.cliente_id = cid and r.eliminado_en is null) x), '[]'::json));
 end $$;
+
+-- 7c) Cambio de plan automático (es lo mismo que supabase_cambio_plan.sql) --
+-- El portal pide el cambio con esta función (valida el plan y evita duplicados)
+create or replace function public.cliente_pedir_plan(p_token text, p_plan text)
+returns json language plpgsql security definer set search_path = public, extensions as $$
+declare cid uuid := _cliente_de_token(p_token); c clientes; r reportes; actual text;
+begin
+  if cid is null then raise exception 'SESION_CADUCADA'; end if;
+  if p_plan is null or p_plan not in ('Mantenimiento Básico', 'Mantenimiento Pro', 'Mantenimiento Pro + SEO') then
+    raise exception 'Plan no válido.';
+  end if;
+  select plan into actual from webs_cliente where cliente_id = cid;
+  if actual = p_plan then raise exception 'Ya tienes ese plan.'; end if;
+  if exists (select 1 from reportes where cliente_id = cid and plan_solicitado is not null
+             and eliminado_en is null and estado not in ('Aceptado', 'Denegado')) then
+    raise exception 'Ya tienes una solicitud de cambio de plan pendiente.';
+  end if;
+  select * into c from clientes where id = cid;
+  insert into reportes (tipo_reporte, titulo, descripcion, usuario_discord, email, dominio, plan, plan_solicitado, estado, cliente_id)
+  values ('Cambio', 'Cambio de plan a ' || p_plan,
+          'El cliente pide pasar de ' || coalesce(actual, 'sin plan') || ' a ' || p_plan
+            || '. Al pasar este caso a «Aceptado», su plan cambiará solo en el portal.',
+          c.nombre, c.email, c.dominio, actual, p_plan, 'Entrada de leads', cid)
+  returning * into r;
+  return json_build_object('id', r.id, 'tipo_reporte', r.tipo_reporte, 'titulo', r.titulo, 'estado', r.estado,
+                           'plan', r.plan, 'plan_solicitado', r.plan_solicitado, 'dominio', r.dominio,
+                           'urgencia', r.urgencia, 'created_at', r.created_at);
+end $$;
+revoke all on function public.cliente_pedir_plan(text, text) from public;
+grant execute on function public.cliente_pedir_plan(text, text) to anon, authenticated;
+
+-- Al aceptar el caso, se aplica el plan
+create or replace function public.aplicar_plan_aceptado()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare nuevo text;
+begin
+  if new.estado = 'Aceptado' and old.estado is distinct from 'Aceptado' and new.cliente_id is not null then
+    nuevo := case
+      when new.plan_solicitado is not null then new.plan_solicitado
+      when new.tipo_reporte = 'Lead' and new.plan like 'Mantenimiento%' then new.plan
+    end;
+    if nuevo is not null then
+      insert into webs_cliente (cliente_id, plan) values (new.cliente_id, nuevo)
+      on conflict (cliente_id) do update set plan = excluded.plan
+        where new.plan_solicitado is not null or webs_cliente.plan is null;   -- el lead no pisa un plan ya puesto
+    end if;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists reportes_plan_aceptado on public.reportes;
+create trigger reportes_plan_aceptado after update of estado on public.reportes
+  for each row execute function public.aplicar_plan_aceptado();
 
 -- 8) Tiempo real para el panel del equipo -------------------------------
 alter publication supabase_realtime add table public.reportes, public.notas_caso, public.mensajes_caso, public.actividad_caso;
