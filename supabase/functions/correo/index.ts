@@ -1,5 +1,6 @@
 // Edge Function "correo": envía los correos de Webcare con Brevo (gratis hasta 300 al día).
 //   · recuperar          (portal, sin sesión)      → enlace para cambiar la contraseña
+//   · enlace             (portal, sin sesión)      → enlace para entrar sin contraseña (15 minutos, un solo uso)
 //   · aviso_cliente      (panel, sesión del staff) → «el equipo te ha respondido» / «tu solicitud ha cambiado»
 //   · aviso_responsable  (panel, sesión del staff) → «te han asignado el caso #…»
 //   · aviso_equipo       (portal, token cliente)   → «el cliente ha escrito en el caso #…» al responsable
@@ -22,7 +23,7 @@ const URL_PORTAL = env("URL_PORTAL") || "https://giodev2104.github.io/test-clien
 const URL_PANEL = env("URL_PANEL") || "https://giodev2104.github.io/test-admin/";
 const MINUTOS_ENTRE_AVISOS = 10;
 // Objetivo interno de respuesta a urgencias según el plan (horas). Igual que PLAZO_URGENTE_H en el panel.
-const PLAZO_URGENTE_H: Record<string, number> = { "Mantenimiento Esencial": 24, "Mantenimiento Pro": 4, "Renting Plan Lanzamiento": 24, "Renting Plan Negocio": 24, "Renting Plan Ecommerce": 4, "": 24 };
+const PLAZO_URGENTE_H: Record<string, number> = { "Mantenimiento Esencial": 24, "Mantenimiento Pro": 4, "Mantenimiento Tienda": 4, "Renting Plan Lanzamiento": 24, "Renting Plan Negocio": 24, "Renting Plan Ecommerce": 4, "": 24 };
 const esc = (s: unknown) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 const estadoCliente = (e: string) =>
   e === "Aceptado" ? "Completada" : e === "Denegado" ? "Cerrada" : !e || e === "Entrada de leads" ? "Recibida" : "En curso";
@@ -91,6 +92,23 @@ Deno.serve(async (req) => {
           "Pulsa el botón para elegir una nueva. El enlace caduca en 1 hora y solo se puede usar una vez.",
           "Si no lo has pedido tú, ignora este correo: tu contraseña no cambiará.",
         ], { texto: "Elegir una contraseña nueva", url }));
+      }
+      return responder({ ok: true });   // misma respuesta exista o no la cuenta
+    }
+
+    if (accion === "enlace") {
+      const ip = (req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "").split(",")[0].trim();
+      const { data, error } = await admin.rpc("servidor_crear_enlace", { p_email: String(cuerpo.email || ""), p_ip: ip });
+      if (error) throw error;
+      if (data?.error === "limite") return responder({ error: "Has pedido demasiados enlaces. Espera una hora y vuelve a probar." }, 429);
+      if (data?.error === "reciente") return responder({ error: "Ya te hemos enviado un enlace hace un momento. Revisa tu correo (y el spam)." }, 429);
+      if (data?.token) {
+        const url = URL_PORTAL + (URL_PORTAL.includes("?") ? "&" : "?") + "entrar=" + data.token;
+        await enviar(data.email, data.nombre, "Tu enlace para entrar en Webcare", plantilla("Entra en tu portal", [
+          `Hola, ${esc(String(data.nombre).split(" ")[0])}. Pulsa el botón para entrar en tu portal sin contraseña.`,
+          "El enlace caduca en 15 minutos y solo se puede usar una vez.",
+          "Si no lo has pedido tú, ignora este correo: nadie podrá entrar sin él.",
+        ], { texto: "Entrar en mi portal", url }));
       }
       return responder({ ok: true });   // misma respuesta exista o no la cuenta
     }

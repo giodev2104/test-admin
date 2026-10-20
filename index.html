@@ -436,6 +436,7 @@ let clientes = [], webs = new Map();             // cuentas del portal y la fich
 const COLS_CLIENTE = "id,email,nombre,dominio,telefono,acepta_privacidad_en,creado_en";   // nunca clave_hash
 let valoraciones = [], notasCliente = [], renovaciones = [], servicios = [], entregas = [];   // lote 2: valoraciones, notas por cliente y renovaciones
 let catalogo = [];                               // precios de todos los servicios (tabla catalogo; los usa también el portal y el cobro)
+let referidos = [];                              // «Recomienda y gana»: quién recomendó a quién
 let respuestas = [];                             // respuestas rápidas del chat (tabla respuestas_rapidas)
 const adjuntosStaff = new Map();                 // archivo elegido para enviar en cada caso
 const fechaCorta = d => new Date(d).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" });
@@ -531,10 +532,12 @@ async function pedirDatos() {
     db.from("renovaciones").select("*").order("fecha"),
     db.from("servicios_cliente").select("*").order("creado_en", { ascending: false }),
     db.from("entregas").select("*").order("creado_en", { ascending: false }),
-    db.from("catalogo").select("*").order("orden")
+    db.from("catalogo").select("*").order("orden"),
+    db.from("referidos").select("*")
   ]);
   const espera = new Promise((_, rej) => setTimeout(() => rej(new Error("Supabase no responde (10 s). Revisa la URL y que el proyecto no esté pausado.")), 10000));
-  const [rep, not, msg, act, cli, web, rr, val, ncl, ren, srv, ent, cat] = await Promise.race([consulta, espera]);
+  const [rep, not, msg, act, cli, web, rr, val, ncl, ren, srv, ent, cat, rfd] = await Promise.race([consulta, espera]);
+  referidos = rfd.error ? [] : rfd.data;
   if (!cat.error) { catalogo = cat.data; catalogo.filter(c => c.tipo === "mantenimiento" || c.tipo === "renting").forEach(c => { PRECIO_PLAN[c.nombre] = Number(c.precio); }); }
   servicios = srv.error ? [] : srv.data; entregas = ent.error ? [] : ent.data;
   if (val.error || ncl.error || ren.error) toast("Faltan las tablas nuevas (valoraciones, notas de cliente, renovaciones): ejecuta supabase_mejoras_2.sql.", 8000);
@@ -1699,7 +1702,7 @@ document.addEventListener("keydown", e => {
 
 // ---------- Clientes y ficha de su web ----------
 // La ficha (tabla webs_cliente) es lo que el cliente ve en «Mi web», «SEO» y «Facturación» de su portal.
-const PLANES = ["Mantenimiento Esencial", "Mantenimiento Pro", "Renting Plan Lanzamiento", "Renting Plan Negocio", "Renting Plan Ecommerce"];
+const PLANES = ["Mantenimiento Esencial", "Mantenimiento Pro", "Mantenimiento Tienda", "Renting Plan Lanzamiento", "Renting Plan Negocio", "Renting Plan Ecommerce"];
 const FILAS = {
   proximos:     [["texto", "Qué (p. ej. Renovación del dominio)", 2], ["cuando", "Cuándo (p. ej. 12 dic · automática)", 1]],
   seo_palabras: [["palabra", "Palabra clave", 2], ["antes", "Pos. antes", .6], ["ahora", "Pos. ahora", .6]],
@@ -1802,7 +1805,8 @@ function abrirFicha(id) {
         ${campoF("mes_cambios", "Cambios completados", w.mes_cambios, "number", 'min="0" step="1"')}
         ${campoF("mes_horas", "Tokens usados en trabajo técnico", w.mes_horas, "number", 'min="0" step="0.5"')}
         <div class="col-span-2">${campoF("horas_incluidas", "Tokens incluidos en su plan", w.horas_incluidas, "number", 'min="0" step="0.5"')}</div>
-        <div class="col-span-2">${campoF("horas_usadas", "Tokens usados este mes", w.horas_usadas, "number", 'min="0" step="0.5"')}</div></div>`)}
+        <div class="col-span-2">${campoF("horas_usadas", "Tokens usados este mes", w.horas_usadas, "number", 'min="0" step="0.5"')}</div>
+        <div class="col-span-2 sm:col-span-4">${campoF("tokens_regalo", "🎁 Tokens de regalo (por recomendar; no caducan). Réstalos aquí cuando los gaste.", w.tokens_regalo ?? 0, "number", 'min="0" step="0.5"')}</div></div>`)}
       ${bloqueF("Recomendación", "Aparece destacada con un botón «Me interesa», que os llega como una solicitud.", campoF("recomendacion", "Texto", w.recomendacion, "text", 'placeholder="Tu web tarda 3,1 s en cargar. Podemos dejarla en menos de 1,5 s."') + `<label class="mt-1.5 flex items-center gap-2 text-xs text-slate-300"><input id="f-recomendacion_auto" type="checkbox" ${w.recomendacion_auto === false ? "" : "checked"}> Automática: la mejora principal que propone Google PageSpeed (una vez al día)</label>`)}
       ${bloqueF("Próximamente", "Fechas importantes: renovaciones, informes…", filasHTML("proximos", w.proximos))}
       ${bloqueF("SEO", "Los porcentajes son el cambio respecto al mes anterior (pueden ser negativos).", `<div class="${g4}">
@@ -1847,7 +1851,7 @@ const ETIQUETAS_FICHA = { plan: "Plan", puntuacion: "Puntuación", resumen: "Men
   horas_incluidas: "Tokens incluidos", horas_usadas: "Tokens usados", recomendacion: "Recomendación", proximos: "Próximamente",
   seo_periodo: "Periodo SEO", seo_visitas: "% visitas", seo_impresiones: "% impresiones", seo_clics: "% clics", seo_primera_pagina: "Palabras en 1.ª página",
   seo_palabras: "Palabras clave", seo_acciones: "Trabajo SEO", seo_informe_url: "Informe SEO", metodo_pago: "Método de pago", facturas: "Facturas", medir_auto: "Medición automática",
-  resumen_auto: "Mensaje automático", recomendacion_auto: "Recomendación automática" };
+  resumen_auto: "Mensaje automático", recomendacion_auto: "Recomendación automática", tokens_regalo: "Tokens de regalo" };
 function valorFicha(v) {
   if (v === null || v === undefined || v === "") return "—";
   if (Array.isArray(v)) return v.length + (v.length === 1 ? " elemento" : " elementos");
@@ -1950,6 +1954,7 @@ function leerFicha() {
     mes_actualizaciones: num("mes_actualizaciones", "Las actualizaciones", { min: 0, entero: true }), mes_ataques: num("mes_ataques", "Los ataques", { min: 0, entero: true }),
     mes_cambios: num("mes_cambios", "Los cambios", { min: 0, entero: true }), mes_horas: num("mes_horas", "Los tokens de trabajo", { min: 0 }),
     horas_incluidas: num("horas_incluidas", "Los tokens incluidos", { min: 0 }), horas_usadas: num("horas_usadas", "Los tokens usados", { min: 0 }),
+    tokens_regalo: num("tokens_regalo", "Los tokens de regalo", { min: 0 }) ?? 0,
     recomendacion: texto("recomendacion"), proximos: filas("proximos"),
     seo_periodo: texto("seo_periodo"), seo_visitas: num("seo_visitas", "El % de visitas", { entero: true }), seo_impresiones: num("seo_impresiones", "El % de impresiones", { entero: true }),
     seo_clics: num("seo_clics", "El % de clics", { entero: true }), seo_primera_pagina: num("seo_primera_pagina", "Las palabras en primera página", { min: 0, entero: true }),
@@ -2012,7 +2017,7 @@ document.addEventListener("click", e => {
 // ---------- Negocio, ficha completa del cliente, renovaciones, etiquetas y vista de cliente ----------
 const URL_PORTAL = "https://giodev2104.github.io/test-cliente/";
 // Cuota mensual de cada plan: se sustituye al cargar por la de la tabla catalogo (Negocio > Precios)
-const PRECIO_PLAN = { "Mantenimiento Esencial": 19, "Mantenimiento Pro": 39, "Renting Plan Lanzamiento": 29, "Renting Plan Negocio": 49, "Renting Plan Ecommerce": 79 };
+const PRECIO_PLAN = { "Mantenimiento Esencial": 19, "Mantenimiento Pro": 39, "Mantenimiento Tienda": 89, "Renting Plan Lanzamiento": 29, "Renting Plan Negocio": 49, "Renting Plan Ecommerce": 79 };
 const TIPOS_RENOV = { dominio: "Dominio", plan: "Plan", ssl: "SSL", hosting: "Hosting", correo: "Correo", otro: "Otro" };
 const DIA = 24 * HORA;
 const euros = n => n.toLocaleString("es-ES", { maximumFractionDigits: 0 }) + " €";
@@ -2356,6 +2361,8 @@ function pintarCliente() {
       <dl class="grid grid-cols-2 sm:grid-cols-4 gap-3">
         ${datoDetalle("Plan", w.plan ? esc(w.plan) + (PRECIO_PLAN[w.plan] ? `<span class="block text-xs text-slate-500">${PRECIO_PLAN[w.plan]} €/mes</span>` : "") : '<span class="text-slate-500">Sin plan</span>')}
         ${datoDetalle("Cliente desde", esc(fechaDia(c.creado_en)))}
+        ${(() => { const suyos = referidos.filter(x => x.referidor_id === c.id), le = referidos.find(x => x.referido_id === c.id), q = le && clienteDe(le.referidor_id);
+          return suyos.length || le ? datoDetalle("Recomendaciones", (suyos.length ? `Ha recomendado a ${suyos.length} (${suyos.filter(x => x.ganado_en).length} ya ${suyos.filter(x => x.ganado_en).length === 1 ? "es cliente" : "son clientes"})` : "") + (le ? `<span class="block text-xs text-slate-400">Le recomendó ${q ? `<button type="button" data-cliente="${esc(q.id)}" class="text-fx hover:underline">${esc(q.nombre)}</button>` : "otro cliente"}</span>` : "") + ((w.tokens_regalo || 0) > 0 ? `<span class="block text-xs text-emerald-300">🎁 ${String(Number(w.tokens_regalo)).replace(".", ",")} ${Number(w.tokens_regalo) === 1 ? "token" : "tokens"} de regalo</span>` : "")) : ""; })()}
         ${datoDetalle("Casos", casos.length + `<span class="block text-xs text-slate-500">${casos.filter(abierto).length} abiertos</span>`)}
         ${datoDetalle("Satisfacción", media === null ? '<span class="text-slate-500">Sin valoraciones</span>' : `<span class="text-amber-300">${estrellas(Math.round(media))}</span><span class="block text-xs text-slate-500">${media.toFixed(1).replace(".", ",")} de 5 · ${vs.length}</span>`)}
         ${datoDetalle("Último contacto", ultimo ? esc(hace(Date.now() - new Date(ultimo))) : "—")}
@@ -2508,6 +2515,8 @@ const GUIA = [
         <div><b class="text-white">El cliente no puede entrar en su portal.</b><p>Dile que pulse «¿Has olvidado tu contraseña?» en la pantalla de acceso: le llega un correo para cambiarla.</p></div>
         <div><b class="text-white">El cliente dice que ha pagado pero no lo veo.</b><p>Mira el chat del pedido: si pagó con tarjeta aparece «💶 Pago recibido». Si no está, compruébalo en Stripe antes de marcarlo como pagado a mano.</p></div>
         <div><b class="text-white">Un caso automático «Tu web no responde».</b><p>Lo abre la vigilancia de webs (🤖 Automático). Comprueba la web y avisa al cliente por el chat del caso.</p></div>
+        <div><b class="text-white">Un cliente pregunta por sus tokens de regalo.</b><p>Gana 1 token cada vez que alguien que ha recomendado se hace cliente (lo ves en su ficha, «Recomendaciones»). No caducan: cuando los gaste, réstalos en «Editar ficha» › «Tokens de regalo».</p></div>
+        <div><b class="text-white">Un cliente probó una plantilla antes de registrarse.</b><p>En el chat de su caso verás «🖥 He probado la plantilla…» con su nombre de negocio, ciudad y color. Úsalo para preparar el presupuesto.</p></div>
         <div><b class="text-white">Me he equivocado de columna.</b><p>Vuelve a moverla. Todo queda en el <b>Historial</b> del caso.</p></div>
         <div><b class="text-white">He borrado un caso sin querer.</b><p>Pide a un propietario que lo restaure desde la Papelera.</p></div>
       </div>` },
@@ -2653,7 +2662,7 @@ window.addEventListener("keydown", e => {
 
 // ---------- Urgencias con plazo, Google, enlaces, informe y bóveda ----------
 // Objetivo interno de respuesta a urgencias según el plan (horas; no se muestra al cliente). Igual que en la función «correo».
-const PLAZO_URGENTE_H = { "Mantenimiento Esencial": 24, "Mantenimiento Pro": 4, "Renting Plan Lanzamiento": 24, "Renting Plan Negocio": 24, "Renting Plan Ecommerce": 4, "": 24 };
+const PLAZO_URGENTE_H = { "Mantenimiento Esencial": 24, "Mantenimiento Pro": 4, "Mantenimiento Tienda": 4, "Renting Plan Lanzamiento": 24, "Renting Plan Negocio": 24, "Renting Plan Ecommerce": 4, "": 24 };
 const esUrgente = r => r.origen === "urgente";
 const planDe = r => (r.cliente_id && (webs.get(r.cliente_id) || {}).plan) || r.plan || "";
 const urgenciaVence = r => new Date(r.created_at).getTime() + (PLAZO_URGENTE_H[planDe(r)] ?? PLAZO_URGENTE_H[""]) * HORA;

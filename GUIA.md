@@ -12,8 +12,8 @@ En Supabase > **SQL Editor**, ejecuta (pestaña nueva cada vez, botón **Run**):
 
 | Situación | Qué ejecutar |
 |---|---|
-| **Tu proyecto actual** | **Nada: ya está todo aplicado.** |
-| Proyecto vacío | `supabase_completo.sql` → `supabase_mejoras.sql` → `supabase_mejoras_2.sql` → `supabase_mejoras_3.sql` → `supabase_tarifas_2026.sql` → `supabase_servicios.sql` → `supabase_entregas.sql` → `supabase_opiniones.sql` → `supabase_pagos.sql` → `supabase_borrar_cliente.sql` → `supabase_catalogo.sql` → `supabase_ficha_auto.sql` |
+| **Tu proyecto actual** | Solo `supabase_crecimiento.sql` (lo demás ya está aplicado). |
+| Proyecto vacío | `supabase_completo.sql` → `supabase_mejoras.sql` → `supabase_mejoras_2.sql` → `supabase_mejoras_3.sql` → `supabase_tarifas_2026.sql` → `supabase_servicios.sql` → `supabase_entregas.sql` → `supabase_opiniones.sql` → `supabase_pagos.sql` → `supabase_borrar_cliente.sql` → `supabase_catalogo.sql` → `supabase_ficha_auto.sql` → `supabase_crecimiento.sql` |
 | Quieres empezar de cero | `supabase_borrar_todo.sql` y después todo lo de «Proyecto vacío», en ese orden |
 
 > ⚠ **No vuelvas a ejecutar un script antiguo suelto.** Cada script nuevo sustituye funciones de los anteriores (por ejemplo, `cliente_datos`, que carga el portal). Si ejecutas uno viejo, esas funciones vuelven a su versión antigua y el portal falla («Tu sesión ha caducado» al usar «Ver como cliente», no aparecen servicios ni entregas…). Si alguna vez hay que repetir uno, ejecuta después **todos los posteriores en el orden de arriba**.
@@ -279,7 +279,16 @@ Para cambiar el texto: en `index.html`, busca `const GUIA = [`.
 - **Método de pago**: la tarjeta con la que paga en el portal.
 - **WordPress**: plugin `wordpress/webcare-conector.zip`. En la ficha › «Conectar WordPress» se genera la clave; se instala el plugin en su web y se pega en Ajustes › Webcare. Envía cada día actualizaciones, ataques y amenazas (con Wordfence) y copias (con UpdraftPlus).
 
-## 21. Publicar
+## 21. Plan Tienda, entrar sin contraseña, recomendaciones y vista previa
+
+**Pendiente:** ejecuta `supabase_crecimiento.sql` en el SQL Editor (la función `correo` ya está desplegada). Añade:
+- **Mantenimiento Tienda**: 89 €/mes o 890 €/año, 3 tokens/mes, urgencias en 4 h. Su precio se cambia en Negocio › 💶 Precios.
+- **Entrar sin contraseña**: en el acceso del portal, «✉️ Entrar sin contraseña» envía un enlace (Brevo) que vale 15 minutos y una sola vez.
+- **Recomienda y gana**: cada cliente tiene su enlace en «Mi cuenta». Cuando alguien se registra con él y contrata (caso aceptado o pedido pagado), quien recomendó gana **1 token de regalo** que no caduca. En el panel lo ves en la ficha del cliente («Recomendaciones») y lo restas en «Editar ficha» › «Tokens de regalo».
+- **Propiedad de la web**: pago único = suya desde el primer día; renting = suya al completar 24 cuotas (o antes, pagando las que falten); dominio siempre a su nombre. Está en la portada, el registro, las preguntas frecuentes y «Condiciones» (pie de página). Los clientes de renting ven en «Servicios» cuántas cuotas llevan.
+- **Vista previa de 10 minutos**: en «Plantillas por sector» de la portada, «▶ Pruébala 10 minutos» abre la plantilla (`plantillas/plantilla.html`) con sus datos y colores en vivo. Al acabar el tiempo (o al pulsar «Quiero esta web») se registra o pide presupuesto, y el equipo recibe en el chat lo que probó.
+
+## 22. Publicar
 
 GitHub Pages publica la rama principal. Fusiona la rama `claude/dreamy-albattani-j8rm9a` en **los dos repositorios** (o elígela en Settings > Pages).
 
