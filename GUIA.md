@@ -241,7 +241,13 @@ Pasos:
 
 Mientras falte `STRIPE_SECRET_KEY`, el portal avisa de que el pago online no está configurado y no crea nada.
 
-## 16. Publicar
+## 16. Pipeline de leads simplificado
+
+El pipeline tiene 5 columnas: **Nuevos** (SLA 2 h) · **En contacto** (SLA 1 día) · **Propuesta** (SLA 2 días) · **Aceptado** · **Denegado**.
+Los casos antiguos en «Formulario enviado/recibido» aparecen en «En contacto» y los de «Seguimiento» en «Propuesta»; no hace falta moverlos.
+En cada tarjeta: botón **→** para pasarla a la siguiente etapa, accesos directos a WhatsApp (🟢) y correo (✉️), mensajes (💬) y notas (📝).
+
+## 17. Publicar
 
 GitHub Pages publica la rama principal. Fusiona la rama `claude/dreamy-albattani-j8rm9a` en **los dos repositorios** (o elígela en Settings > Pages).
 

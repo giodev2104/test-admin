@@ -27,6 +27,10 @@
   .sel { background: #0a0c11; border: 1px solid #232837; border-radius: 10px; padding: .45rem .7rem; font-size: 13px; color: #cbd5e1; }
   .sel:focus { outline: none; border-color: #f6a01a; }
   .chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; border: 1px solid; }
+  .acc-rapida { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; font-size: 12px; line-height: 1; }
+  .acc-rapida:hover { background: rgba(255,255,255,.08); }
+  .avanzar { width: 26px; height: 22px; border-radius: 6px; border: 1px solid #2a2f3a; color: #cbd5e1; font-weight: 700; font-size: 13px; line-height: 1; }
+  .avanzar:hover { border-color: #f6a01a; color: #fff; background: rgba(246,160,26,.15); }
   .mini { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 6px; border: 1px solid; white-space: nowrap; }
   .sla { font-variant-numeric: tabular-nums; }
   .scroll-fino { scrollbar-width: thin; scrollbar-color: #2a3042 transparent; }
@@ -128,7 +132,7 @@
         <header class="flex flex-wrap items-start justify-between gap-3 mb-4">
           <div>
             <h1 id="titulo-vista" class="font-display text-2xl font-bold text-white leading-tight">Leads · Pipeline CRM</h1>
-            <p class="text-sm text-slate-500 mt-1">Haz clic en una tarjeta para ver y editar todos sus datos. Arrástrala para cambiar de etapa. Los clientes que se registran en el portal entran solos en «Entrada de leads».</p>
+            <p class="text-sm text-slate-500 mt-1">Clic en una tarjeta para ver todo. Arrástrala o pulsa → para pasarla a la siguiente etapa. Los clientes nuevos del portal entran solos en «Nuevos».</p>
           </div>
           <span id="contador" class="text-xs text-slate-500 pt-2"></span>
         </header>
@@ -344,18 +348,19 @@ function mostrarError(msg) {
   estadoConexion("Sin conexión", "bg-red-500");
 }
 
-// Etapas del pipeline (color de la columna y plazo SLA en horas; null = sin plazo)
+// Columnas del pipeline: e = estado que se guarda al soltar una tarjeta, t = nombre visible,
+// incluye = estados antiguos que se muestran en esa columna, sla = plazo en horas (null = sin plazo)
 const ETAPAS = [
-  { e: "Entrada de leads",    c: "59,130,246",  sla: 2 },
-  { e: "Formulario enviado",  c: "34,197,94",   sla: 24 },
-  { e: "Formulario recibido", c: "245,158,11",  sla: 24 },
-  { e: "Interesado",          c: "249,115,22",  sla: 24 },
-  { e: "Propuesta enviada",   c: "217,70,239",  sla: 48 },
-  { e: "Seguimiento",         c: "234,179,8",   sla: 48 },
-  { e: "Aceptado",            c: "34,197,94",   sla: null },
-  { e: "Denegado",            c: "239,68,68",   sla: null }
+  { e: "Entrada de leads",  t: "Nuevos",      c: "59,130,246",  sla: 2,    ayuda: "Responde en menos de 2 h",   incluye: ["Entrada de leads"] },
+  { e: "Interesado",        t: "En contacto", c: "245,158,11",  sla: 24,   ayuda: "Hablando con el cliente",    incluye: ["Formulario enviado", "Formulario recibido", "Interesado"] },
+  { e: "Propuesta enviada", t: "Propuesta",   c: "217,70,239",  sla: 48,   ayuda: "Esperando su respuesta",     incluye: ["Propuesta enviada", "Seguimiento"] },
+  { e: "Aceptado",          t: "Aceptado",    c: "34,197,94",   sla: null, ayuda: "", incluye: ["Aceptado"] },
+  { e: "Denegado",          t: "Denegado",    c: "239,68,68",   sla: null, ayuda: "", incluye: ["Denegado"] }
 ];
 const ESTADOS = ETAPAS.map(x => x.e), ESTADO0 = ESTADOS[0];
+const etapaDe = estado => ETAPAS.find(x => x.incluye.includes(estado)) || ETAPAS[0];
+const columnaDe = estado => etapaDe(estado).e;
+const siguienteEtapa = estado => { const i = ETAPAS.indexOf(etapaDe(estado)); return i < 3 ? ETAPAS[i + 1] : null; };
 const CERRADOS = ["Aceptado", "Denegado"], cerrado = e => CERRADOS.includes(e);
 const ESTADO_ESTILO = Object.fromEntries(ESTADOS.map(e => [e, {
   on: e === "Aceptado" ? "bg-emerald-500 text-slate-950" : e === "Denegado" ? "bg-red-500 text-white" : "bg-fx text-[#1a1005]",
@@ -670,7 +675,7 @@ window.addEventListener("online", () => { if (canal) { estadoConexion("Reconecta
 
 async function cambiarEstado(id, estado) {
   const r = reportes.find(x => x.id === id);
-  if (!r || r.estado === estado) return;
+  if (!r || r.estado === estado || columnaDe(r.estado) === estado) return;
   const anterior = r.estado, anteriorRes = r.resuelto_en;
   r.estado = estado;
   r.resuelto_en = cerrado(estado) ? new Date().toISOString() : null;
@@ -679,7 +684,7 @@ async function cambiarEstado(id, estado) {
   if (error) { r.estado = anterior; r.resuelto_en = anteriorRes; render(); toast("No se pudo cambiar el estado: " + error.message); }
   else {
     if (servicios.some(s => s.caso_id === id || s.caso_baja_id === id)) recargarServicios();
-    toast("Caso #" + id + " marcado como " + estado);
+    toast("Caso #" + id + " → " + etapaDe(estado).t);
     if (r.cliente_id && estadoCliente(anterior) !== estadoCliente(estado)) avisarCorreo({ accion: "aviso_cliente", caso_id: id, motivo: "estado" });
   }
 }
@@ -885,7 +890,7 @@ function inicioEstado(r) {
   return cambios.length ? cambios[cambios.length - 1].creado_en : r.created_at;
 }
 function slaRestante(r) {
-  const e = ESTADOS.includes(r.estado) ? r.estado : ESTADO0;
+  const e = columnaDe(r.estado);
   if (!SLA_H[e]) return null;
   return SLA_H[e] * HORA - (Date.now() - new Date(inicioEstado(r)));
 }
@@ -915,7 +920,7 @@ const fechaDia = d => new Date(d).toLocaleDateString("es-ES", { day: "numeric", 
 
 function tarjeta(r) {
   const tipo = TIPOS[tipoDe(r)];
-  const estado = ESTADOS.includes(r.estado) ? r.estado : ESTADO0;
+  const estado = columnaDe(r.estado);
   const resuelto = cerrado(estado);
   const ns = notasDe(r.id), ms = mensajesDe(r.id);
   const venc = !resuelto && vencido(r), pide = !resuelto && sinResponder(r);
@@ -938,22 +943,19 @@ function tarjeta(r) {
       ${puedeBorrar() ? `<button data-borrar="${r.id}" title="Eliminar caso" aria-label="Eliminar caso #${esc(r.id)}" class="p-1 rounded-md text-slate-600 hover:text-red-300 hover:bg-red-500/15">
         <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6l-1 14H6L5 6"/></svg></button>` : ""}
     </div>
-    <h3 class="mt-2 text-[15px] font-semibold text-white leading-snug line-clamp-2">${esc(r.titulo || "Sin título")}</h3>
-    <ul class="mt-2 space-y-1 text-xs text-slate-400">
-      <li class="flex items-center gap-2 min-w-0"><svg viewBox="0 0 24 24" class="w-3.5 h-3.5 shrink-0 text-slate-500" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span class="truncate text-slate-200 font-medium">${esc(r.usuario_discord || "Anónimo")}</span></li>
-      ${r.telefono ? `<li class="flex items-center gap-2"><svg viewBox="0 0 24 24" class="w-3.5 h-3.5 shrink-0 text-slate-500" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg><span class="truncate">${esc(r.telefono)}</span></li>` : ""}
-      ${r.email ? `<li class="flex items-center gap-2"><svg viewBox="0 0 24 24" class="w-3.5 h-3.5 shrink-0 text-slate-500" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18v12H3zM3 7l9 7 9-7"/></svg><span class="truncate">${esc(r.email)}</span></li>` : ""}
-      <li class="flex items-center gap-2"><svg viewBox="0 0 24 24" class="w-3.5 h-3.5 shrink-0 text-slate-500" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="truncate">Últ. contacto: ${esc(fechaCorta(ms.length ? ms[ms.length - 1].creado_en : r.created_at))} · ${ms.length} msj · ${ns.length} notas</span></li>
-    </ul>
-    <p class="mt-2 text-xs text-slate-500 leading-relaxed line-clamp-2">${esc(r.descripcion || "Sin descripción.")}</p>
-    ${(r.etiquetas || []).length || r.origen === "medicion" || esUrgente(r) || r.plan_solicitado === "Cancelar" || valDe(r.id) ? `<div class="mt-2 flex flex-wrap gap-1">${esUrgente(r) ? urgenciaChip(r) : ""}${r.plan_solicitado === "Cancelar" ? `<span class="mini bg-red-500/10 text-red-300 border-red-500/30">Baja solicitada</span>` : ""}${r.origen === "medicion" ? `<span class="mini bg-red-500/10 text-red-300 border-red-500/30" title="Abierto solo por la vigilancia de la web">🤖 Automático</span>` : ""}${(r.etiquetas || []).map(t => etiquetaChip(t)).join("")}${valDe(r.id) ? `<span class="mini bg-amber-500/10 text-amber-300 border-amber-500/30" title="Valoración del cliente">★ ${valDe(r.id).estrellas}</span>` : ""}</div>` : ""}
-    <div class="mt-2.5 flex items-center gap-2">
-      ${resp ? `<span class="w-5 h-5 rounded-full grid place-items-center text-[10px] font-bold text-[#1a1005] bg-gradient-to-br from-amber-300 to-orange-500">${inicial(resp)}</span><span class="text-xs text-slate-300">${esc(bonito(resp))}</span>`
-        : `<span class="text-xs text-slate-500">Sin responsable</span>`}
-      ${r.plan ? `<span class="mini bg-fx/10 text-fx border-fx/40">${esc(r.plan)}</span>` : ""}${r.dominio ? `<span class="text-[11px] text-slate-500 truncate">${esc(r.dominio)}</span>` : ""}
-      <span class="ml-auto h-1.5 w-16 rounded-full bg-base overflow-hidden" title="Temperatura ${Math.round(u * 100)}%"><span class="block h-full rounded-full" style="width:${Math.max(6, u * 100)}%;background:hsl(${Math.round(210 * (1 - u))} 85% 55%)"></span></span>
+    <h3 class="mt-2 text-[15px] font-semibold text-white leading-snug line-clamp-2" title="${esc(r.descripcion || "")}">${esc(r.titulo || "Sin título")}</h3>
+    <p class="mt-1 text-xs text-slate-300 truncate"><span class="font-medium">${esc(r.usuario_discord || "Anónimo")}</span>${r.dominio ? `<span class="text-slate-500"> · ${esc(r.dominio)}</span>` : ""}</p>
+    ${(r.etiquetas || []).length || r.plan || r.origen === "medicion" || esUrgente(r) || r.plan_solicitado === "Cancelar" || valDe(r.id) ? `<div class="mt-2 flex flex-wrap gap-1">${esUrgente(r) ? urgenciaChip(r) : ""}${r.plan_solicitado === "Cancelar" ? `<span class="mini bg-red-500/10 text-red-300 border-red-500/30">Baja solicitada</span>` : ""}${r.origen === "medicion" ? `<span class="mini bg-red-500/10 text-red-300 border-red-500/30" title="Abierto solo por la vigilancia de la web">🤖 Automático</span>` : ""}${r.plan ? `<span class="mini bg-fx/10 text-fx border-fx/40 max-w-full truncate">${esc(r.plan)}</span>` : ""}${(r.etiquetas || []).map(t => etiquetaChip(t)).join("")}${valDe(r.id) ? `<span class="mini bg-amber-500/10 text-amber-300 border-amber-500/30" title="Valoración del cliente">★ ${valDe(r.id).estrellas}</span>` : ""}</div>` : ""}
+    <div class="mt-2.5 flex items-center gap-1.5 text-xs text-slate-500">
+      ${resp ? `<span class="w-5 h-5 rounded-full grid place-items-center text-[10px] font-bold text-[#1a1005] bg-gradient-to-br from-amber-300 to-orange-500" title="${esc(bonito(resp))}">${inicial(resp)}</span>` : ""}
+      <span title="Último contacto: ${esc(fechaCorta(ms.length ? ms[ms.length - 1].creado_en : r.created_at))}">💬 ${ms.length}${ns.length ? " · 📝 " + ns.length : ""}</span>
+      <span class="ml-auto flex items-center gap-1">
+        ${r.telefono ? `<a href="https://wa.me/${esc(String(r.telefono).replace(/\D/g, ""))}" target="_blank" rel="noopener" class="acc-rapida" title="WhatsApp ${esc(r.telefono)}" aria-label="WhatsApp">🟢</a>` : ""}
+        ${r.email ? `<a href="mailto:${esc(r.email)}" class="acc-rapida" title="Correo ${esc(r.email)}" aria-label="Enviar correo">✉️</a>` : ""}
+        ${resuelto ? "" : `<span class="h-1.5 w-10 rounded-full bg-base overflow-hidden" title="Temperatura ${Math.round(u * 100)}%"><span class="block h-full rounded-full" style="width:${Math.max(6, u * 100)}%;background:hsl(${Math.round(210 * (1 - u))} 85% 55%)"></span></span>`}
+      </span>
     </div>
-    <div class="mt-3 pt-2.5 border-t border-line/70 flex items-center gap-2">${estadoChip}<span class="ml-auto">${slaBadge(r)}</span></div>
+    <div class="mt-2.5 pt-2.5 border-t border-line/70 flex items-center gap-2">${estadoChip}${resuelto ? "" : `<span class="ml-auto">${slaBadge(r)}</span>`}${!resuelto && siguienteEtapa(r.estado) ? `<button type="button" data-avanzar="${r.id}" class="avanzar" title="Pasar a «${siguienteEtapa(r.estado).t}»" aria-label="Pasar a ${siguienteEtapa(r.estado).t}">→</button>` : ""}</div>
   </article>`;
 }
 
@@ -1129,11 +1131,11 @@ function render() {
     : new Date(b.created_at) - new Date(a.created_at));
   $("contador").textContent = visibles.length + " de " + activos().length;
 
-  const COL = Object.fromEntries(ETAPAS.map(x => [x.e, { color: x.c,
-    sub: x.sla ? "SLA " + (x.sla < 24 ? x.sla + " h" : x.sla / 24 + " d") + " · Orden recomendado" : (cerrado(x.e) ? "Se archivan a los " + DIAS_ARCHIVO + " días" : "Orden recomendado"),
+  const COL = Object.fromEntries(ETAPAS.map(x => [x.e, { color: x.c, t: x.t,
+    sub: x.sla ? x.ayuda + " · SLA " + (x.sla < 24 ? x.sla + " h" : x.sla / 24 + " d") : "Se archivan a los " + DIAS_ARCHIVO + " días",
     vacio: "Suelta aquí" }]));
   $("lista").innerHTML = ESTADOS.map(e => {
-    let items = visibles.filter(r => (ESTADOS.includes(r.estado) ? r.estado : ESTADO0) === e);
+    let items = visibles.filter(r => columnaDe(r.estado) === e);
     let viejos = 0;
     if (cerrado(e) && !q) {
       viejos = items.filter(r => resueltoHace(r) >= ARCHIVO_MS).length;
@@ -1144,10 +1146,10 @@ function render() {
       : "";
     const c = COL[e].color;
     return `
-    <section class="min-w-0 shrink-0 w-[min(85vw,18.5rem)] self-stretch rounded-2xl bg-panel/70 border border-line p-2.5" style="border-top:3px solid rgb(${c})" aria-label="${e}" data-estado="${e}">
+    <section class="min-w-0 shrink-0 w-[min(85vw,17rem)] xl:flex-1 xl:w-auto xl:min-w-[14rem] self-stretch rounded-2xl bg-panel/70 border border-line p-2.5" style="border-top:3px solid rgb(${c})" aria-label="${e}" data-estado="${e}">
       <div class="flex items-center gap-2.5 mb-3 px-1.5 pt-1">
         <span class="w-2 h-2 rounded-full" style="background:rgb(${c})"></span>
-        <div class="min-w-0"><h2 class="text-xs font-bold text-white tracking-wide">${e.toUpperCase()}</h2><p class="text-[10.5px] text-slate-500">${COL[e].sub}</p></div>
+        <div class="min-w-0"><h2 class="text-xs font-bold text-white tracking-wide">${COL[e].t.toUpperCase()}</h2><p class="text-[10.5px] text-slate-500">${COL[e].sub}</p></div>
         <span class="ml-auto min-w-[22px] h-[22px] px-1.5 rounded-full grid place-items-center text-[11px] font-bold text-white" style="background:rgb(${c})">${items.length}</span>
       </div>
       <div class="flex flex-col gap-3 min-h-[8rem]">${items.length ? items.map(t => `<div class="card-wrap w-full" data-card-id="${t.id}">${tarjeta(t)}</div>`).join("")
@@ -1344,6 +1346,8 @@ document.addEventListener("click", e => {
   if (ver) { abrirDetalle(Number(ver.dataset.detalle)); return; }
   const borrar = e.target.closest("[data-borrar]");
   if (borrar) { pedirEliminar(Number(borrar.dataset.borrar)); return; }
+  const av = e.target.closest("[data-avanzar]");
+  if (av) { const r = reportes.find(x => x.id === Number(av.dataset.avanzar)), sig = r && siguienteEtapa(r.estado); if (sig) { sonidoMover(); cambiarEstado(r.id, sig.e); } return; }
   const reset = e.target.closest("[data-reset-urg]");
   if (reset) { fijarUrgencia(Number(reset.dataset.resetUrg), null); render(); return; }
   if (bloquearClick) { e.preventDefault(); e.stopPropagation(); return; }
@@ -1465,7 +1469,7 @@ function pintarDetalle() {
   if (!r) { cerrarDetalle(); return; }
   const cuerpo = $("detalle-cuerpo"), scroll = cuerpo.scrollTop;
   const tipo = TIPOS[tipoDe(r)];
-  const estado = ESTADOS.includes(r.estado) ? r.estado : ESTADO0;
+  const estado = columnaDe(r.estado);
   const u = urgencia(r), nivel = Math.round(u * 100), manual = urgenciaManual(r) !== null;
   const ns = notasDe(r.id), ms = mensajesDe(r.id);
   const borrado = !!r.eliminado_en;          // un caso en la papelera solo se puede consultar
@@ -1474,9 +1478,9 @@ function pintarDetalle() {
 
   // --- Estado (botones) ---
   const estadoHTML = borrado ? "" : `
-    <div class="grid grid-cols-2 sm:grid-cols-4 w-full rounded-lg bg-base border border-line p-1 gap-1">${ESTADOS.map(e => `
+    <div class="grid grid-cols-3 sm:grid-cols-5 w-full rounded-lg bg-base border border-line p-1 gap-1">${ESTADOS.map(e => `
       <button type="button" data-id="${r.id}" data-estado="${e}" aria-pressed="${e === estado}"
-        class="estado-btn px-2 py-2 rounded-md text-xs font-medium transition-colors ${e === estado ? ESTADO_ESTILO[e].on : "text-slate-400 hover:text-white hover:bg-raised"}">${e}</button>`).join("")}
+        class="estado-btn px-2 py-2 rounded-md text-xs font-medium transition-colors ${e === estado ? ESTADO_ESTILO[e].on : "text-slate-400 hover:text-white hover:bg-raised"}">${etapaDe(e).t}</button>`).join("")}
     </div>`;
 
   // --- Responsable ---
@@ -2292,7 +2296,7 @@ function pintarCliente() {
       ${bloque("Casos", casos.length ? `<ul class="divide-y divide-line/70">${casos.map(r => { const v = valDe(r.id); return `<li><button type="button" data-detalle="${r.id}" class="w-full flex items-center gap-2 py-2 text-left hover:bg-raised/50 rounded-md px-1">
         <span class="w-2 h-2 rounded-full shrink-0 ${TIPOS[tipoDe(r)].dot}"></span><span class="min-w-0 flex-1"><span class="block text-sm text-slate-200 truncate">#${r.id} · ${esc(r.titulo || "Sin título")}</span>
         <span class="block text-[11px] text-slate-500">${esc(tipoDe(r))} · ${esc(fechaDia(r.created_at))}${r.responsable_usuario ? " · " + esc(bonito(r.responsable_usuario)) : ""}</span></span>
-        ${v ? `<span class="text-amber-300 text-xs" aria-label="${v.estrellas} de 5">★${v.estrellas}</span>` : ""}<span class="mini ${ESTADO_ESTILO[ESTADOS.includes(r.estado) ? r.estado : ESTADO0].on}">${esc(r.estado)}</span></button></li>`; }).join("")}</ul>` : '<p class="text-sm text-slate-500">Aún no ha abierto ningún caso.</p>')}
+        ${v ? `<span class="text-amber-300 text-xs" aria-label="${v.estrellas} de 5">★${v.estrellas}</span>` : ""}<span class="mini ${ESTADO_ESTILO[columnaDe(r.estado)].on}">${esc(etapaDe(r.estado).t)}</span></button></li>`; }).join("")}</ul>` : '<p class="text-sm text-slate-500">Aún no ha abierto ningún caso.</p>')}
       ${bloque("Últimos mensajes", msgs.length ? `<ul class="space-y-2">${msgs.map(m => `<li><button type="button" data-detalle="${m.caso_id}" class="w-full text-left rounded-md border px-3 py-2 ${m.autor_tipo === "staff" ? "bg-fx/5 border-fx/25" : "bg-panel border-line"} hover:border-fx">
         <span class="block text-xs text-slate-400">${m.autor_tipo === "staff" ? esc(bonito(m.autor || "Equipo")) : esc(c.nombre)} · caso #${m.caso_id} · ${esc(fechaCorta(m.creado_en))}</span>
         <span class="block text-sm text-slate-200 line-clamp-2 break-words">${esc(m.texto)}</span></button></li>`).join("")}</ul>` : '<p class="text-sm text-slate-500">Sin mensajes.</p>')}

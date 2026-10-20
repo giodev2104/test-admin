@@ -66,7 +66,8 @@ begin
   on conflict (cliente_id, mes) do update set datos = excluded.datos, creado_en = now();
   get diagnostics n = row_count;
   update webs_cliente set mes_actualizaciones = null, mes_ataques = null, mes_cambios = null, mes_horas = null,
-    horas_usadas = case when horas_incluidas is not null then 0 end;
+    horas_usadas = case when horas_incluidas is not null then 0 end
+  where cliente_id in (select cliente_id from webs_cliente_historial where mes = date_trunc('month', m)::date);
   return n;
 end
 $$;
