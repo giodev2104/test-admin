@@ -149,6 +149,8 @@
               <option value="__mios">Mis casos</option>
               <option value="__sin">Sin asignar</option>
             </select>
+            <select id="filtro-cat" aria-label="Filtrar por servicio" class="sel"></select>
+            <select id="filtro-cli" aria-label="Filtrar por cliente o no cliente" class="sel"></select>
             <select id="filtro-etq" aria-label="Filtrar por etiqueta" class="sel"><option value="">Todas las etiquetas</option></select>
             <select id="filtros-guardados" aria-label="Filtros guardados" class="sel"></select>
             <select id="orden" aria-label="Orden" class="sel">
@@ -1160,6 +1162,8 @@ function render() {
   const visibles = (filtro === "Todos" ? activos() : activos().filter(r => tipoDe(r) === filtro))
     .filter(coincideResp)
     .filter(r => !filtroEtiqueta || (r.etiquetas || []).includes(filtroEtiqueta))
+    .filter(r => !filtroCat || categoriaDe(r) === filtroCat)
+    .filter(r => !filtroCli || (esCliente(r) ? "si" : "no") === filtroCli)
     .filter(r => !q || (porId ? String(r.id) === q
       : norm([r.id, r.titulo, r.descripcion, r.usuario_discord, r.email, r.telefono, r.dominio, r.plan, r.tipo_reporte, r.responsable_usuario, (r.etiquetas || []).join(" "), notasDe(r.id).map(n => n.texto).join(" ")].join(" ")).includes(q)));
   visibles.sort((a, b) => orden === "prioridad"
@@ -2048,7 +2052,17 @@ async function marcarLeidoStaff(id) {
 }
 
 // ----- Etiquetas y filtros guardados -----
-let filtroEtiqueta = "";
+let filtroEtiqueta = "", filtroCat = "", filtroCli = "";
+// Qué se pide en el caso: por el servicio enlazado o, si no hay, por el nombre del plan
+const CATEGORIAS = [["web", "Planes web"], ["mantenimiento", "Mantenimiento"], ["extra", "Extras"], ["pack", "Packs"], ["ninguno", "Sin servicio"]];
+function categoriaDe(r) {
+  const s = servicios.find(x => x.caso_id === r.id), n = String(r.plan_solicitado || r.plan || "").trim();
+  const t = s ? s.tipo : (catalogo.find(c => c.nombre === n) || {}).tipo
+    || (/^plan /i.test(n) ? "web" : /^mantenimiento/i.test(n) ? "mantenimiento" : /^pack/i.test(n) ? "pack" : /^ext-/i.test(n) ? "extra" : "");
+  return t === "renting" ? "web" : t || "ninguno";
+}
+// Cliente = tiene (o ha tenido) algún servicio activo o pagado; el resto son posibles clientes
+const esCliente = r => !!r.cliente_id && servicios.some(s => s.cliente_id === r.cliente_id && (s.estado === "activo" || s.estado === "baja" || s.pagado_en));
 const todasEtiquetas = () => [...new Set(reportes.flatMap(r => r.etiquetas || []))].sort((a, b) => a.localeCompare(b, "es"));
 const etiquetaChip = (t, quitar) => `<span class="mini bg-sky-500/10 text-sky-300 border-sky-500/30">#${esc(t)}${quitar ? `<button type="button" data-etq-quitar="${quitar}" data-etq="${esc(t)}" class="ml-0.5 hover:text-white" aria-label="Quitar etiqueta ${esc(t)}">✕</button>` : ""}</span>`;
 async function cambiarEtiquetas(id, lista) {
@@ -2070,6 +2084,9 @@ function pintarFiltros() {
   const etqs = todasEtiquetas(), sel = $("filtro-etq");
   if (filtroEtiqueta && !etqs.includes(filtroEtiqueta)) etqs.push(filtroEtiqueta);
   sel.innerHTML = `<option value="">Todas las etiquetas</option>` + etqs.map(t => `<option value="${esc(t)}" ${t === filtroEtiqueta ? "selected" : ""}>#${esc(t)}</option>`).join("");
+  const base = filtro === "Todos" ? activos() : activos().filter(r => tipoDe(r) === filtro);
+  $("filtro-cat").innerHTML = `<option value="">Todos los servicios</option>` + CATEGORIAS.map(([k, t]) => `<option value="${k}" ${k === filtroCat ? "selected" : ""}>${t} (${base.filter(r => categoriaDe(r) === k).length})</option>`).join("");
+  $("filtro-cli").innerHTML = [["", "Clientes y no clientes"], ["si", "Clientes"], ["no", "No clientes"]].map(([k, t]) => `<option value="${k}" ${k === filtroCli ? "selected" : ""}>${t}${k ? " (" + base.filter(r => (esCliente(r) ? "si" : "no") === k).length + ")" : ""}</option>`).join("");
   const fs = leerFiltros();
   $("filtros-guardados").innerHTML = `<option value="">☆ Filtros guardados</option>` + fs.map((f, i) => `<option value="${i}">${esc(f.nombre)}</option>`).join("")
     + `<option value="__nuevo">＋ Guardar el filtro actual…</option>` + (fs.length ? `<option value="__borrar">🗑 Borrar un filtro…</option>` : "");
@@ -2078,13 +2095,13 @@ function aplicarFiltroGuardado(v) {
   const fs = leerFiltros();
   if (v === "__nuevo") {
     const nombre = (prompt("Nombre del filtro (p. ej. «Mis incidencias urgentes»):") || "").trim().slice(0, 40);
-    if (nombre) { escribirFiltros(fs.filter(f => f.nombre !== nombre).concat([{ nombre, filtro, filtroResp, filtroEtiqueta, busqueda, orden }])); toast("Filtro «" + nombre + "» guardado"); }
+    if (nombre) { escribirFiltros(fs.filter(f => f.nombre !== nombre).concat([{ nombre, filtro, filtroResp, filtroEtiqueta, filtroCat, filtroCli, busqueda, orden }])); toast("Filtro «" + nombre + "» guardado"); }
   } else if (v === "__borrar") {
     const nombre = (prompt("¿Qué filtro borro? Escribe su nombre:\n" + fs.map(f => "· " + f.nombre).join("\n")) || "").trim();
     if (fs.some(f => f.nombre === nombre)) { escribirFiltros(fs.filter(f => f.nombre !== nombre)); toast("Filtro borrado"); }
   } else if (fs[v]) {
     const f = fs[v];
-    filtro = VISTAS.some(x => x.id === f.filtro) ? f.filtro : "Todos"; filtroResp = f.filtroResp || ""; filtroEtiqueta = f.filtroEtiqueta || "";
+    filtro = VISTAS.some(x => x.id === f.filtro) ? f.filtro : "Todos"; filtroResp = f.filtroResp || ""; filtroEtiqueta = f.filtroEtiqueta || ""; filtroCat = f.filtroCat || ""; filtroCli = f.filtroCli || "";
     busqueda = f.busqueda || ""; orden = f.orden || "prioridad";
     $("filtro-resp").value = filtroResp; $("orden").value = orden; $("buscar").value = busqueda;
     toast("Filtro «" + f.nombre + "» aplicado");
@@ -2092,6 +2109,8 @@ function aplicarFiltroGuardado(v) {
   render();
 }
 $("filtro-etq").addEventListener("change", e => { filtroEtiqueta = e.target.value; render(); });
+$("filtro-cat").addEventListener("change", e => { filtroCat = e.target.value; render(); });
+$("filtro-cli").addEventListener("change", e => { filtroCli = e.target.value; render(); });
 $("filtros-guardados").addEventListener("change", e => { const v = e.target.value; e.target.value = ""; if (v !== "") aplicarFiltroGuardado(v); });
 document.addEventListener("keydown", e => {
   const inp = e.target.closest?.("[data-etq-nueva]");
