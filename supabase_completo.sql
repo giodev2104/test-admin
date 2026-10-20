@@ -113,6 +113,12 @@ alter table public.actividad_caso
   add column if not exists autor     text,
   add column if not exists creado_en timestamptz not null default now();
 
+-- Reglas de una instalación anterior que solo admitían los estados y tipos antiguos
+-- (el panel actual usa las etapas del pipeline: «Entrada de leads», «Aceptado»…)
+alter table public.reportes drop constraint if exists reportes_estado_check;
+alter table public.reportes drop constraint if exists reportes_tipo_reporte_check;
+alter table public.reportes alter column estado set default 'Entrada de leads';
+
 -- Columna "codigo_acceso" de una instalación anterior: si existe, que se rellene sola
 do $$
 begin
