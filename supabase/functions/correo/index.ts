@@ -3,6 +3,7 @@
 //   · aviso_cliente      (panel, sesión del staff) → «el equipo te ha respondido» / «tu solicitud ha cambiado»
 //   · aviso_responsable  (panel, sesión del staff) → «te han asignado el caso #…»
 //   · aviso_equipo       (portal, token cliente)   → «el cliente ha escrito en el caso #…» al responsable
+//   · aviso_urgente      (portal, token cliente)   → «🚨 urgencia» a todo el equipo, con el plazo de su plan
 // Despliegue: Supabase > Edge Functions > Deploy a new function > Via Editor, nombre "correo",
 // y DESACTIVA «Verify JWT» (la función comprueba ella misma quién llama).
 // Secretos (Edge Functions > Secrets): BREVO_API_KEY, CORREO_REMITENTE (el correo verificado en Brevo)
@@ -20,6 +21,8 @@ const env = (k: string) => Deno.env.get(k) || "";
 const URL_PORTAL = env("URL_PORTAL") || "https://giodev2104.github.io/test-cliente/";
 const URL_PANEL = env("URL_PANEL") || "https://giodev2104.github.io/test-admin/";
 const MINUTOS_ENTRE_AVISOS = 10;
+// Plazo de respuesta a urgencias según el plan (horas). Igual que PLAZO_URGENTE_H en el panel y SOPORTE en el portal.
+const PLAZO_URGENTE_H: Record<string, number> = { "Mantenimiento Básico": 8, "Mantenimiento Pro": 4, "Mantenimiento Pro + SEO": 2, "": 24 };
 const esc = (s: unknown) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 const estadoCliente = (e: string) =>
   e === "Aceptado" ? "Completada" : e === "Denegado" ? "Cerrada" : !e || e === "Entrada de leads" ? "Recibida" : "En curso";
@@ -142,6 +145,27 @@ Deno.serve(async (req) => {
         await enviar(s.email, s.usuario, `Nuevo mensaje del cliente en el caso #${r.id}`, plantilla(`${r.usuario_discord || "Un cliente"} ha escrito`, [
           `Hay un mensaje nuevo en «${esc(r.titulo || "Sin título")}» (#${r.id})${r.responsable_usuario ? "" : ". El caso no tiene responsable"}.`,
         ], { texto: "Responder en el panel", url: URL_PANEL }));
+      }
+      await admin.from("reportes").update({ aviso_equipo_en: new Date().toISOString() }).eq("id", r.id);
+      return responder({ ok: true });
+    }
+
+    if (accion === "aviso_urgente") {
+      const id = Number(cuerpo.caso_id);
+      const { data: suyo } = await admin.rpc("servidor_caso_del_cliente", { p_token: String(cuerpo.token || ""), p_caso: id });
+      if (!suyo) return responder({ error: "Sesión no válida." }, 401);
+      const r = await caso(id);
+      const { data: extra } = await admin.from("reportes").select("origen,plan,descripcion").eq("id", id).maybeSingle();
+      if (!r || extra?.origen !== "urgente" || reciente(r.aviso_equipo_en)) return responder({ ok: true, omitido: "No es urgente o ya se avisó." });
+      const { data: w } = await admin.from("webs_cliente").select("plan").eq("cliente_id", r.cliente_id).maybeSingle();
+      const plazo = PLAZO_URGENTE_H[w?.plan || ""] ?? PLAZO_URGENTE_H[""];
+      const { data: equipo } = await admin.from("staff").select("usuario,email");
+      for (const s of equipo || []) {
+        await enviar(s.email, s.usuario, `🚨 URGENTE · caso #${r.id} de ${r.usuario_discord || "un cliente"}`, plantilla(`Urgencia de ${r.usuario_discord || "un cliente"}`, [
+          `Plan: <b>${esc(w?.plan || "sin plan")}</b> · plazo de respuesta: <b>${plazo} h</b>.`,
+          `«${esc(r.titulo || "Sin título")}» (#${r.id})`,
+          esc(String(extra?.descripcion || "").slice(0, 600)),
+        ], { texto: "Atender en el panel", url: URL_PANEL }));
       }
       await admin.from("reportes").update({ aviso_equipo_en: new Date().toISOString() }).eq("id", r.id);
       return responder({ ok: true });

@@ -941,7 +941,7 @@ function tarjeta(r) {
       <li class="flex items-center gap-2"><svg viewBox="0 0 24 24" class="w-3.5 h-3.5 shrink-0 text-slate-500" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="truncate">Últ. contacto: ${esc(fechaCorta(ms.length ? ms[ms.length - 1].creado_en : r.created_at))} · ${ms.length} msj · ${ns.length} notas</span></li>
     </ul>
     <p class="mt-2 text-xs text-slate-500 leading-relaxed line-clamp-2">${esc(r.descripcion || "Sin descripción.")}</p>
-    ${(r.etiquetas || []).length || r.origen === "medicion" || valDe(r.id) ? `<div class="mt-2 flex flex-wrap gap-1">${r.origen === "medicion" ? `<span class="mini bg-red-500/10 text-red-300 border-red-500/30" title="Abierto solo por la vigilancia de la web">🤖 Automático</span>` : ""}${(r.etiquetas || []).map(t => etiquetaChip(t)).join("")}${valDe(r.id) ? `<span class="mini bg-amber-500/10 text-amber-300 border-amber-500/30" title="Valoración del cliente">★ ${valDe(r.id).estrellas}</span>` : ""}</div>` : ""}
+    ${(r.etiquetas || []).length || r.origen === "medicion" || esUrgente(r) || r.plan_solicitado === "Cancelar" || valDe(r.id) ? `<div class="mt-2 flex flex-wrap gap-1">${esUrgente(r) ? urgenciaChip(r) : ""}${r.plan_solicitado === "Cancelar" ? `<span class="mini bg-red-500/10 text-red-300 border-red-500/30">Baja solicitada</span>` : ""}${r.origen === "medicion" ? `<span class="mini bg-red-500/10 text-red-300 border-red-500/30" title="Abierto solo por la vigilancia de la web">🤖 Automático</span>` : ""}${(r.etiquetas || []).map(t => etiquetaChip(t)).join("")}${valDe(r.id) ? `<span class="mini bg-amber-500/10 text-amber-300 border-amber-500/30" title="Valoración del cliente">★ ${valDe(r.id).estrellas}</span>` : ""}</div>` : ""}
     <div class="mt-2.5 flex items-center gap-2">
       ${resp ? `<span class="w-5 h-5 rounded-full grid place-items-center text-[10px] font-bold text-[#1a1005] bg-gradient-to-br from-amber-300 to-orange-500">${inicial(resp)}</span><span class="text-xs text-slate-300">${esc(bonito(resp))}</span>`
         : `<span class="text-xs text-slate-500">Sin responsable</span>`}
@@ -977,6 +977,7 @@ function renderInicio() {
   const mios = activos().filter(r => abierto(r) && r.responsable_usuario === usuarioActual).length;
   const top = base.slice().sort(prio);
   const sig = top[0];
+  const urgPend = activos().filter(r => abierto(r) && esUrgente(r) && !primerMensajeEquipo(r)).sort((a, b) => urgenciaVence(a) - urgenciaVence(b));
   const accion = r => sinResponder(r) ? "Responder" : !r.responsable_usuario ? "Asignar" : vencido(r) ? "Desbloquear" : "Resolver";
 
   const mes = new Date(); mes.setDate(1); mes.setHours(0, 0, 0, 0);
@@ -1046,6 +1047,10 @@ function renderInicio() {
       <p class="text-sm font-semibold text-white truncate">${accion(sig)}: ${esc(sig.titulo || "Sin título")} · ${esc(sig.usuario_discord || "Anónimo")}</p></div>
     <button type="button" data-detalle="${sig.id}" class="rounded-full bg-fx hover:bg-fx2 text-[#1a1005] text-sm font-bold px-4 py-2">Hacer ahora →</button>
   </section>` : ""}
+
+  ${urgPend.length ? `<section class="mt-5 rounded-2xl border border-red-500/50 p-4" style="background:linear-gradient(90deg,rgba(239,68,68,.14),rgba(239,68,68,.03))">
+    <h2 class="text-sm font-bold text-red-200">🚨 Urgencias sin responder (${urgPend.length})</h2>
+    <ul class="mt-2">${urgPend.map(r => itemCritico(r, urgenciaChip(r))).join("")}</ul></section>` : ""}
 
   <section class="mt-6">
     <div class="flex items-center gap-3 mb-3">
@@ -1558,7 +1563,9 @@ function pintarDetalle() {
         ${r.telefono ? datoDetalle("Teléfono", `<a class="text-fx hover:underline" href="tel:${esc(r.telefono)}">${esc(r.telefono)}</a>`) : ""}
         ${r.dominio ? datoDetalle("Web", esc(r.dominio)) : ""}
         ${r.plan ? datoDetalle("Plan / servicio", esc(r.plan)) : ""}
-        ${r.plan_solicitado ? datoDetalle("Cambio de plan solicitado", esc(r.plan_solicitado) + `<span class="block text-xs text-slate-500">${r.estado === "Aceptado" ? "Aplicado: ya es su plan en el portal." : "Al pasar el caso a «Aceptado», su plan cambiará solo en el portal."}</span>`) : ""}
+        ${r.plan_solicitado === "Cancelar" ? datoDetalle("Baja solicitada", `<span class="text-red-300">Quiere darse de baja de ${esc(r.plan || "su plan")}</span><span class="block text-xs text-slate-500">${r.estado === "Aceptado" ? "Aplicada: ya no tiene plan en el portal. ¿Has cancelado su suscripción en Stripe?" : "Al pasar el caso a «Aceptado» se le quitará el plan. Cancela también su suscripción en Stripe."}</span>`)
+          : r.plan_solicitado ? datoDetalle("Cambio de plan solicitado", esc(r.plan_solicitado) + `<span class="block text-xs text-slate-500">${r.estado === "Aceptado" ? "Aplicado: ya es su plan en el portal." : "Al pasar el caso a «Aceptado», su plan cambiará solo en el portal."}</span>`) : ""}
+        ${esUrgente(r) ? datoDetalle("Urgencia", urgenciaTexto(r)) : ""}
         ${datoDetalle("Creado", esc(fechaLarga(r.created_at)) + `<span class="block text-xs text-slate-500">${esc(hace(Date.now() - new Date(r.created_at)))}</span>`)}
         ${cerrado(estado) && r.resuelto_en ? datoDetalle("Cerrado", esc(fechaLarga(r.resuelto_en))) : ""}
         ${datoDetalle("Responsable", responsableHTML)}
@@ -1755,6 +1762,17 @@ function abrirFicha(id) {
         <div class="col-span-2 sm:col-span-4">${campoF("seo_informe_url", "Enlace al informe (PDF, Drive…)", w.seo_informe_url, "url", 'placeholder="https://…"')}</div></div>
         <p class="mt-4 mb-2 text-xs font-semibold text-slate-300">Palabras clave</p>${filasHTML("seo_palabras", w.seo_palabras)}
         <p class="mt-4 mb-2 text-xs font-semibold text-slate-300">Lo que hicimos este mes</p>${filasHTML("seo_acciones", w.seo_acciones)}`)}
+      ${bloqueF("Google, enlaces e informe mensual", "Se actualizan solos: Google cada lunes, los enlaces una vez al mes y el informe se envía el día 1. Aquí puedes lanzarlos al momento.", `<div class="${g2}">
+        ${campoF("gsc_propiedad", "Propiedad de Search Console (opcional)", w.gsc_propiedad, "text", 'placeholder="Automática: sc-domain:' + esc(c.dominio || "midominio.com") + '"')}
+        ${campoF("ga4_propiedad", "ID de propiedad de Google Analytics 4 (opcional)", w.ga4_propiedad, "text", 'placeholder="123456789" inputmode="numeric"')}</div>
+        <p id="ficha-google-estado" class="mt-2 text-[11px] ${w.google_error ? "text-amber-300" : "text-slate-500"}">${w.google_error ? "⚠ " + esc(w.google_error) : w.google_en ? "Datos de Google actualizados " + esc(hace(Date.now() - new Date(w.google_en)).toLowerCase()) + "." : "Todavía no se han traído datos de Google."}</p>
+        <div class="mt-3 flex flex-wrap items-center gap-2">
+          <button type="button" id="ficha-google" class="rounded-md border border-line px-3 py-1.5 text-xs text-slate-200 hover:border-fx">Actualizar desde Google</button>
+          <button type="button" id="ficha-enlaces" class="rounded-md border border-line px-3 py-1.5 text-xs text-slate-200 hover:border-fx">Revisar enlaces ahora</button>
+          <button type="button" id="ficha-informe" class="rounded-md border border-line px-3 py-1.5 text-xs text-slate-200 hover:border-fx">Enviar el informe del mes pasado</button>
+          <label class="ml-auto flex items-center gap-2 text-sm text-slate-200"><input id="f-informe_auto" type="checkbox" ${w.informe_auto === false ? "" : "checked"}> Informe mensual por correo</label>
+        </div>
+        <div id="ficha-enlaces-estado" class="mt-3 text-xs text-slate-400">${enlacesFichaHTML(w)}</div>`)}
       ${bloqueF("Facturación", "", `${campoF("metodo_pago", "Método de pago", w.metodo_pago, "text", 'placeholder="Visa terminada en 4242"')}
         <p class="mt-4 mb-2 text-xs font-semibold text-slate-300">Facturas</p>${filasHTML("facturas", w.facturas)}`)}
       <p id="ficha-error" class="hidden text-sm text-red-300"></p>
@@ -1851,7 +1869,8 @@ function leerFicha() {
     seo_periodo: texto("seo_periodo"), seo_visitas: num("seo_visitas", "El % de visitas", { entero: true }), seo_impresiones: num("seo_impresiones", "El % de impresiones", { entero: true }),
     seo_clics: num("seo_clics", "El % de clics", { entero: true }), seo_primera_pagina: num("seo_primera_pagina", "Las palabras en primera página", { min: 0, entero: true }),
     seo_palabras: palabras, seo_acciones: filas("seo_acciones").map(a => ({ texto: a.texto })), seo_informe_url: informe,
-    metodo_pago: texto("metodo_pago"), facturas, medir_auto: $("f-medir_auto").checked
+    metodo_pago: texto("metodo_pago"), facturas, medir_auto: $("f-medir_auto").checked,
+    gsc_propiedad: texto("gsc_propiedad"), ga4_propiedad: v("ga4_propiedad").replace(/\D/g, "") || null, informe_auto: $("f-informe_auto").checked
   };
   return { errores, datos, cliente: { nombre, dominio: v("dominio").replace(/^https?:\/\//i, "").replace(/\/.*$/, "") || null } };
 }
@@ -1888,6 +1907,9 @@ $("ficha-modal").addEventListener("click", e => {
   if (e.target.closest("[data-ficha-cerrar]")) { cerrarFicha(); return; }
   if (e.target.closest("#ficha-guardar")) { guardarFicha(); return; }
   if (e.target.closest("#ficha-medir")) { medirAhora(); return; }
+  if (e.target.closest("#ficha-google")) { googleAhora(); return; }
+  if (e.target.closest("#ficha-enlaces")) { enlacesAhora(); return; }
+  if (e.target.closest("#ficha-informe")) { informeAhora(); return; }
   const add = e.target.closest("[data-fila-add]");
   if (add) { const k = add.dataset.filaAdd, box = $("ficha-cuerpo").querySelector(`[data-filas="${k}"]`); box.insertAdjacentHTML("beforeend", filaHTML(FILAS[k])); box.lastElementChild.querySelector("input").focus(); return; }
   const del = e.target.closest("[data-fila-del]");
@@ -2040,6 +2062,7 @@ function renderNegocio() {
   const cerradosMes = meses.map(m => ({ ...m, v: activos().filter(r => cerrado(r.estado) && r.resuelto_en && new Date(r.resuelto_en) >= m.d && new Date(r.resuelto_en) < m.fin).length }));
   const altasPorMes = meses.map(m => ({ ...m, v: clientes.filter(c => new Date(c.creado_en) >= m.d && new Date(c.creado_en) < m.fin).length }));
   const tile = (t, v, s) => `<div class="rounded-2xl border border-line bg-panel p-4"><p class="text-xs text-slate-500">${t}</p><p class="mt-1 font-display text-2xl font-bold text-white">${v}</p><p class="text-[11px] text-slate-500 mt-0.5">${s}</p></div>`;
+  const bajas = activos().filter(r => r.plan_solicitado === "Cancelar" && r.estado === "Aceptado" && r.resuelto_en && new Date(r.resuelto_en) >= desde).length;
   const periodoTxt = periodoNegocio ? "últimos " + periodoNegocio + " días" : "desde siempre";
 
   // Ranking: casos del periodo por responsable
@@ -2062,7 +2085,7 @@ function renderNegocio() {
       `<button type="button" data-periodo="${v}" class="px-3 py-1.5 rounded-lg text-xs font-semibold ${periodoNegocio === v ? "bg-raised text-white" : "text-slate-500 hover:text-white"}">${t}</button>`).join("")}</div>
   </header>
   <section class="grid gap-3 grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-    ${tile("Ingresos recurrentes (MRR)", euros(mrr), "al mes · " + euros(mrr * 12) + " al año")}
+    ${tile("Ingresos recurrentes (MRR)", euros(mrr), "al mes · " + euros(mrr * 12) + " al año · " + bajas + " baja" + (bajas === 1 ? "" : "s") + " en el periodo")}
     ${tile("Clientes con plan", conPlan.length, clientes.length + (clientes.length === 1 ? " cuenta" : " cuentas") + " en el portal")}
     ${tile("Altas este mes", altasMes, "cuentas nuevas en el portal")}
     ${tile("Primera respuesta", fmtH(tPR), "tiempo medio · " + periodoTxt)}
@@ -2236,6 +2259,7 @@ function pintarCliente() {
         ${datoDetalle("Último contacto", ultimo ? esc(hace(Date.now() - new Date(ultimo))) : "—")}
         ${datoDetalle("Privacidad", c.acepta_privacidad_en ? "Aceptada el " + esc(fechaDia(c.acepta_privacidad_en)) : '<span class="text-amber-300">Sin constancia</span>')}
         ${datoDetalle("Web", w.disponibilidad != null ? esc(String(w.disponibilidad).replace(".", ",")) + " % online" + (w.velocidad != null ? `<span class="block text-xs text-slate-500">${esc(String(w.velocidad).replace(".", ","))} s de carga</span>` : "") : '<span class="text-slate-500">Sin medir</span>')}
+        ${datoDetalle("Enlaces rotos", w.enlaces_revisado_en ? ((w.enlaces_rotos || []).length ? `<span class="text-amber-300">${(w.enlaces_rotos || []).length}</span>` : '<span class="text-emerald-300">Ninguno</span>') + `<span class="block text-xs text-slate-500">${esc(hace(Date.now() - new Date(w.enlaces_revisado_en)).toLowerCase())}</span>` : '<span class="text-slate-500">Sin revisar</span>')}
         ${datoDetalle("Tokens del mes", w.horas_incluidas ? esc(String(w.horas_usadas || 0).replace(".", ",")) + " de " + esc(String(w.horas_incluidas).replace(".", ",")) : '<span class="text-slate-500">—</span>')}
       </dl>
       ${bloque("Notas sobre el cliente", `
@@ -2246,6 +2270,7 @@ function pintarCliente() {
           <p class="mt-1 text-sm text-slate-200 whitespace-pre-wrap break-words">${esc(n.texto)}</p></li>`).join("")}</ul>` : ""}
         <textarea id="ncli-texto" maxlength="2000" rows="2" placeholder="Añadir una nota sobre este cliente…" class="mt-2 w-full resize-y bg-panel border border-line rounded-md px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:border-fx focus:outline-none"></textarea>
         <div class="mt-2 flex justify-end"><button type="button" data-ncli-add class="rounded-md bg-fx hover:bg-fx2 text-[#1a1005] text-sm font-semibold px-3.5 py-1.5">Añadir nota</button></div>`, ns.length ? `<span class="text-xs text-fx">(${ns.length})</span>` : "")}
+      ${bloque("🔒 Bóveda de accesos", bovedaStaffHTML(c.id))}
       ${bloque("Casos", casos.length ? `<ul class="divide-y divide-line/70">${casos.map(r => { const v = valDe(r.id); return `<li><button type="button" data-detalle="${r.id}" class="w-full flex items-center gap-2 py-2 text-left hover:bg-raised/50 rounded-md px-1">
         <span class="w-2 h-2 rounded-full shrink-0 ${TIPOS[tipoDe(r)].dot}"></span><span class="min-w-0 flex-1"><span class="block text-sm text-slate-200 truncate">#${r.id} · ${esc(r.titulo || "Sin título")}</span>
         <span class="block text-[11px] text-slate-500">${esc(tipoDe(r))} · ${esc(fechaDia(r.created_at))}${r.responsable_usuario ? " · " + esc(bonito(r.responsable_usuario)) : ""}</span></span>
@@ -2263,7 +2288,7 @@ function abrirCliente(id) {
   $("cliente-cuerpo").scrollTop = 0;
   pintarCliente();
 }
-function cerrarCliente() { clienteAbierto = null; $("cliente-modal").classList.add("hidden"); }
+function cerrarCliente() { if (clienteAbierto) BOVS.delete(clienteAbierto); clienteAbierto = null; $("cliente-modal").classList.add("hidden"); }
 async function agregarNotaCliente() {
   const t = $("ncli-texto").value.trim();
   if (!t || !clienteAbierto) return;
@@ -2305,6 +2330,139 @@ window.addEventListener("keydown", e => {
   if (!$("renov-modal").classList.contains("hidden")) { e.stopImmediatePropagation(); cerrarRenov(); }
   else if (!$("cliente-modal").classList.contains("hidden") && $("detalle-modal").classList.contains("hidden") && $("ficha-modal").classList.contains("hidden")) { e.stopImmediatePropagation(); cerrarCliente(); }
 }, true);
+
+// ---------- Lote 3: urgencias con plazo, Google, enlaces, informe y bóveda ----------
+// Plazo de respuesta a urgencias según el plan (horas). Igual que SOPORTE en el portal y la función «correo».
+const PLAZO_URGENTE_H = { "Mantenimiento Básico": 8, "Mantenimiento Pro": 4, "Mantenimiento Pro + SEO": 2, "": 24 };
+const esUrgente = r => r.origen === "urgente";
+const planDe = r => (r.cliente_id && (webs.get(r.cliente_id) || {}).plan) || r.plan || "";
+const urgenciaVence = r => new Date(r.created_at).getTime() + (PLAZO_URGENTE_H[planDe(r)] ?? PLAZO_URGENTE_H[""]) * HORA;
+function urgenciaChip(r) {
+  if (primerMensajeEquipo(r) || cerrado(r.estado)) return `<span class="mini bg-red-500/10 text-red-300 border-red-500/30">🚨 Urgente · atendida</span>`;
+  const ms = urgenciaVence(r) - Date.now();
+  return `<span class="mini ${ms < 0 ? "bg-red-500 text-white border-red-500" : "bg-red-500/15 text-red-200 border-red-500/50"}" title="Plazo de su plan: ${PLAZO_URGENTE_H[planDe(r)] ?? 24} h">🚨 ${ms < 0 ? "Urgencia vencida" : "Urgente · " + fmtSla(ms)}</span>`;
+}
+function urgenciaTexto(r) {
+  const h = PLAZO_URGENTE_H[planDe(r)] ?? 24, m = primerMensajeEquipo(r);
+  return `🚨 Plazo de ${h} h (${esc(planDe(r) || "sin plan")})<span class="block text-xs text-slate-500">${m ? "Atendida en " + esc(fmtH((new Date(m.creado_en) - new Date(r.created_at)) / HORA)) : "Responder antes del " + esc(fechaCorta(urgenciaVence(r)))}</span>`;
+}
+
+async function invocar(nombre, body) {
+  const { data, error } = await db.functions.invoke(nombre, { body });
+  let msg = error ? error.message : data && data.error;
+  if (error) { try { const j = await error.context.json(); if (j && j.error) msg = j.error; } catch (_) {} }
+  if (msg) throw new Error(msg);
+  return data;
+}
+async function conBoton(id, texto, f) {
+  const b = $(id), antes = b.textContent;
+  b.disabled = true; b.textContent = texto;
+  try { await f(); } catch (e) { toast(e.message + " (¿has desplegado la función?)", 8000); }
+  finally { if ($(id)) { $(id).disabled = false; $(id).textContent = antes; } }
+}
+async function refrescarWeb(id) {
+  const { data: w } = await db.from("webs_cliente").select("*").eq("cliente_id", id).maybeSingle();
+  if (w) webs.set(id, w);
+  return w;
+}
+function googleAhora() {
+  const id = fichaId;
+  conBoton("ficha-google", "Consultando Google…", async () => {
+    await invocar("google", { cliente_id: id });
+    const w = await refrescarWeb(id);
+    if (fichaId !== id || !w) return;
+    for (const k of ["seo_periodo", "seo_visitas", "seo_impresiones", "seo_clics", "seo_primera_pagina"]) if ($("f-" + k)) $("f-" + k).value = w[k] ?? "";
+    const box = $("ficha-cuerpo").querySelector('[data-filas="seo_palabras"]');
+    if (box) box.innerHTML = (w.seo_palabras || []).map(d => filaHTML(FILAS.seo_palabras, d)).join("");
+    $("ficha-google-estado").textContent = "Datos de Google actualizados ahora mismo.";
+    $("ficha-google-estado").className = "mt-2 text-[11px] text-emerald-300";
+    toast("SEO actualizado con los datos de Google. Revisa y guarda la ficha.", 6000);
+  });
+}
+function enlacesFichaHTML(w) {
+  if (!w || !w.enlaces_revisado_en) return "Todavía no se han revisado los enlaces de esta web.";
+  const r = w.enlaces_rotos || [];
+  return `Revisados ${esc(hace(Date.now() - new Date(w.enlaces_revisado_en)).toLowerCase())} · ${w.enlaces_paginas || 0} páginas · `
+    + (r.length ? `<span class="text-amber-300">${r.length} enlace${r.length === 1 ? "" : "s"} roto${r.length === 1 ? "" : "s"}</span><ul class="mt-1 space-y-0.5">${r.slice(0, 15).map(x =>
+      `<li class="break-all"><span class="text-red-300">${x.codigo ? x.codigo : "no existe"}</span> ${esc(x.url)} <span class="text-slate-500">en ${esc(x.pagina)}</span></li>`).join("")}</ul>` : `<span class="text-emerald-300">ninguno roto</span>`);
+}
+function enlacesAhora() {
+  const id = fichaId;
+  conBoton("ficha-enlaces", "Revisando… (hasta 2 min)", async () => {
+    const d = await invocar("enlaces", { cliente_id: id });
+    const w = await refrescarWeb(id);
+    if (fichaId === id) $("ficha-enlaces-estado").innerHTML = enlacesFichaHTML(w);
+    toast("Revisadas " + d.resultado.paginas + " páginas: " + (d.resultado.rotos ? d.resultado.rotos + " enlaces rotos" : "ningún enlace roto"), 7000);
+  });
+}
+function informeAhora() {
+  const id = fichaId, c = clienteDe(id);
+  if (!confirm("¿Enviar ahora a " + (c ? c.email : "este cliente") + " el informe del mes pasado?")) return;
+  conBoton("ficha-informe", "Enviando…", async () => {
+    const d = await invocar("informe", { cliente_id: id });
+    toast("Informe de " + d.mes.slice(0, 7) + " enviado a " + (c ? c.email : "el cliente"), 6000);
+  });
+}
+
+// Bóveda de accesos del cliente (función «boveda»; cada vez que alguien ve una contraseña queda apuntado)
+const BOVS = new Map();
+async function cargarBovedaStaff(id) {
+  BOVS.set(id, { cargando: true, lista: [], accesos: [], visto: {} });
+  try { const d = await invocar("boveda", { accion: "s_listar", cliente_id: id }); BOVS.set(id, { lista: d.credenciales, accesos: d.accesos, visto: {} }); }
+  catch (e) { BOVS.set(id, { error: e.message, lista: [], accesos: [], visto: {} }); }
+  if (clienteAbierto === id) pintarCliente();
+}
+function bovedaStaffHTML(id) {
+  const b = BOVS.get(id);
+  if (!b) { setTimeout(() => cargarBovedaStaff(id), 0); return '<p class="text-sm text-slate-500">Cargando…</p>'; }
+  if (b.cargando) return '<p class="text-sm text-slate-500">Cargando…</p>';
+  const acc = { ver: "vio", crear: "guardó", editar: "cambió", borrar: "borró" };
+  return `<p class="text-xs text-slate-500 -mt-1 mb-2">Cifrados. Cada vez que alguien ve una contraseña queda apuntado y el cliente lo ve en su portal.</p>
+    ${b.error ? `<p class="text-sm text-amber-300">${esc(b.error)}</p>` : ""}
+    ${b.lista.length ? `<ul class="divide-y divide-line/70">${b.lista.map(x => `<li class="py-2 flex flex-wrap items-center gap-2">
+      <span class="min-w-0 flex-1"><span class="block text-sm text-slate-100">${esc(x.servicio)}${x.usuario ? ` · <span class="font-mono text-slate-300">${esc(x.usuario)}</span>` : ""}</span>
+      ${x.url ? `<span class="block text-xs text-slate-500 break-all">${esc(x.url)}</span>` : ""}${x.notas ? `<span class="block text-xs text-slate-400">${esc(x.notas)}</span>` : ""}
+      ${b.visto[x.id] !== undefined ? `<span class="mt-1 inline-block rounded bg-fx/10 px-2 py-0.5 font-mono text-sm text-fx select-all break-all">${esc(b.visto[x.id])}</span>` : ""}</span>
+      <button type="button" data-bov-ver="${x.id}" class="rounded-md border border-line px-2.5 py-1 text-xs text-slate-200 hover:border-fx">${b.visto[x.id] !== undefined ? "Ocultar" : "Ver contraseña"}</button>
+      <button type="button" data-bov-borrar="${x.id}" class="px-1 text-xs text-slate-500 hover:text-red-300" aria-label="Borrar acceso">✕</button></li>`).join("")}</ul>` : '<p class="text-sm text-slate-500">El cliente aún no ha guardado accesos.</p>'}
+    <details class="mt-2"><summary class="cursor-pointer text-xs font-semibold text-fx">＋ Añadir un acceso</summary>
+      <div class="mt-2 grid gap-2 sm:grid-cols-2"><input id="bov-s" maxlength="80" placeholder="De qué es (Hosting, WordPress…)" class="campo text-sm" style="padding:.45rem .6rem">
+      <input id="bov-url" maxlength="300" placeholder="https://…" class="campo text-sm" style="padding:.45rem .6rem">
+      <input id="bov-u" maxlength="200" placeholder="Usuario" autocomplete="off" class="campo text-sm" style="padding:.45rem .6rem">
+      <input id="bov-c" type="password" maxlength="500" placeholder="Contraseña" autocomplete="new-password" class="campo text-sm" style="padding:.45rem .6rem"></div>
+      <button type="button" data-bov-add class="mt-2 rounded-md bg-fx hover:bg-fx2 text-[#1a1005] text-sm font-semibold px-3.5 py-1.5">Guardar cifrado</button></details>
+    ${b.accesos.length ? `<p class="mt-3 text-xs font-semibold text-slate-300">Registro</p><ul class="mt-1 space-y-0.5 text-xs text-slate-400">${b.accesos.slice(0, 8).map(a =>
+      `<li>${a.quien_tipo === "cliente" ? "El cliente" : esc(bonito(a.quien))} ${acc[a.accion] || a.accion} «${esc(a.servicio || "")}» · ${esc(fechaCorta(a.creado_en))}</li>`).join("")}</ul>` : ""}`;
+}
+document.addEventListener("click", async e => {
+  const t = e.target, id = clienteAbierto;
+  if (!id || !t.closest || !t.closest("#cliente-modal")) return;
+  const b = BOVS.get(id);
+  const ver = t.closest("[data-bov-ver]");
+  if (ver && b) {
+    const cid = Number(ver.dataset.bovVer);
+    if (b.visto[cid] !== undefined) { delete b.visto[cid]; pintarCliente(); return; }
+    try {
+      const d = await invocar("boveda", { accion: "s_ver", id: cid });
+      b.visto[cid] = d.clave; pintarCliente();
+      setTimeout(() => { delete b.visto[cid]; if (clienteAbierto === id) pintarCliente(); }, 30000);
+      const l = await invocar("boveda", { accion: "s_listar", cliente_id: id }); b.accesos = l.accesos; pintarCliente();
+    } catch (err) { toast("No se pudo ver: " + err.message, 6000); }
+    return;
+  }
+  const del = t.closest("[data-bov-borrar]");
+  if (del && b && confirm("¿Borrar este acceso? El cliente verá que lo has borrado.")) {
+    try { const d = await invocar("boveda", { accion: "s_borrar", id: Number(del.dataset.bovBorrar) }); BOVS.set(id, { lista: d.credenciales, accesos: d.accesos, visto: {} }); pintarCliente(); }
+    catch (err) { toast(err.message, 6000); }
+    return;
+  }
+  if (t.closest("[data-bov-add]")) {
+    const v = k => $(k).value.trim(), cuerpo = { accion: "s_guardar", cliente_id: id, servicio: v("bov-s"), url: v("bov-url"), usuario: v("bov-u"), clave: $("bov-c").value };
+    if (!cuerpo.servicio || !cuerpo.clave) { toast("Indica de qué es el acceso y su contraseña."); return; }
+    try { const d = await invocar("boveda", cuerpo); BOVS.set(id, { lista: d.credenciales, accesos: d.accesos, visto: {} }); pintarCliente(); toast("Acceso guardado y cifrado"); }
+    catch (err) { toast(err.message, 6000); }
+  }
+});
 
 // ---------- 15: respuestas rápidas ----------
 function pintarRespuestas() {

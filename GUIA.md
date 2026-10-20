@@ -12,9 +12,9 @@ En Supabase > **SQL Editor**, ejecuta (pestaña nueva cada vez, botón **Run**):
 
 | Situación | Qué ejecutar |
 |---|---|
-| Proyecto vacío | `supabase_completo.sql` → `supabase_mejoras.sql` → `supabase_mejoras_2.sql` |
-| Ya tenías la versión anterior funcionando | Solo lo que te falte: `supabase_mejoras.sql` y/o `supabase_mejoras_2.sql` (no borran nada y se pueden repetir) |
-| Quieres empezar de cero | `supabase_borrar_todo.sql` → `supabase_completo.sql` → `supabase_mejoras.sql` → `supabase_mejoras_2.sql` |
+| Proyecto vacío | `supabase_completo.sql` → `supabase_mejoras.sql` → `supabase_mejoras_2.sql` → `supabase_mejoras_3.sql` |
+| Ya tenías la versión anterior funcionando | Solo lo que te falte, en orden: `supabase_mejoras.sql`, `supabase_mejoras_2.sql`, `supabase_mejoras_3.sql` (no borran nada y se pueden repetir) |
+| Quieres empezar de cero | `supabase_borrar_todo.sql` → `supabase_completo.sql` → `supabase_mejoras.sql` → `supabase_mejoras_2.sql` → `supabase_mejoras_3.sql` |
 
 Abre cada archivo en GitHub, pulsa **Raw**, copia todo (Ctrl+A, Ctrl+C) y pégalo.
 
@@ -45,7 +45,7 @@ Solo los **propietarios** (`es_dueno = true`) pueden borrar y restaurar casos, g
 
 ## 3. Funciones del servidor (Edge Functions)
 
-En Supabase > **Edge Functions > Deploy a new function > Via Editor**, crea estas cuatro. En cada una: escribe el **nombre exacto**, pega el contenido del archivo y pulsa **Deploy**.
+En Supabase > **Edge Functions > Deploy a new function > Via Editor**, crea estas ocho. En cada una: escribe el **nombre exacto**, pega el contenido del archivo y pulsa **Deploy**.
 
 | Nombre | Archivo | «Verify JWT» |
 |---|---|---|
@@ -53,8 +53,12 @@ En Supabase > **Edge Functions > Deploy a new function > Via Editor**, crea esta
 | `correo` | `supabase/functions/correo/index.ts` | **Desactivado** |
 | `adjuntos` | `supabase/functions/adjuntos/index.ts` | **Desactivado** |
 | `medir` | `supabase/functions/medir/index.ts` | **Desactivado** |
+| `informe` | `supabase/functions/informe/index.ts` | **Desactivado** |
+| `google` | `supabase/functions/google/index.ts` | **Desactivado** |
+| `boveda` | `supabase/functions/boveda/index.ts` | **Desactivado** |
+| `enlaces` | `supabase/functions/enlaces/index.ts` | **Desactivado** |
 
-«Verify JWT» se cambia en los ajustes (Settings/Details) de cada función. Las tres marcadas como *Desactivado* comprueban ellas mismas quién las llama; si lo dejas activado, el portal no podrá usarlas.
+«Verify JWT» se cambia en los ajustes (Settings/Details) de cada función. Las marcadas como *Desactivado* comprueban ellas mismas quién las llama; si lo dejas activado, el portal no podrá usarlas.
 
 > Si `gestionar-staff` ya estaba desplegada, vuelve a desplegarla: ahora pide el correo real de cada administrador nuevo.
 
@@ -144,7 +148,32 @@ Si actualizaste la función **medir**, vuelve a desplegarla (Edge Functions > me
 
 ---
 
-## 9. Publicar
+## 9. Lote 3: Google, bóveda, urgencias y bajas
+
+**Bóveda de accesos (obligatorio para que funcione).** En Supabase > **Edge Functions > Secrets** añade `BOVEDA_CLAVE` con una frase larga y aleatoria (mínimo 16 caracteres). Guárdala también en tu gestor de contraseñas: si se pierde o se cambia, las contraseñas guardadas ya no se pueden leer.
+
+**Google (Search Console y Analytics, gratis).**
+1. Entra en [console.cloud.google.com](https://console.cloud.google.com), crea un proyecto y activa **Google Search Console API** y **Google Analytics Data API**.
+2. **IAM y administración > Cuentas de servicio > Crear**. Dentro de la cuenta: **Claves > Añadir clave > JSON** (se descarga un archivo).
+3. En Supabase > **Edge Functions > Secrets** crea `GOOGLE_SERVICE_ACCOUNT` y pega el contenido entero del archivo.
+4. Por cada web: en **Search Console > Configuración > Usuarios y permisos** añade el correo de la cuenta de servicio (`…@….iam.gserviceaccount.com`) con permiso «Restringido». Si tiene **Analytics 4**: Administrar > Acceso a la propiedad > el mismo correo como «Lector», y pon el ID de la propiedad en la ficha del cliente.
+5. En la ficha del cliente pulsa **Actualizar desde Google**. Después se actualiza solo cada lunes. Ojo: los datos de Google sustituyen los que hubieras escrito a mano en la parte SEO.
+
+**Informe mensual.** Usa Brevo (paso 4). Se envía solo el día 1 a las 8:00 a cada cliente con plan (se puede desactivar por cliente en su ficha). El cliente también lo descarga en PDF desde «Mi web > Meses anteriores».
+
+**Enlaces rotos.** No hay que configurar nada: cada hora se revisa una web (cada web, una vez al mes). En la ficha: «Revisar enlaces ahora».
+
+**Urgencias, WhatsApp y bajas** (al principio del `<script>` de `test-cliente/index.html`):
+- `SOPORTE`: plazos de respuesta y de urgencias de cada plan. Si los cambias, cambia también `PLAZO_URGENTE_H` en el panel y en `supabase/functions/correo/index.ts`.
+- `WHATSAPP={numero:"34600000000"}`: el botón de WhatsApp para urgencias (planes Pro y Pro + SEO). Vacío = no sale.
+- `STRIPE_PORTAL`: enlace del portal de clientes de Stripe (Stripe > Configuración > Facturación > Portal de clientes). Así el cliente cancela la suscripción, cambia la tarjeta y ve sus facturas.
+- Las bajas llegan al panel como un caso «Baja del plan…». Al pasarlo a «Aceptado» se le quita el plan del portal; **cancela tú su suscripción en Stripe** (o deja que lo haga él con `STRIPE_PORTAL`).
+
+Vuelve a desplegar `correo`: ahora avisa a todo el equipo cuando entra una urgencia.
+
+---
+
+## 10. Publicar
 
 GitHub Pages publica la rama principal. Fusiona la rama `claude/dreamy-albattani-j8rm9a` en **los dos repositorios** (o elígela en Settings > Pages).
 
@@ -192,3 +221,14 @@ GitHub Pages publica la rama principal. Fusiona la rama `claude/dreamy-albattani
 | 21 | «Ver como cliente»: abre su portal en solo lectura durante 1 hora | Panel: ficha del cliente, detalle del caso y Clientes (👁) |
 | 23 | Ranking del equipo (resueltos, abiertos, tiempos, mensajes, valoración) | Panel: Negocio |
 | — | Las horas de los planes ahora son **tokens** | Portal y ficha del cliente |
+
+### Lote 3
+
+| # | Mejora | Dónde se ve |
+|---|---|---|
+| 1 | Informe mensual por correo (día 1) y en PDF desde el portal | Correo del cliente · Portal: Mi web > Meses anteriores · Panel: ficha > «Enviar el informe» |
+| 2 | Datos reales de Google: clics, impresiones, visitas, palabras en primera página y posiciones | Portal: Mi web y SEO · Panel: ficha > «Actualizar desde Google» |
+| 6 | Sin permanencia: el cliente pide la baja desde el portal (con alternativa de bajar a Básico) | Portal: Facturación · Panel: caso «Baja del plan», dato «bajas» en Negocio |
+| 8 | Urgencias con plazo por plan, aviso a todo el equipo, cuenta atrás y WhatsApp | Portal: Soporte · Panel: Inicio («Urgencias sin responder») y tarjetas |
+| 10 | Bóveda cifrada de accesos con registro de quién los ve | Portal: Mi cuenta · Panel: ficha completa del cliente |
+| 14 | Revisión mensual de enlaces rotos y errores 404 | Portal: Mi web · Panel: ficha y ficha completa del cliente |
