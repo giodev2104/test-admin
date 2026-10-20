@@ -73,7 +73,14 @@ revoke all on function public._ip(), public._excedido(text, int, interval), publ
 -- ---------------------------------------------------------------------
 -- Registro con consentimiento, trampa anti-bots y límites
 -- ---------------------------------------------------------------------
-drop function if exists public.cliente_registrar(text, text, text, text, text);
+-- La versión antigua del registro (sin consentimiento ni límites) se desactiva
+do $do$
+begin
+  revoke all on function public.cliente_registrar(text, text, text, text, text) from public, anon, authenticated;
+exception when undefined_function then
+  null;
+end
+$do$;
 
 create or replace function public.cliente_registrar(p_email text, p_clave text, p_nombre text, p_dominio text,
                                                     p_plan text, p_acepta boolean, p_trampa text)
@@ -243,12 +250,22 @@ values ('adjuntos', 'adjuntos', false, 10485760, array[
   'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'])
 on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
 
-drop policy if exists "staff_lee_adjuntos" on storage.objects;
-create policy "staff_lee_adjuntos" on storage.objects for select to authenticated
+do $do$
+begin
+  if not exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'staff_lee_adjuntos') then
+    create policy "staff_lee_adjuntos" on storage.objects for select to authenticated
   using (bucket_id = 'adjuntos' and public.es_staff());
-drop policy if exists "staff_sube_adjuntos" on storage.objects;
-create policy "staff_sube_adjuntos" on storage.objects for insert to authenticated
+  end if;
+end
+$do$;
+do $do$
+begin
+  if not exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'staff_sube_adjuntos') then
+    create policy "staff_sube_adjuntos" on storage.objects for insert to authenticated
   with check (bucket_id = 'adjuntos' and public.es_staff());
+  end if;
+end
+$do$;
 
 create or replace function public.servidor_caso_del_cliente(p_token text, p_caso bigint)
 returns boolean language sql stable security definer set search_path = public, extensions as $fn$
@@ -256,10 +273,17 @@ returns boolean language sql stable security definer set search_path = public, e
 $fn$;
 revoke all on function public.servidor_caso_del_cliente(text, bigint) from public, anon, authenticated;
 
-drop function if exists public.cliente_enviar_mensaje(text, bigint, text);
+-- La versión antigua (sin adjuntos) se desactiva; el portal llama siempre a la de 7 parámetros
+do $do$
+begin
+  revoke all on function public.cliente_enviar_mensaje(text, bigint, text) from public, anon, authenticated;
+exception when undefined_function then
+  null;
+end
+$do$;
 
 create or replace function public.cliente_enviar_mensaje(p_token text, p_caso bigint, p_texto text,
-  p_adjunto_ruta text default null, p_adjunto_nombre text default null, p_adjunto_tipo text default null, p_adjunto_tamano bigint default null)
+  p_adjunto_ruta text, p_adjunto_nombre text, p_adjunto_tipo text, p_adjunto_tamano bigint)
 returns json language plpgsql security definer set search_path = public, extensions as $fn$
 declare cid uuid := _cliente_de_token(p_token); m mensajes_caso; t text := trim(coalesce(p_texto, ''));
 begin
@@ -299,8 +323,13 @@ create table if not exists public.webs_cliente_historial (
 alter table public.webs_cliente_historial enable row level security;
 revoke all on public.webs_cliente_historial from anon, authenticated;
 grant select on public.webs_cliente_historial to authenticated;
-drop policy if exists "staff_lee_historial" on public.webs_cliente_historial;
-create policy "staff_lee_historial" on public.webs_cliente_historial for select to authenticated using (public.es_staff());
+do $do$
+begin
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'webs_cliente_historial' and policyname = 'staff_lee_historial') then
+    create policy "staff_lee_historial" on public.webs_cliente_historial for select to authenticated using (public.es_staff());
+  end if;
+end
+$do$;
 
 create or replace function public.cerrar_mes(p_mes date default null)
 returns int language plpgsql security definer set search_path = public as $fn$
@@ -341,8 +370,13 @@ create index if not exists webs_cliente_cambios_cliente_idx on public.webs_clien
 alter table public.webs_cliente_cambios enable row level security;
 revoke all on public.webs_cliente_cambios from anon, authenticated;
 grant select on public.webs_cliente_cambios to authenticated;
-drop policy if exists "staff_lee_cambios" on public.webs_cliente_cambios;
-create policy "staff_lee_cambios" on public.webs_cliente_cambios for select to authenticated using (public.es_staff());
+do $do$
+begin
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'webs_cliente_cambios' and policyname = 'staff_lee_cambios') then
+    create policy "staff_lee_cambios" on public.webs_cliente_cambios for select to authenticated using (public.es_staff());
+  end if;
+end
+$do$;
 
 create or replace function public.webs_cliente_sello()
 returns trigger language plpgsql security definer set search_path = public as $fn$
@@ -382,8 +416,7 @@ begin
 end
 $fn$;
 
-drop trigger if exists webs_cliente_cambios on public.webs_cliente;
-create trigger webs_cliente_cambios after insert or update on public.webs_cliente
+create or replace trigger webs_cliente_cambios after insert or update on public.webs_cliente
   for each row execute function public.webs_cliente_registrar_cambios();
 
 -- ---------------------------------------------------------------------
@@ -399,9 +432,14 @@ create table if not exists public.respuestas_rapidas (
 alter table public.respuestas_rapidas enable row level security;
 revoke all on public.respuestas_rapidas from anon, authenticated;
 grant select, insert, update, delete on public.respuestas_rapidas to authenticated;
-drop policy if exists "staff_respuestas" on public.respuestas_rapidas;
-create policy "staff_respuestas" on public.respuestas_rapidas for all to authenticated
+do $do$
+begin
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'respuestas_rapidas' and policyname = 'staff_respuestas') then
+    create policy "staff_respuestas" on public.respuestas_rapidas for all to authenticated
   using (public.es_staff()) with check (public.es_staff());
+  end if;
+end
+$do$;
 
 insert into public.respuestas_rapidas (titulo, texto, creado_por)
 select * from (values
@@ -430,8 +468,13 @@ create index if not exists comprobaciones_cliente_idx on public.comprobaciones (
 alter table public.comprobaciones enable row level security;
 revoke all on public.comprobaciones from anon, authenticated;
 grant select on public.comprobaciones to authenticated;
-drop policy if exists "staff_lee_comprobaciones" on public.comprobaciones;
-create policy "staff_lee_comprobaciones" on public.comprobaciones for select to authenticated using (public.es_staff());
+do $do$
+begin
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'comprobaciones' and policyname = 'staff_lee_comprobaciones') then
+    create policy "staff_lee_comprobaciones" on public.comprobaciones for select to authenticated using (public.es_staff());
+  end if;
+end
+$do$;
 
 create table if not exists public.ajustes (
   clave text primary key,
@@ -493,12 +536,9 @@ begin
 end
 $fn$;
 
-drop trigger if exists avisar_portal on public.mensajes_caso;
-create trigger avisar_portal after insert on public.mensajes_caso for each row execute function public.avisar_portal();
-drop trigger if exists avisar_portal on public.reportes;
-create trigger avisar_portal after insert or update on public.reportes for each row execute function public.avisar_portal();
-drop trigger if exists avisar_portal on public.webs_cliente;
-create trigger avisar_portal after insert or update on public.webs_cliente for each row execute function public.avisar_portal();
+create or replace trigger avisar_portal after insert on public.mensajes_caso for each row execute function public.avisar_portal();
+create or replace trigger avisar_portal after insert or update on public.reportes for each row execute function public.avisar_portal();
+create or replace trigger avisar_portal after insert or update on public.webs_cliente for each row execute function public.avisar_portal();
 
 -- ---------------------------------------------------------------------
 -- Lo que recibe el portal (versión completa)
