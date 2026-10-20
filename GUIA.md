@@ -252,7 +252,15 @@ En cada tarjeta: botón **→** para pasarla a la siguiente etapa, accesos direc
 Ejecuta `supabase_borrar_cliente.sql` en el SQL Editor. Después, en Clientes > ficha del cliente, los **propietarios** ven abajo «🗑 Borrar cliente».
 Hay que escribir el correo del cliente para confirmar. Se borra todo: cuenta del portal, casos y mensajes, servicios, entregas, pagos registrados, valoraciones, renovaciones, bóveda y sus archivos. No se puede deshacer (los cobros siguen en Stripe).
 
-## 18. Publicar
+## 18. Precios en un solo sitio
+
+Todos los precios están en la tabla `catalogo` de Supabase (`supabase_catalogo.sql`, ya aplicado). Se cambian en el panel: **Negocio > 💶 Precios** (solo propietarios).
+- El portal muestra esos precios, la función `pago` cobra exactamente esos importes y «Negocio» calcula los ingresos con ellos.
+- Desmarcar «A la venta» oculta el servicio en el portal; quien ya lo tiene no se ve afectado.
+- Cambiar un precio no cambia lo que pagan los clientes que ya tienen una suscripción en Stripe.
+- Los textos de qué incluye cada servicio siguen en el portal (`index.html`, bloque CATÁLOGO).
+
+## 19. Publicar
 
 GitHub Pages publica la rama principal. Fusiona la rama `claude/dreamy-albattani-j8rm9a` en **los dos repositorios** (o elígela en Settings > Pages).
 

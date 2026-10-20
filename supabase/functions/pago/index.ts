@@ -1,5 +1,5 @@
 // Edge Function "pago": cobra con Stripe Checkout y solo entonces crea el pedido.
-//   · crear     {token, nombre, servicio_id?} → página de pago de Stripe con el importe del CATÁLOGO (no el que mande el navegador)
+//   · crear     {token, nombre, servicio_id?} → página de pago de Stripe con el importe de la tabla «catalogo» (no el que mande el navegador)
 //   · confirmar {token, sesion}              → al volver de Stripe: comprueba que está pagado y registra el pedido
 //   · Aviso de Stripe (webhook «checkout.session.completed»): registra el pedido aunque el cliente cierre la página.
 // El registro es idempotente (tabla pagos): un mismo pago nunca crea dos pedidos.
@@ -21,35 +21,14 @@ const responder = (cuerpo: unknown, status = 200) =>
 const env = (k: string) => Deno.env.get(k) || "";
 const URL_PORTAL = env("URL_PORTAL") || "https://giodev2104.github.io/test-cliente/";
 
-// Catálogo con precio cerrado (Propuesta Comercial 2026). Los planes de web van por presupuesto y no están aquí.
-// tipo · importe en € · cada = meses entre cobros (0 = pago único)
-type Item = { tipo: string; eur: number; cada: number };
-const CATALOGO: Record<string, Item> = {
-  "Mantenimiento Esencial": { tipo: "mantenimiento", eur: 19, cada: 1 },
-  "Mantenimiento Pro": { tipo: "mantenimiento", eur: 39, cada: 1 },
-  "Renting Plan Lanzamiento": { tipo: "renting", eur: 29, cada: 1 },
-  "Renting Plan Negocio": { tipo: "renting", eur: 49, cada: 1 },
-  "Renting Plan Ecommerce": { tipo: "renting", eur: 79, cada: 1 },
-  "Pack Presencia Local Total": { tipo: "pack", eur: 119, cada: 0 },
-  "Pack Despegue Marca & Web": { tipo: "pack", eur: 239, cada: 0 },
-  "Pack Ecommerce Express": { tipo: "pack", eur: 179, cada: 0 },
-  "Pack Marketing & Conversión 360°": { tipo: "pack", eur: 149, cada: 0 },
-  "EXT-01 · Redacción Persuasiva (Copywriting)": { tipo: "extra", eur: 120, cada: 0 },
-  "EXT-02 · Diseño de Logo & Marca Básico": { tipo: "extra", eur: 149, cada: 0 },
-  "EXT-03 · Aviso Legal & LOPD/RGPD Adaptado": { tipo: "extra", eur: 45, cada: 0 },
-  "EXT-04 · Pack Imágenes HD de Stock": { tipo: "extra", eur: 39, cada: 0 },
-  "EXT-05 · Configuración Correo Corporativo": { tipo: "extra", eur: 29, cada: 0 },
-  "EXT-06 · Pasarela de Pago Adicional": { tipo: "extra", eur: 49, cada: 0 },
-  "EXT-07 · Web Multidioma": { tipo: "extra", eur: 89, cada: 0 },
-  "EXT-08 · Widget Reseñas de Google": { tipo: "extra", eur: 39, cada: 0 },
-  "EXT-09 · Asistente Chatbot IA / WhatsApp": { tipo: "extra", eur: 99, cada: 0 },
-  "EXT-10 · Carga Masiva de Productos": { tipo: "extra", eur: 69, cada: 0 },
-  "EXT-15 · Ficha Google Maps (SEO Local)": { tipo: "extra", eur: 79, cada: 0 },
-  "EXT-16 · Google Search Console & Sitemap": { tipo: "extra", eur: 29, cada: 0 },
-  "EXT-17 · Píxeles Meta (FB/IG) y TikTok": { tipo: "extra", eur: 39, cada: 0 },
-  "EXT-19 · Gestión de Blog Mensual": { tipo: "extra", eur: 59, cada: 1 },
-  "EXT-21 · Auditoría SEO Trimestral": { tipo: "extra", eur: 49, cada: 3 },
-};
+// Los importes salen de la tabla «catalogo» (la misma que muestra el portal y se edita en el panel).
+// Los planes de web van por presupuesto: no se cobran aquí.
+type Item = { tipo: string; eur: number; cada: number; activo: boolean };
+async function delCatalogo(db: SupabaseClient, nombre: string): Promise<Item | null> {
+  const { data } = await db.from("catalogo").select("tipo,precio,cada,activo").eq("nombre", nombre).maybeSingle();
+  if (!data || data.tipo === "web") return null;
+  return { tipo: data.tipo, eur: Number(data.precio), cada: data.cada || 0, activo: data.activo !== false };
+}
 
 async function stripe(ruta: string, datos?: Record<string, string>) {
   const clave = env("STRIPE_SECRET_KEY");
@@ -119,8 +98,9 @@ Deno.serve(async (req) => {
         if (s.pagado_en) return responder({ error: "Este pedido ya está pagado." }, 400);
         nombre = s.nombre; servicioId = s.id;
       }
-      const it = CATALOGO[nombre];
+      const it = await delCatalogo(db, nombre);
       if (!it) return responder({ error: "Este servicio se paga por presupuesto: el equipo te enviará el importe por el chat." }, 400);
+      if (!it.activo && !servicioId) return responder({ error: "Este servicio ya no está disponible." }, 400);
       const { data: c } = await db.from("clientes").select("email").eq("id", cid).maybeSingle();
       const d: Record<string, string> = {
         mode: it.cada ? "subscription" : "payment",
