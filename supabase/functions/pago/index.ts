@@ -66,7 +66,17 @@ async function registrar(db: SupabaseClient, s: Record<string, any>) {
     p_importe: Number(s.amount_total || 0) / 100, p_modo: s.mode, p_servicio: m.servicio_id ? Number(m.servicio_id) : null,
   });
   if (error) throw error;
+  await metodoPago(db, s.id, m.cliente_id).catch(() => {});
   return data;
+}
+
+// Apunta en la ficha del cliente la tarjeta con la que ha pagado («Visa terminada en 4242»)
+async function metodoPago(db: SupabaseClient, sesion: string, cliente: string) {
+  const s = await stripe("checkout/sessions/" + encodeURIComponent(sesion) + "?expand[]=payment_intent.payment_method&expand[]=subscription.default_payment_method");
+  const card = s.payment_intent?.payment_method?.card || s.subscription?.default_payment_method?.card;
+  if (!card?.last4 || !cliente) return;
+  const marca = String(card.brand || "Tarjeta").replace(/^\w/, (c: string) => c.toUpperCase());
+  await db.from("webs_cliente").upsert({ cliente_id: cliente, metodo_pago: marca + " terminada en " + card.last4 }, { onConflict: "cliente_id" });
 }
 
 Deno.serve(async (req) => {

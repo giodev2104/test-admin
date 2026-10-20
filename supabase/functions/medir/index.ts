@@ -1,6 +1,8 @@
 // Edge Function "medir": comprueba las webs de los clientes y rellena su ficha sola.
 //   · Cada hora (pg_cron → lanzar_medicion): visita cada web → disponibilidad (% online 30 días) y SSL.
-//   · Una vez al día por cliente: Google PageSpeed (gratis) → puntuación (0-100) y velocidad (s).
+//   · Una vez al día por cliente: Google PageSpeed (gratis) → puntuación (0-100), velocidad (s) y recomendación;
+//     caducidad del dominio (RDAP) y del certificado SSL (crt.sh) → renovaciones automáticas.
+//   · Mensaje de estado de «Mi web»: se escribe solo con lo medido (si está en automático en la ficha).
 //   · Desde el panel (botón «Medir ahora», sesión del staff): mide un cliente al momento.
 // Solo mide clientes con dominio y con «Medición automática» activada en su ficha.
 // Si la web falla dos comprobaciones seguidas, abre una Incidencia (una sola a la vez) y avisa por
@@ -44,10 +46,75 @@ async function pagespeed(dominio: string) {
   const r = await conTiempo(90000, (signal) => fetch(url, { signal }));
   if (!r.ok) return null;
   const j = await r.json();
+  const audits = j?.lighthouseResult?.audits || {};
   const score = j?.lighthouseResult?.categories?.performance?.score;
-  const lcp = j?.lighthouseResult?.audits?.["largest-contentful-paint"]?.numericValue;
+  const lcp = audits["largest-contentful-paint"]?.numericValue;
   if (typeof score !== "number") return null;
-  return { puntuacion: Math.round(score * 100), velocidad: typeof lcp === "number" ? Math.round(lcp / 100) / 10 : null };
+  // La mejora con más ahorro que propone Google
+  const mejora = Object.entries(audits as Record<string, any>)
+    .filter(([id, a]) => CONSEJOS[id] && a?.details?.type === "opportunity" && (a.details.overallSavingsMs || 0) > 300)
+    .sort((a, b) => b[1].details.overallSavingsMs - a[1].details.overallSavingsMs)[0];
+  return { puntuacion: Math.round(score * 100), velocidad: typeof lcp === "number" ? Math.round(lcp / 100) / 10 : null, mejora: mejora ? mejora[0] : null };
+}
+
+// Mejoras de PageSpeed explicadas al cliente
+const IMAGENES = "Las imágenes pesan más de lo necesario: optimizándolas, tu web cargaría bastante más rápido en el móvil.";
+const CODIGO = "Tu web carga código que no utiliza: limpiándolo, cargaría más rápido.";
+const CONSEJOS: Record<string, string> = {
+  "render-blocking-resources": "Hay archivos que retrasan lo primero que ve tu visitante: cargándolos de otra forma, tu web se mostraría antes.",
+  "uses-responsive-images": IMAGENES, "modern-image-formats": IMAGENES, "uses-optimized-images": IMAGENES, "offscreen-images": IMAGENES,
+  "unused-javascript": CODIGO, "unused-css-rules": CODIGO, "unminified-javascript": CODIGO, "unminified-css": CODIGO,
+  "server-response-time": "El servidor tarda en responder: con una caché o un alojamiento más rápido, tu web volaría.",
+  "uses-text-compression": "Activando la compresión del servidor, tu web pesaría mucho menos.",
+  "uses-long-cache-ttl": "Configurando la caché, las visitas que repiten verían tu web al instante.",
+  "redirects": "Hay redirecciones que retrasan la carga: podemos eliminarlas.",
+};
+const coma = (n: number) => String(n).replace(".", ",");
+function recomendacion(ps: { puntuacion: number; velocidad: number | null; mejora: string | null }) {
+  const lenta = ps.velocidad !== null && ps.velocidad > 2.5 ? "Tu web tarda " + coma(ps.velocidad) + " s en cargar en el móvil. " : "";
+  if (ps.mejora) return lenta + CONSEJOS[ps.mejora];
+  if (lenta) return lenta + "Podemos dejarla por debajo de 2,5 s.";
+  if (ps.puntuacion >= 90) return "Tu web es rápida (" + ps.puntuacion + "/100). El siguiente paso: mejorar tu posicionamiento en Google para que te encuentren más clientes.";
+  return null;
+}
+
+// Mensaje de estado de «Mi web» con lo último medido
+function resumen(w: Record<string, any>, online: boolean, sslCaduca: string | null) {
+  const dias = sslCaduca ? Math.floor((new Date(sslCaduca).getTime() - Date.now()) / 86400000) : null;
+  if (!online) return "Ahora mismo tu web no responde. Ya lo estamos revisando.";
+  if (w.ssl_activo === false) return "Tu certificado de seguridad (SSL) no funciona. Ya lo estamos revisando.";
+  if (dias !== null && dias < 0) return "Tu certificado de seguridad (SSL) ha caducado. Ya lo estamos renovando.";
+  if ((w.amenazas || 0) > 0) return "Hemos detectado " + w.amenazas + (w.amenazas === 1 ? " amenaza" : " amenazas") + " en tu web y ya estamos actuando.";
+  if (dias !== null && dias < 10) return "Tu web funciona con normalidad. Su certificado de seguridad caduca en " + dias + " días: lo renovamos a tiempo.";
+  if (typeof w.disponibilidad === "number" && w.disponibilidad < 99) return "Tu web ha tenido algún corte este mes (" + coma(w.disponibilidad) + " % en línea). La estamos vigilando.";
+  if (typeof w.velocidad === "number" && w.velocidad > 4) return "Tu web está segura y en línea, aunque carga algo lenta (" + coma(w.velocidad) + " s).";
+  return "Tu web está segura y funcionando con normalidad.";
+}
+
+// Caducidad del dominio (RDAP, gratis; algunos dominios como .es no la publican)
+function dominioRaiz(d: string) {
+  const p = d.replace(/^www\./, "").split(".");
+  return p.length > 2 && /^(com|co|org|net|gob|edu|nom)$/.test(p[p.length - 2]) ? p.slice(-3).join(".") : p.slice(-2).join(".");
+}
+async function caducaDominio(dominio: string) {
+  try {
+    const r = await conTiempo(15000, (signal) => fetch("https://rdap.org/domain/" + dominioRaiz(dominio), { signal, headers: { accept: "application/rdap+json" } }));
+    if (!r.ok) return null;
+    const ev = ((await r.json()).events || []).find((e: any) => e.eventAction === "expiration");
+    return ev?.eventDate ? String(ev.eventDate).slice(0, 10) : null;
+  } catch { return null; }
+}
+// Caducidad del certificado SSL vigente (registro público de certificados crt.sh)
+async function caducaSSL(dominio: string) {
+  try {
+    const r = await conTiempo(20000, (signal) => fetch("https://crt.sh/?output=json&exclude=expired&q=" + encodeURIComponent(dominio), { signal }));
+    if (!r.ok) return null;
+    const padre = dominio.split(".").slice(1).join(".");
+    const fechas = ((await r.json()) as any[])
+      .filter((c) => String(c.name_value || "").split("\n").some((n: string) => n === dominio || n === "*." + padre))
+      .map((c) => String(c.not_after || "").slice(0, 10)).filter(Boolean).sort();
+    return fechas.length ? fechas[fechas.length - 1] : null;
+  } catch { return null; }
 }
 
 async function correoEquipo(db: SupabaseClient, asunto: string, texto: string) {
@@ -93,10 +160,19 @@ async function medirCliente(db: SupabaseClient, c: { id: string; dominio: string
   const cambios: Record<string, unknown> = { cliente_id: c.id, revisado_en: new Date().toISOString() };
   if (total) cambios.disponibilidad = Math.round((buenas / total) * 10000) / 100;
   if (v.ssl !== null) cambios.ssl_activo = v.ssl;
+  let sslCaduca: string | null = null;
   if (conPageSpeed) {
-    const ps = await pagespeed(c.dominio).catch(() => null);
-    if (ps) Object.assign(cambios, ps, { pagespeed_en: new Date().toISOString() });
+    const [ps, dom, ssl] = await Promise.all([pagespeed(c.dominio).catch(() => null), caducaDominio(c.dominio), caducaSSL(c.dominio)]);
+    if (ps) {
+      Object.assign(cambios, { puntuacion: ps.puntuacion, velocidad: ps.velocidad, pagespeed_en: new Date().toISOString() });
+      const rec = w?.recomendacion_auto === false ? null : recomendacion(ps);
+      if (rec) cambios.recomendacion = rec;
+    }
+    if (dom) await db.rpc("servidor_renovacion_auto", { p_cliente: c.id, p_auto: "dominio", p_concepto: "Dominio " + dominioRaiz(c.dominio), p_tipo: "dominio", p_fecha: dom, p_avisar: 30 });
+    if (ssl) await db.rpc("servidor_renovacion_auto", { p_cliente: c.id, p_auto: "ssl", p_concepto: "Certificado SSL " + c.dominio, p_tipo: "ssl", p_fecha: ssl, p_avisar: 10 });
+    sslCaduca = ssl;
   }
+  if (w?.resumen_auto !== false) cambios.resumen = resumen({ ...(w || {}), ...cambios }, v.ok, sslCaduca);
   const { error } = await db.from("webs_cliente").upsert(cambios, { onConflict: "cliente_id" });
   if (error) throw error;
   return { dominio: c.dominio, online: v.ok, ...cambios };
@@ -123,7 +199,7 @@ Deno.serve(async (req) => {
     if (!esCron && !esStaff) return responder({ error: "No autorizado." }, 401);
 
     const { data: clientes } = await db.from("clientes").select("id,dominio,nombre,email").not("dominio", "is", null);
-    const { data: webs } = await db.from("webs_cliente").select("cliente_id,medir_auto,pagespeed_en");
+    const { data: webs } = await db.from("webs_cliente").select("cliente_id,medir_auto,pagespeed_en,resumen_auto,recomendacion_auto,amenazas,ssl_activo,disponibilidad,velocidad");
     const fichas = new Map((webs || []).map((w) => [w.cliente_id, w]));
 
     if (esStaff && cuerpo.cliente_id) {

@@ -1406,6 +1406,14 @@ $("sonido-btn").addEventListener("click", () => {
 actualizarSonidoBtn();
 
 document.addEventListener("change", e => {
+  const tk = e.target.closest?.("[data-tokens]");
+  if (tk) {
+    const id = Number(tk.dataset.tokens), t = tk.value.trim().replace(",", "."), v = t === "" ? null : Math.round(Number(t) * 2) / 2;
+    if (v !== null && (!isFinite(v) || v < 0)) { toast("Escribe un número de tokens válido (por ejemplo 1 o 1,5)."); return; }
+    guardarCampo(id, "tokens", v, "Caso #" + id + ": " + (v === null ? "sin tokens" : String(v).replace(".", ",") + " tokens"))
+      .then(() => { const r = reportes.find(x => x.id === id); if (r && r.cliente_id && r.estado === "Aceptado") recargarClientes(); });
+    return;
+  }
   const sel = e.target.closest?.("[data-resp]");
   if (sel) {
     const id = Number(sel.dataset.resp), v = sel.value || null;
@@ -1611,6 +1619,7 @@ function pintarDetalle() {
         ${datoDetalle("Creado", esc(fechaLarga(r.created_at)) + `<span class="block text-xs text-slate-500">${esc(hace(Date.now() - new Date(r.created_at)))}</span>`)}
         ${cerrado(estado) && r.resuelto_en ? datoDetalle("Cerrado", esc(fechaLarga(r.resuelto_en))) : ""}
         ${datoDetalle("Responsable", responsableHTML)}
+        ${r.cliente_id && !borrado ? datoDetalle("Tokens gastados", `<input type="number" min="0" step="0.5" inputmode="decimal" data-tokens="${r.id}" value="${r.tokens ?? ""}" placeholder="0" aria-label="Tokens gastados en este caso" class="w-24 bg-panel border border-line rounded-md px-2 py-1.5 text-sm text-slate-200 focus:border-fx focus:outline-none"><span class="block text-[11px] text-slate-500 mt-1">Al cerrarlo como Aceptado se suman a los tokens del mes del cliente.</span>`) : ""}
         ${r.origen === "medicion" ? datoDetalle("Origen", "🤖 Abierto automáticamente: la web no respondía en dos comprobaciones seguidas") : ""}
         ${valDe(r.id) ? datoDetalle("Valoración del cliente", `<span class="text-amber-300" aria-label="${valDe(r.id).estrellas} de 5">${estrellas(valDe(r.id).estrellas)}</span>${valDe(r.id).comentario ? `<span class="block text-xs text-slate-300 break-words">«${esc(valDe(r.id).comentario)}»</span>` : ""}`) : ""}
       </dl>
@@ -1768,10 +1777,11 @@ function abrirFicha(id) {
     <form id="ficha-form" class="px-5 sm:px-6 py-5 space-y-4" novalidate>
       ${bloqueF("Cliente", "", `<div class="${g2}">${campoF("nombre", "Nombre", c.nombre, "text", 'maxlength="100"')}${campoF("dominio", "Dominio de su web", c.dominio, "text", 'placeholder="mitienda.com"')}</div>`)}
       ${bloqueF("Resumen de «Mi web»", "La cabecera del portal.", `<div class="${g2}">
-        <label class="block"><span class="block text-xs text-slate-400 mb-1">Plan contratado</span>
+        <label class="block"><span class="block text-xs text-slate-400 mb-1">Plan contratado<span class="ml-1 text-[10px] font-semibold text-emerald-300" title="Se pone solo cuando un servicio de mantenimiento o renting pasa a activo">⚡ auto</span></span>
           <select id="f-plan" class="campo text-sm" style="padding:.5rem .7rem"><option value="">Sin plan</option>${planes.map(p => `<option ${p === w.plan ? "selected" : ""}>${esc(p)}</option>`).join("")}</select></label>
         ${campoF("puntuacion", "Puntuación de la web (0-100)", w.puntuacion, "number", 'min="0" max="100" step="1"')}
-        <div class="sm:col-span-2">${campoF("resumen", "Mensaje de estado", w.resumen, "text", 'placeholder="Tu web está segura y funcionando con normalidad."')}</div>
+        <div class="sm:col-span-2">${campoF("resumen", "Mensaje de estado", w.resumen, "text", 'placeholder="Tu web está segura y funcionando con normalidad."')}
+          <label class="mt-1.5 flex items-center gap-2 text-xs text-slate-300"><input id="f-resumen_auto" type="checkbox" ${w.resumen_auto === false ? "" : "checked"}> Automático: lo escribe la medición según el estado de la web (desmárcalo para poner tu texto)</label></div>
         ${campoF("revisado_en", "Última revisión", aLocal(w.revisado_en), "datetime-local")}</div>`)}
       ${bloqueF("Salud de la web", "", `<div class="${g4}">
         ${campoF("disponibilidad", "Online últimos 30 días (%)", w.disponibilidad, "number", 'min="0" max="100" step="0.01" placeholder="99,98"')}
@@ -1786,14 +1796,14 @@ function abrirFicha(id) {
         </div>
         <div class="col-span-2">${campoF("ultima_copia", "Última copia de seguridad", aLocal(w.ultima_copia), "datetime-local")}</div>
         <div class="col-span-2">${campoF("copias_guardadas", "Copias guardadas", w.copias_guardadas, "number", 'min="0" step="1"')}</div></div>`)}
-      ${bloqueF("Este mes hemos hecho por ti", "", `<div class="${g4}">
+      ${bloqueF("Este mes hemos hecho por ti", "⚡ Cambios y tokens se cuentan solos con los casos cerrados como Aceptado (y los tokens apuntados en cada caso). Actualizaciones y ataques llegan solos si su WordPress está conectado. Los tokens incluidos dependen del plan.", `<div class="${g4}">
         ${campoF("mes_actualizaciones", "Actualizaciones de seguridad", w.mes_actualizaciones, "number", 'min="0" step="1"')}
         ${campoF("mes_ataques", "Ataques bloqueados", w.mes_ataques, "number", 'min="0" step="1"')}
         ${campoF("mes_cambios", "Cambios completados", w.mes_cambios, "number", 'min="0" step="1"')}
         ${campoF("mes_horas", "Tokens usados en trabajo técnico", w.mes_horas, "number", 'min="0" step="0.5"')}
         <div class="col-span-2">${campoF("horas_incluidas", "Tokens incluidos en su plan", w.horas_incluidas, "number", 'min="0" step="0.5"')}</div>
         <div class="col-span-2">${campoF("horas_usadas", "Tokens usados este mes", w.horas_usadas, "number", 'min="0" step="0.5"')}</div></div>`)}
-      ${bloqueF("Recomendación", "Aparece destacada con un botón «Me interesa», que os llega como una solicitud.", campoF("recomendacion", "Texto", w.recomendacion, "text", 'placeholder="Tu web tarda 3,1 s en cargar. Podemos dejarla en menos de 1,5 s."'))}
+      ${bloqueF("Recomendación", "Aparece destacada con un botón «Me interesa», que os llega como una solicitud.", campoF("recomendacion", "Texto", w.recomendacion, "text", 'placeholder="Tu web tarda 3,1 s en cargar. Podemos dejarla en menos de 1,5 s."') + `<label class="mt-1.5 flex items-center gap-2 text-xs text-slate-300"><input id="f-recomendacion_auto" type="checkbox" ${w.recomendacion_auto === false ? "" : "checked"}> Automática: la mejora principal que propone Google PageSpeed (una vez al día)</label>`)}
       ${bloqueF("Próximamente", "Fechas importantes: renovaciones, informes…", filasHTML("proximos", w.proximos))}
       ${bloqueF("SEO", "Los porcentajes son el cambio respecto al mes anterior (pueden ser negativos).", `<div class="${g4}">
         <div class="col-span-2">${campoF("seo_periodo", "Periodo", w.seo_periodo, "text", 'placeholder="Octubre 2026"')}</div>
@@ -1815,7 +1825,8 @@ function abrirFicha(id) {
           <label class="ml-auto flex items-center gap-2 text-sm text-slate-200"><input id="f-informe_auto" type="checkbox" ${w.informe_auto === false ? "" : "checked"}> Informe mensual por correo</label>
         </div>
         <div id="ficha-enlaces-estado" class="mt-3 text-xs text-slate-400">${enlacesFichaHTML(w)}</div>`)}
-      ${bloqueF("Facturación", "", `${campoF("metodo_pago", "Método de pago", w.metodo_pago, "text", 'placeholder="Visa terminada en 4242"')}
+      ${bloqueF("Conectar WordPress", "Con el plugin «Webcare Conector», su web envía cada día las actualizaciones, los ataques bloqueados y amenazas (Wordfence) y las copias de seguridad (UpdraftPlus).", `<div id="ficha-wp">${wpFichaHTML(w, c)}</div>`)}
+      ${bloqueF("Facturación", "⚡ El método de pago se rellena solo cuando paga con tarjeta en el portal.", `${campoF("metodo_pago", "Método de pago", w.metodo_pago, "text", 'placeholder="Visa terminada en 4242"')}
         <p class="mt-4 mb-2 text-xs font-semibold text-slate-300">Facturas</p>${filasHTML("facturas", w.facturas)}`)}
       <p id="ficha-error" class="hidden text-sm text-red-300"></p>
       ${bloqueF("Historial de cambios", "Quién cambió qué en esta ficha (las mediciones automáticas no se apuntan).", `<ol id="ficha-cambios" class="space-y-2 text-sm text-slate-300"><li class="text-slate-500">Cargando…</li></ol>`)}
@@ -1835,7 +1846,8 @@ const ETIQUETAS_FICHA = { plan: "Plan", puntuacion: "Puntuación", resumen: "Men
   mes_actualizaciones: "Actualizaciones del mes", mes_ataques: "Ataques del mes", mes_cambios: "Cambios del mes", mes_horas: "Tokens de trabajo",
   horas_incluidas: "Tokens incluidos", horas_usadas: "Tokens usados", recomendacion: "Recomendación", proximos: "Próximamente",
   seo_periodo: "Periodo SEO", seo_visitas: "% visitas", seo_impresiones: "% impresiones", seo_clics: "% clics", seo_primera_pagina: "Palabras en 1.ª página",
-  seo_palabras: "Palabras clave", seo_acciones: "Trabajo SEO", seo_informe_url: "Informe SEO", metodo_pago: "Método de pago", facturas: "Facturas", medir_auto: "Medición automática" };
+  seo_palabras: "Palabras clave", seo_acciones: "Trabajo SEO", seo_informe_url: "Informe SEO", metodo_pago: "Método de pago", facturas: "Facturas", medir_auto: "Medición automática",
+  resumen_auto: "Mensaje automático", recomendacion_auto: "Recomendación automática" };
 function valorFicha(v) {
   if (v === null || v === undefined || v === "") return "—";
   if (Array.isArray(v)) return v.length + (v.length === 1 ? " elemento" : " elementos");
@@ -1871,6 +1883,37 @@ async function medirAhora() {
   }
   toast((r.online ? "✅ La web responde" : "⚠️ La web no responde") + (r.velocidad ? " · velocidad " + String(r.velocidad).replace(".", ",") + " s" : "") + (r.puntuacion !== undefined ? " · puntuación " + r.puntuacion : ""), 7000);
 }
+// Estado de la conexión con WordPress y clave para el plugin
+function wpFichaHTML(w, c) {
+  const d = w.wp_datos || {}, p = d.pendientes || {}, pend = (p.nucleo || 0) + (p.plugins || 0) + (p.temas || 0);
+  const sitioOtro = d.sitio && c.dominio && !String(d.sitio).replace(/^https?:\/\/(www\.)?/, "").startsWith(c.dominio.replace(/^www\./, ""));
+  const estado = w.wp_visto_en
+    ? `<p class="text-sm text-emerald-300">● Conectado · último envío ${esc(hace(Date.now() - new Date(w.wp_visto_en)).toLowerCase())}</p>
+       <p class="text-xs text-slate-400 mt-1">WordPress ${esc(d.wp || "?")} · PHP ${esc(d.php || "?")} · ${d.seguridad ? "🛡 " + esc(d.seguridad) : "<span class='text-amber-300'>sin Wordfence (no llegan ataques ni amenazas)</span>"} · ${d.copias_con ? "💾 " + esc(d.copias_con) : "<span class='text-amber-300'>sin UpdraftPlus (no llegan las copias)</span>"}</p>
+       <p class="text-xs mt-1 ${pend ? "text-amber-300" : "text-slate-400"}">${pend ? "Actualizaciones pendientes: " + [p.nucleo ? "WordPress" : "", p.plugins ? p.plugins + " plugin" + (p.plugins === 1 ? "" : "s") : "", p.temas ? p.temas + " tema" + (p.temas === 1 ? "" : "s") : ""].filter(Boolean).join(", ") : "Todo actualizado."}</p>
+       ${sitioOtro ? `<p class="text-xs text-amber-300 mt-1">⚠ Los datos llegan desde ${esc(d.sitio)}, que no coincide con su dominio.</p>` : ""}`
+    : w.wp_clave_hash ? `<p class="text-sm text-amber-300">● Clave creada, esperando el primer envío del plugin.</p>` : `<p class="text-sm text-slate-400">Sin conectar.</p>`;
+  return `${estado}<div class="mt-3 flex flex-wrap items-center gap-2">
+      <button type="button" id="ficha-wp-clave" class="rounded-md border border-line px-3 py-1.5 text-xs text-slate-200 hover:border-fx">${w.wp_clave_hash ? "Generar una clave nueva" : "Generar clave de conexión"}</button>
+      <a href="wordpress/webcare-conector.zip" download class="rounded-md border border-line px-3 py-1.5 text-xs text-slate-200 hover:border-fx">⬇ Descargar el plugin</a></div>
+    <div id="ficha-wp-nueva"></div>`;
+}
+async function claveWp() {
+  const id = fichaId, w = webs.get(id) || {};
+  if (w.wp_clave_hash && !confirm("La clave anterior dejará de funcionar y habrá que pegar la nueva en su WordPress. ¿Generar otra?")) return;
+  const { data, error } = await db.rpc("staff_clave_wp", { p_cliente: id });
+  if (error) { toast("No se pudo generar la clave: " + error.message + (/staff_clave_wp/.test(error.message) ? " (¿has ejecutado supabase_ficha_auto.sql?)" : ""), 8000); return; }
+  webs.set(id, { ...w, cliente_id: id, wp_clave_hash: "nueva", wp_visto_en: null });
+  if (fichaId !== id) return;
+  $("ficha-wp").innerHTML = wpFichaHTML(webs.get(id), clientes.find(x => x.id === id) || {});
+  $("ficha-wp-nueva").innerHTML = `<div class="mt-3 rounded-lg border border-fx/40 bg-fx/5 p-3 text-xs text-slate-300 space-y-2">
+    <p class="text-sm font-semibold text-white">Clave de conexión (cópiala ahora: no se vuelve a mostrar)</p>
+    <div class="flex gap-2"><input readonly value="${esc(data)}" class="campo text-xs font-mono flex-1 min-w-0" style="padding:.45rem .6rem" onclick="this.select()"><button type="button" id="ficha-wp-copiar" data-clave="${esc(data)}" class="rounded-md bg-fx text-[#1a1005] font-semibold px-3">Copiar</button></div>
+    <ol class="list-decimal pl-5 space-y-1"><li>Descarga el plugin e instálalo en su WordPress (Plugins › Añadir nuevo › Subir plugin) y actívalo.</li>
+      <li>Ve a Ajustes › Webcare, pega la clave y pulsa «Guardar y probar la conexión».</li>
+      <li>Recomendado: instala también Wordfence (seguridad) y UpdraftPlus (copias) para que lleguen todos los datos.</li></ol></div>`;
+}
+
 function cerrarFicha(forzar) {
   if (!forzar && fichaId !== null && !$("ficha-modal").classList.contains("hidden") && !confirm("¿Cerrar sin guardar los cambios de la ficha?")) return;
   fichaId = null; $("ficha-modal").classList.add("hidden"); $("ficha-cuerpo").innerHTML = "";
@@ -1912,6 +1955,7 @@ function leerFicha() {
     seo_clics: num("seo_clics", "El % de clics", { entero: true }), seo_primera_pagina: num("seo_primera_pagina", "Las palabras en primera página", { min: 0, entero: true }),
     seo_palabras: palabras, seo_acciones: filas("seo_acciones").map(a => ({ texto: a.texto })), seo_informe_url: informe,
     metodo_pago: texto("metodo_pago"), facturas, medir_auto: $("f-medir_auto").checked,
+    resumen_auto: $("f-resumen_auto").checked, recomendacion_auto: $("f-recomendacion_auto").checked,
     gsc_propiedad: texto("gsc_propiedad"), ga4_propiedad: v("ga4_propiedad").replace(/\D/g, "") || null, informe_auto: $("f-informe_auto").checked
   };
   return { errores, datos, cliente: { nombre, dominio: v("dominio").replace(/^https?:\/\//i, "").replace(/\/.*$/, "") || null } };
@@ -1949,6 +1993,9 @@ $("ficha-modal").addEventListener("click", e => {
   if (e.target.closest("[data-ficha-cerrar]")) { cerrarFicha(); return; }
   if (e.target.closest("#ficha-guardar")) { guardarFicha(); return; }
   if (e.target.closest("#ficha-medir")) { medirAhora(); return; }
+  if (e.target.closest("#ficha-wp-clave")) { claveWp(); return; }
+  const cp = e.target.closest("#ficha-wp-copiar");
+  if (cp) { navigator.clipboard?.writeText(cp.dataset.clave).then(() => toast("Clave copiada"), () => toast("Selecciónala y cópiala a mano")); return; }
   if (e.target.closest("#ficha-google")) { googleAhora(); return; }
   if (e.target.closest("#ficha-enlaces")) { enlacesAhora(); return; }
   if (e.target.closest("#ficha-informe")) { informeAhora(); return; }
@@ -2394,7 +2441,8 @@ const GUIA = [
       "¿Respuesta habitual? Usa el desplegable de <b>respuestas rápidas</b> y retócala antes de enviar.",
       "Para mandar un archivo (PDF, imagen, ZIP…) pulsa 📎. Máximo 10 MB.",
       "Lo que el cliente <b>no</b> debe ver va en <b>Notas internas</b> (solo el equipo).",
-      "Añade <b>etiquetas</b> (#wordpress, #cliente vip…) para encontrar casos parecidos."]) + ojo("Cuando el cliente lee tu mensaje verás <b>✓✓ Visto por el cliente</b>.") },
+      "Añade <b>etiquetas</b> (#wordpress, #cliente vip…) para encontrar casos parecidos.",
+      "Si el trabajo ha consumido tokens de su plan, apúntalos en <b>Tokens gastados</b> (1, 1,5…). Al cerrarlo como Aceptado se suman solos a su ficha."]) + ojo("Cuando el cliente lee tu mensaje verás <b>✓✓ Visto por el cliente</b>.") },
   { i: "🚨", t: "Urgencias", k: "urgente urgencia plazo whatsapp prioridad sla vencida", h: `
       <p>Los clientes con plan pueden marcar un caso como <b>urgente</b>. El plazo para la primera respuesta depende de su plan:</p>
       <ul class="mt-2 space-y-1"><li>• <b>Mantenimiento Pro</b> y <b>Renting Ecommerce</b>: <b>4 horas</b>.</li><li>• Resto de planes: <b>24 horas</b>.</li></ul>
@@ -2407,7 +2455,13 @@ const GUIA = [
         <li>• <b>Editar ficha</b>: los datos de su web que ve en el portal: plan, tokens del mes, velocidad, seguridad, SEO, cambios realizados…</li>
         <li>• <b>👁 Ver como cliente</b>: abre su portal tal cual lo ve él, sin poder tocar nada. Ideal para explicarle algo por teléfono.</li>
         <li>• <b>Notas sobre el cliente</b>: cosas a recordar (prefiere WhatsApp, es exigente con los plazos…).</li>
-      </ul>` },
+      </ul>
+      <p class="mt-3"><b>⚡ Casi todo se rellena solo</b> si tiene dominio: % online, SSL, velocidad, puntuación, mensaje de estado, recomendación, SEO, renovaciones de dominio y SSL, plan, tokens y cambios del mes, y la tarjeta con la que paga. Los campos con ⚡ no hace falta tocarlos.</p>` },
+  { i: "🔌", t: "Conectar su WordPress", k: "wordpress plugin conectar clave wordfence updraftplus copias ataques actualizaciones", h: pasos([
+      "Abre su ficha (Editar ficha) → <b>Conectar WordPress</b> → <b>Generar clave de conexión</b>. Cópiala: solo se muestra una vez.",
+      "Pulsa <b>⬇ Descargar el plugin</b> e instálalo en su WordPress: Plugins › Añadir nuevo › Subir plugin › Activar.",
+      "En su WordPress, ve a <b>Ajustes › Webcare</b>, pega la clave y pulsa «Guardar y probar la conexión». Debe decir «Conectado».",
+      "Instala también <b>Wordfence</b> (ataques y amenazas) y <b>UpdraftPlus</b> (copias de seguridad) si no los tiene."]) + ojo("Desde ese momento, cada día llegan solas las actualizaciones, los ataques bloqueados, las amenazas y las copias. En la ficha verás si tiene actualizaciones pendientes.") },
   { i: "📦", t: "Entregar un trabajo (web, ZIP, PDF…)", k: "entrega subir archivo zip html pdf descargar pagado pago marcar", h: pasos([
       "Abre la ficha del cliente → <b>Servicios contratados</b> → el pedido.",
       "Pulsa <b>📦 Subir entrega</b> y elige el archivo (hasta 50 MB). Puedes añadir una nota.",
@@ -2496,6 +2550,7 @@ function abrirPrecios() {
         <span class="flex items-center gap-1.5 text-xs text-slate-400">${t === "web" ? "desde " : ""}${num(c.nombre, "precio", c.precio, "0")} €</span>
         ${t === "web" ? `<span class="flex items-center gap-1.5 text-xs text-slate-400">hasta ${num(c.nombre, "precio_hasta", c.precio_hasta, "—")} €</span>` : ""}
         ${t === "mantenimiento" ? `<span class="flex items-center gap-1.5 text-xs text-slate-400">o al año ${num(c.nombre, "precio_anual", c.precio_anual, "—")} €</span>` : ""}
+        ${t === "mantenimiento" || t === "renting" ? `<span class="flex items-center gap-1.5 text-xs text-slate-400" title="Tokens incluidos al mes">${num(c.nombre, "tokens_mes", c.tokens_mes, "0")} tokens/mes</span>` : ""}
         <label class="flex items-center gap-1.5 text-xs text-slate-300"><input type="checkbox" data-cat="${esc(c.nombre)}" data-campo="activo" ${c.activo ? "checked" : ""} ${ro}> A la venta</label>
       </li>`).join("")}</ul></section>`;
   }).join("");
@@ -2533,6 +2588,7 @@ async function guardarPrecios() {
     Object.assign(catalogo.find(x => x.nombre === n), d);
     if (n in PRECIO_PLAN && "precio" in d) PRECIO_PLAN[n] = d.precio;
   }
+  if ([...cambios.values()].some(d => "tokens_mes" in d)) recargarClientes();
   $("precios-guardar").disabled = false;
   if (!fallos) { cerrarPrecios(); toast(cambios.size + (cambios.size === 1 ? " precio actualizado" : " precios actualizados") + ". El portal y los cobros ya usan los nuevos.", 5000); }
   else $("precios-estado").textContent = "Algunos cambios no se guardaron.";

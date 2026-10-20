@@ -266,7 +266,18 @@ Dentro del panel, botón **❓** de la barra lateral (encima de «Cerrar sesión
 Tiene buscador y secciones paso a paso: el día a día, el pipeline, responder casos, urgencias, clientes, entregas, pagos, renovaciones, bóveda, valoraciones, atajos y «¿Qué hago si…?».
 Para cambiar el texto: en `index.html`, busca `const GUIA = [`.
 
-## 20. Publicar
+## 20. Ficha del cliente automática
+
+`supabase_ficha_auto.sql` (ya aplicado) y las funciones `medir`, `pago` y `wp` (ya desplegadas) rellenan la ficha solas:
+- **Plan**: cuando un servicio de mantenimiento o renting pasa a «activo».
+- **Tokens incluidos**: según el plan (Negocio › 💶 Precios › tokens/mes).
+- **Cambios completados y tokens usados del mes**: con los casos cerrados como Aceptado; en cada caso hay un campo «Tokens gastados».
+- **Mensaje de estado y recomendación**: los escribe la medición (se pueden poner a mano desmarcando «Automático»).
+- **Renovaciones de dominio y SSL**: con la fecha de caducidad (el dominio solo si su registro la publica; los .es no lo hacen).
+- **Método de pago**: la tarjeta con la que paga en el portal.
+- **WordPress**: plugin `wordpress/webcare-conector.zip`. En la ficha › «Conectar WordPress» se genera la clave; se instala el plugin en su web y se pega en Ajustes › Webcare. Envía cada día actualizaciones, ataques y amenazas (con Wordfence) y copias (con UpdraftPlus).
+
+## 21. Publicar
 
 GitHub Pages publica la rama principal. Fusiona la rama `claude/dreamy-albattani-j8rm9a` en **los dos repositorios** (o elígela en Settings > Pages).
 
