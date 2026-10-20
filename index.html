@@ -21,6 +21,9 @@
   .font-display { letter-spacing: -.015em; }
   .rail-btn { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; color: #6b7386; transition: background .15s, color .15s; }
   .rail-btn:hover { color: #e8ebf2; background: #171b24; }
+  .tab-op { animation: tab-entra .22s ease-out both; }
+  @keyframes tab-entra { from { opacity: 0; transform: translateX(-10px); } }
+  @media (prefers-reduced-motion: reduce) { .tab-op { animation: none; } }
   .rail-btn.on { color: #1a1005; background: #f6a01a; box-shadow: 0 6px 18px rgba(246,160,26,.3); }
   .top-btn { height: 34px; min-width: 34px; padding: 0 8px; border-radius: 10px; display: grid; place-items: center; color: #8b93a7; font-size: 13px; border: 1px solid transparent; }
   .top-btn:hover { color: #fff; background: #171b24; }
@@ -142,7 +145,7 @@
           <span id="contador" class="text-xs text-slate-500 pt-2"></span>
         </header>
         <div class="flex flex-wrap items-center gap-2 mb-4 rounded-xl border border-line bg-panel/60 p-2">
-          <nav id="tabs" class="flex flex-wrap gap-1.5" aria-label="Filtrar por tipo"></nav>
+          <nav id="tabs" class="flex flex-wrap items-center gap-1.5" aria-label="Filtrar por tipo"></nav>
           <div class="ml-auto flex flex-wrap gap-2">
             <select id="filtro-resp" aria-label="Filtrar por responsable" class="sel">
               <option value="">Todos los responsables</option>
@@ -415,6 +418,7 @@ const VISTAS = [
 ];
 const SEMANA = 7 * 24 * 60 * 60 * 1000;
 
+let tabsAbiertas = false;                        // el filtro de tipo desplegado
 let reportes = [], filtro = "Todos", orden = "prioridad", canal = null;
 let busqueda = "", verArchivados = false, editando = false;
 const abiertos = new Set();                       // tarjetas con las notas desplegadas
@@ -1149,13 +1153,16 @@ function render() {
   $("badge-msg").classList.toggle("hidden", !nResp);
   $("badge-msg").classList.toggle("grid", !!nResp);
 
-  $("tabs").innerHTML = VISTAS.map(v => {
-    const n = v.id === "Todos" ? activos().length : activos().filter(r => tipoDe(r) === v.id).length;
-    const activa = v.id === filtro;
-    return `<button data-vista="${v.id}" aria-pressed="${activa}"
-      class="tab flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px] font-medium whitespace-nowrap transition-colors ${activa ? "bg-fx/15 text-white ring-1 ring-fx/40" : "text-slate-400 hover:text-white hover:bg-raised"}">
-      <span class="w-2 h-2 rounded-full ${v.dot}"></span>${v.label}<span class="text-xs ${activa ? "text-fx" : "text-slate-600"}">${n}</span></button>`;
-  }).join("");
+  // Filtro por tipo: un botón con el tipo elegido que se despliega en horizontal para cambiarlo
+  const cuenta = v => v.id === "Todos" ? activos().length : activos().filter(r => tipoDe(r) === v.id).length;
+  const actual = VISTAS.find(v => v.id === filtro) || VISTAS[0];
+  $("tabs").innerHTML = `<button type="button" class="tab tab-actual flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px] font-medium whitespace-nowrap bg-fx/15 text-white ring-1 ring-fx/40" data-vista="${actual.id}" aria-expanded="${tabsAbiertas}" aria-label="Tipo: ${actual.label}. ${tabsAbiertas ? "Cerrar" : "Cambiar"}">
+      <svg class="w-3.5 h-3.5 text-fx" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 1.5v-8z"/></svg>
+      <span class="w-2 h-2 rounded-full ${actual.dot}"></span>${actual.label}<span class="text-xs text-fx">${cuenta(actual)}</span>
+      <svg class="tab-flecha w-3.5 h-3.5 text-slate-400 transition-transform ${tabsAbiertas ? "rotate-180" : ""}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>`
+    + (tabsAbiertas ? VISTAS.filter(v => v.id !== actual.id).map((v, i) => `<button type="button" data-vista="${v.id}" aria-pressed="false" style="animation-delay:${i * 35}ms"
+      class="tab tab-op flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px] font-medium whitespace-nowrap text-slate-400 hover:text-white hover:bg-raised transition-colors">
+      <span class="w-2 h-2 rounded-full ${v.dot}"></span>${v.label}<span class="text-xs text-slate-600">${cuenta(v)}</span></button>`).join("") : "");
   $("titulo-vista").textContent = (filtro === "Todos" ? "Leads" : VISTAS.find(v => v.id === filtro).label) + " · Pipeline CRM";
 
   const raw = busqueda.trim(), q = norm(raw.replace(/^#/, "")), porId = /^#\d+$/.test(raw);
@@ -1392,7 +1399,8 @@ document.addEventListener("click", e => {
   if (reset) { fijarUrgencia(Number(reset.dataset.resetUrg), null); render(); return; }
   if (bloquearClick) { e.preventDefault(); e.stopPropagation(); return; }
   const tab = e.target.closest(".tab");
-  if (tab) { filtro = tab.dataset.vista; render(); return; }
+  if (tab) { if (tab.classList.contains("tab-actual")) tabsAbiertas = !tabsAbiertas; else { filtro = tab.dataset.vista; tabsAbiertas = false; } render(); return; }
+  if (tabsAbiertas && !e.target.closest("#tabs")) { tabsAbiertas = false; render(); }
   // Clic en el cuerpo de una tarjeta (no en botones, listas, barra…) → detalle del caso
   const tarj = e.target.closest(".card-wrap");
   if (tarj && !e.target.closest("a, button, select, input, textarea, summary, details, label, .barra-urg, .grip") && !String(getSelection()).length) {
