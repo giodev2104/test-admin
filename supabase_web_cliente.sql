@@ -1,5 +1,8 @@
 -- =====================================================================
 --  Webcare · Ficha de la web de cada cliente
+-- ⚠ ATENCIÓN: este script ya está aplicado. NO lo vuelvas a ejecutar suelto: sustituiría funciones
+--   (como cliente_datos) por versiones antiguas y el portal dejaría de funcionar bien.
+--   Si alguna vez hay que repetirlo, ejecuta después, en orden, todos los scripts posteriores (ver GUIA.md).
 -- =====================================================================
 -- Añade la tabla "webs_cliente": los datos que el cliente ve en su portal
 -- (Mi web, SEO y Facturación) y que el equipo edita desde el panel.

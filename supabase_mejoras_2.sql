@@ -1,5 +1,8 @@
 -- =====================================================================
 --  Webcare · Mejoras 2
+-- ⚠ ATENCIÓN: este script ya está aplicado. NO lo vuelvas a ejecutar suelto: sustituiría funciones
+--   (como cliente_datos) por versiones antiguas y el portal dejaría de funcionar bien.
+--   Si alguna vez hay que repetirlo, ejecuta después, en orden, todos los scripts posteriores (ver GUIA.md).
 -- =====================================================================
 -- Ejecútalo entero en Supabase > SQL Editor DESPUÉS de supabase_mejoras.sql.
 -- No borra datos y se puede ejecutar varias veces.

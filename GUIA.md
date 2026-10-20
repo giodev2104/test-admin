@@ -12,15 +12,17 @@ En Supabase > **SQL Editor**, ejecuta (pestaña nueva cada vez, botón **Run**):
 
 | Situación | Qué ejecutar |
 |---|---|
-| Proyecto vacío | `supabase_completo.sql` → `supabase_mejoras.sql` → `supabase_mejoras_2.sql` → `supabase_mejoras_3.sql` |
-| Ya tenías la versión anterior funcionando | Solo lo que te falte, en orden: `supabase_mejoras.sql`, `supabase_mejoras_2.sql`, `supabase_mejoras_3.sql` (no borran nada y se pueden repetir) |
-| Quieres empezar de cero | `supabase_borrar_todo.sql` → `supabase_completo.sql` → `supabase_mejoras.sql` → `supabase_mejoras_2.sql` → `supabase_mejoras_3.sql` |
+| **Tu proyecto actual** | **Nada: ya está todo aplicado.** |
+| Proyecto vacío | `supabase_completo.sql` → `supabase_mejoras.sql` → `supabase_mejoras_2.sql` → `supabase_mejoras_3.sql` → `supabase_tarifas_2026.sql` → `supabase_servicios.sql` → `supabase_entregas.sql` → `supabase_opiniones.sql` → `supabase_pagos.sql` → `supabase_borrar_cliente.sql` → `supabase_catalogo.sql` → `supabase_ficha_auto.sql` |
+| Quieres empezar de cero | `supabase_borrar_todo.sql` y después todo lo de «Proyecto vacío», en ese orden |
+
+> ⚠ **No vuelvas a ejecutar un script antiguo suelto.** Cada script nuevo sustituye funciones de los anteriores (por ejemplo, `cliente_datos`, que carga el portal). Si ejecutas uno viejo, esas funciones vuelven a su versión antigua y el portal falla («Tu sesión ha caducado» al usar «Ver como cliente», no aparecen servicios ni entregas…). Si alguna vez hay que repetir uno, ejecuta después **todos los posteriores en el orden de arriba**.
 
 Abre cada archivo en GitHub, pulsa **Raw**, copia todo (Ctrl+A, Ctrl+C) y pégalo.
 
 En **Realtime > Settings**, deja permitidos los canales públicos (no actives «Private channels only»): el portal los usa para enterarse al instante de las respuestas.
 
-Después, en **Database > Extensions**, comprueba que están activadas **pg_cron** y **pg_net**. Si no lo estaban, actívalas y vuelve a ejecutar `supabase_mejoras.sql` (programa el cierre de mes y la medición automática).
+Después, en **Database > Extensions**, comprueba que están activadas **pg_cron** y **pg_net** (en tu proyecto ya lo están: las tareas automáticas funcionan). En un proyecto nuevo, actívalas **antes** de ejecutar los scripts.
 
 ---
 

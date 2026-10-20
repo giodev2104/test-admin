@@ -1,5 +1,8 @@
 -- =====================================================================
 --  Webcare · Cambio de plan automático
+-- ⚠ ATENCIÓN: este script ya está aplicado. NO lo vuelvas a ejecutar suelto: sustituiría funciones
+--   (como cliente_datos) por versiones antiguas y el portal dejaría de funcionar bien.
+--   Si alguna vez hay que repetirlo, ejecuta después, en orden, todos los scripts posteriores (ver GUIA.md).
 -- =====================================================================
 -- Cuando un cliente pide otro plan desde su portal, se crea un caso
 -- «Cambio de plan a …». Al pasar ese caso a «Aceptado» en el panel, su
