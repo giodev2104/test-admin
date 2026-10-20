@@ -70,6 +70,9 @@
     <button type="button" data-ir="casos" class="rail-btn" title="Pipeline CRM" aria-label="Pipeline CRM">
       <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/></svg>
     </button>
+    <button type="button" data-ir="clientes" class="rail-btn" title="Clientes y fichas de sus webs" aria-label="Clientes">
+      <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 9h18M8 21h8M12 18v3"/></svg>
+    </button>
     <button id="papelera-abrir" type="button" class="rail-btn relative" title="Papelera" aria-label="Papelera">
       <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
       <span id="papelera-n" class="absolute -top-0.5 -right-0.5 text-[10px] text-slate-400"></span>
@@ -136,6 +139,19 @@
           </div>
         </div>
         <div id="lista" class="flex gap-3 items-start overflow-x-auto scroll-fino pb-4"></div>
+      </div>
+
+      <!-- ============ VISTA CLIENTES (fichas de sus webs) ============ -->
+      <div id="vista-clientes" class="hidden">
+        <header class="flex flex-wrap items-start justify-between gap-3 mb-4">
+          <div>
+            <h1 class="font-display text-2xl font-bold text-white leading-tight">Clientes</h1>
+            <p class="text-sm text-slate-500 mt-1">Lo que rellenes en la ficha de cada cliente es lo que verá en «Mi web», «SEO» y «Facturación» de su portal.</p>
+          </div>
+          <input id="cli-buscar" type="search" autocomplete="off" placeholder="Buscar por nombre, correo o web…" aria-label="Buscar clientes"
+            class="w-full sm:w-72 bg-panel border border-line rounded-xl px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:border-fx focus:outline-none">
+        </header>
+        <div id="cli-lista" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"></div>
       </div>
     </main>
   </div>
@@ -229,6 +245,10 @@
   <div id="detalle-cuerpo" class="w-full max-w-2xl max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl border border-line bg-panel shadow-2xl"></div>
 </div>
 
+<div id="ficha-modal" class="hidden fixed inset-0 z-[62] grid place-items-center bg-black/70 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="ficha-titulo">
+  <div id="ficha-cuerpo" class="w-full max-w-3xl max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl border border-line bg-panel shadow-2xl"></div>
+</div>
+
 <div id="toast" class="fixed bottom-5 right-5 bg-raised border border-line text-sm px-4 py-2.5 rounded-lg shadow-xl hidden z-50"></div>
 
 <script>
@@ -314,6 +334,8 @@ let notas = [], notasIdx = new Map();            // historial de notas por caso
 const borradorNota = new Map();                  // lo que se está escribiendo en cada caso
 const expandidas = new Set();                    // descripciones largas desplegadas
 let filtroResp = "", sonidoOn = true;
+let clientes = [], webs = new Map();             // cuentas del portal y la ficha de su web (webs_cliente)
+const COLS_CLIENTE = "id,email,nombre,dominio,creado_en";   // nunca clave_hash
 const fechaCorta = d => new Date(d).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" });
 const coincideResp = r => !filtroResp || (filtroResp === "__sin" ? !r.responsable_usuario
   : filtroResp === "__mios" ? r.responsable_usuario === usuarioActual : true);
@@ -398,10 +420,12 @@ async function pedirDatos() {
     db.from("reportes").select("*").order("created_at", { ascending: false }),
     db.from("notas_caso").select("*").order("creado_en", { ascending: true }),
     db.from("mensajes_caso").select("*").order("creado_en", { ascending: true }),
-    db.from("actividad_caso").select("*").order("creado_en", { ascending: true })
+    db.from("actividad_caso").select("*").order("creado_en", { ascending: true }),
+    db.from("clientes").select(COLS_CLIENTE).order("creado_en", { ascending: false }),
+    db.from("webs_cliente").select("*")
   ]);
   const espera = new Promise((_, rej) => setTimeout(() => rej(new Error("Supabase no responde (10 s). Revisa la URL y que el proyecto no esté pausado.")), 10000));
-  const [rep, not, msg, act] = await Promise.race([consulta, espera]);
+  const [rep, not, msg, act, cli, web] = await Promise.race([consulta, espera]);
   if (rep.error) throw new Error(rep.error.message + (rep.error.code === "42501" || /permission|policy/i.test(rep.error.message) ? " No tienes permiso para leer los casos: comprueba que has iniciado sesión con un usuario del staff y que has ejecutado supabase.sql." : ""));
   reportes = rep.data;
   if (not.error) toast("No se pudieron cargar las notas: " + not.error.message + " (¿has ejecutado supabase_migracion.sql?)", 8000);
@@ -412,6 +436,9 @@ async function pedirDatos() {
   actividad = act.error ? [] : act.data; indexarActividad();
   mensajes = msg.error ? [] : msg.data;
   indexarMensajes();
+  if (cli.error || web.error) toast("No se pudieron cargar las fichas de los clientes: " + (cli.error || web.error).message + " (¿has ejecutado supabase_web_cliente.sql?)", 8000);
+  clientes = cli.error ? [] : cli.data;
+  webs = new Map((web.error ? [] : web.data).map(w => [w.cliente_id, w]));
 }
 
 async function cargar() {
@@ -769,7 +796,7 @@ function tarjeta(r) {
 
 // ---------- Navegación ----------
 let vista = "inicio", dashAmbito = "yo";
-function irA(v) { vista = v; render(); scrollTo(0, 0); }
+function irA(v) { vista = v; render(); scrollTo(0, 0); if (v === "clientes" && db && usuarioActual) recargarClientes(); }
 
 function saludo() { const h = new Date().getHours(); return h < 13 ? "Buenos días" : h < 21 ? "Buenas tardes" : "Buenas noches"; }
 
@@ -903,6 +930,7 @@ function render() {
   if ((drag && drag.activo) || deslizando || editando) { renderPendiente = true; return; }
   $("vista-inicio").classList.toggle("hidden", vista !== "inicio");
   $("vista-casos").classList.toggle("hidden", vista !== "casos");
+  $("vista-clientes").classList.toggle("hidden", vista !== "clientes");
   document.querySelectorAll(".rail-btn[data-ir]").forEach(b => b.classList.toggle("on", b.dataset.ir === vista));
   $("avatar").textContent = usuarioActual ? usuarioActual.charAt(0).toUpperCase() : "";
   $("avatar").title = usuarioActual ? bonito(usuarioActual) : "";
@@ -956,6 +984,7 @@ function render() {
     </section>`;
   }).join("");
   if (vista === "inicio" && usuarioActual) renderInicio();
+  if (vista === "clientes") renderClientes();
   actualizarPapelera();
   if (detalleId !== null) pintarDetalle();
 }
@@ -1343,7 +1372,7 @@ function pintarDetalle() {
     ${aviso}
     <div class="px-5 sm:px-6 py-5 space-y-6">
       <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        ${datoDetalle("Cliente", esc(r.usuario_discord || "Anónimo") + (r.cliente_id ? `<span class="block text-xs text-emerald-300">● Cuenta del portal del cliente</span>` : ""))}
+        ${datoDetalle("Cliente", esc(r.usuario_discord || "Anónimo") + (r.cliente_id ? `<span class="block text-xs text-emerald-300">● Cuenta del portal del cliente</span><button type="button" data-ficha="${esc(r.cliente_id)}" class="mt-1 text-xs font-semibold text-fx hover:underline">Editar la ficha de su web →</button>` : ""))}
         ${r.email ? datoDetalle("Correo", `<a class="text-fx hover:underline" href="mailto:${esc(r.email)}">${esc(r.email)}</a>`) : ""}
         ${r.telefono ? datoDetalle("Teléfono", `<a class="text-fx hover:underline" href="tel:${esc(r.telefono)}">${esc(r.telefono)}</a>`) : ""}
         ${r.dominio ? datoDetalle("Web", esc(r.dominio)) : ""}
@@ -1419,8 +1448,206 @@ $("detalle-modal").addEventListener("click", e => { if (e.target === $("detalle-
 // Escape cierra primero lo que esté más arriba (si el diálogo de confirmar está abierto, lo cierra él)
 document.addEventListener("keydown", e => {
   if (e.key !== "Escape" || !$("confirmar").classList.contains("hidden")) return;
+  if (!$("ficha-modal").classList.contains("hidden")) { cerrarFicha(); return; }
   if (!$("detalle-modal").classList.contains("hidden")) cerrarDetalle();
   else if (!$("papelera-modal").classList.contains("hidden")) cerrarPapelera();
+}, true);
+
+// ---------- Clientes y ficha de su web ----------
+// La ficha (tabla webs_cliente) es lo que el cliente ve en «Mi web», «SEO» y «Facturación» de su portal.
+const PLANES = ["Mantenimiento Básico", "Mantenimiento Pro", "Mantenimiento Pro + SEO"];
+const FILAS = {
+  proximos:     [["texto", "Qué (p. ej. Renovación del dominio)", 2], ["cuando", "Cuándo (p. ej. 12 dic · automática)", 1]],
+  seo_palabras: [["palabra", "Palabra clave", 2], ["antes", "Pos. antes", .6], ["ahora", "Pos. ahora", .6]],
+  seo_acciones: [["texto", "Qué hicimos (p. ej. Corregimos 11 enlaces rotos)", 1]],
+  facturas:     [["numero", "Nº (F-2026-0189)", 1], ["fecha", "Fecha (1 oct)", .8], ["importe", "Importe (89 €)", .7], ["url", "Enlace al PDF (opcional)", 1.6]]
+};
+let fichaId = null;
+
+function renderClientes() {
+  const q = norm($("cli-buscar").value.trim());
+  const lista = clientes.filter(c => !q || norm([c.nombre, c.email, c.dominio].join(" ")).includes(q));
+  $("cli-lista").innerHTML = lista.length ? lista.map(c => {
+    const w = webs.get(c.id), abiertos = activos().filter(r => r.cliente_id === c.id && abierto(r)).length;
+    return `
+    <article class="rounded-xl border border-line bg-raised/80 p-4 flex flex-col gap-2">
+      <div class="flex items-start gap-3">
+        <span class="w-9 h-9 shrink-0 rounded-full grid place-items-center text-sm font-bold text-[#1a1005] bg-gradient-to-br from-amber-300 to-orange-500">${inicial(c.nombre)}</span>
+        <div class="min-w-0">
+          <h3 class="text-[15px] font-semibold text-white truncate">${esc(c.nombre)}</h3>
+          <p class="text-xs text-slate-400 truncate">${esc(c.email)}${c.dominio ? " · " + esc(c.dominio) : ""}</p>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-1.5">
+        ${w && w.plan ? `<span class="mini bg-fx/10 text-fx border-fx/40">${esc(w.plan)}</span>` : `<span class="mini bg-base text-slate-400 border-line">Sin plan</span>`}
+        ${abiertos ? `<span class="mini bg-amber-500/15 text-amber-300 border-amber-500/40">${abiertos} caso${abiertos === 1 ? "" : "s"} abierto${abiertos === 1 ? "" : "s"}</span>` : ""}
+        ${w ? "" : `<span class="mini bg-violet-500/15 text-violet-300 border-violet-500/40">Ficha vacía</span>`}
+      </div>
+      <p class="text-[11px] text-slate-500">${w ? "Ficha actualizada " + esc(hace(Date.now() - new Date(w.actualizado_en)).toLowerCase()) + (w.actualizado_por ? " por " + esc(bonito(w.actualizado_por)) : "") : "Cliente desde el " + esc(fechaDia(c.creado_en))}</p>
+      <button type="button" data-ficha="${esc(c.id)}" class="mt-auto self-start rounded-md bg-fx hover:bg-fx2 text-[#1a1005] text-sm font-semibold px-3.5 py-1.5 transition-colors">${w ? "Editar ficha" : "Rellenar ficha"}</button>
+    </article>`;
+  }).join("") : `<div class="sm:col-span-2 xl:col-span-3 rounded-xl border border-dashed border-line p-8 text-center text-sm text-slate-500">${clientes.length ? "Ningún cliente coincide con la búsqueda." : "Todavía no se ha registrado ningún cliente en el portal."}</div>`;
+}
+$("cli-buscar").addEventListener("input", renderClientes);
+
+const aLocal = d => { if (!d) return ""; const x = new Date(d); return new Date(x - x.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
+function campoF(id, label, val, tipo = "text", extra = "") {
+  return `<label class="block min-w-0"><span class="block text-xs text-slate-400 mb-1">${label}</span>
+    <input id="f-${id}" type="${tipo}" value="${esc(val ?? "")}" ${extra} class="campo text-sm" style="padding:.5rem .7rem"></label>`;
+}
+function filaHTML(cols, d = {}) {
+  return `<div data-fila class="flex gap-2">${cols.map(c => `<input data-c="${c[0]}" placeholder="${esc(c[1])}" value="${esc(d[c[0]] ?? "")}" class="campo text-sm min-w-0" style="flex:${c[2]};padding:.45rem .6rem">`).join("")}
+    <button type="button" data-fila-del class="px-2 text-slate-500 hover:text-red-300" aria-label="Quitar fila">✕</button></div>`;
+}
+function filasHTML(key, datos) {
+  return `<div data-filas="${key}" class="space-y-2">${(Array.isArray(datos) ? datos : []).map(d => filaHTML(FILAS[key], d)).join("")}</div>
+    <button type="button" data-fila-add="${key}" class="mt-2 text-xs font-semibold text-fx hover:underline">+ Añadir</button>`;
+}
+const bloqueF = (titulo, sub, html) => `<section class="rounded-xl border border-line bg-base/60 p-4"><h3 class="text-sm font-semibold text-white">${titulo}</h3>${sub ? `<p class="text-xs text-slate-500 mt-0.5">${sub}</p>` : ""}<div class="mt-3">${html}</div></section>`;
+
+function abrirFicha(id) {
+  const c = clientes.find(x => x.id === id);
+  if (!c) { toast("No se encontró la ficha de este cliente. Recarga la página."); return; }
+  fichaId = id;
+  const w = webs.get(id) || {}, g2 = "grid gap-3 sm:grid-cols-2", g4 = "grid gap-3 grid-cols-2 sm:grid-cols-4";
+  const planes = PLANES.includes(w.plan) || !w.plan ? PLANES : [w.plan, ...PLANES];
+  $("ficha-cuerpo").innerHTML = `
+    <div class="sticky top-0 z-10 bg-panel border-b border-line px-5 sm:px-6 py-4 flex items-start gap-3">
+      <div class="min-w-0"><h2 id="ficha-titulo" class="font-display text-xl font-bold text-white truncate">Ficha de ${esc(c.nombre)}</h2>
+        <p class="text-xs text-slate-500 truncate">${esc(c.email)} · Lo que guardes aquí lo verá el cliente en su portal. Los campos vacíos no se muestran.</p></div>
+      <button type="button" data-ficha-cerrar class="ml-auto text-slate-400 hover:text-white p-1" aria-label="Cerrar">✕</button>
+    </div>
+    <form id="ficha-form" class="px-5 sm:px-6 py-5 space-y-4" novalidate>
+      ${bloqueF("Cliente", "", `<div class="${g2}">${campoF("nombre", "Nombre", c.nombre, "text", 'maxlength="100"')}${campoF("dominio", "Dominio de su web", c.dominio, "text", 'placeholder="mitienda.com"')}</div>`)}
+      ${bloqueF("Resumen de «Mi web»", "La cabecera del portal.", `<div class="${g2}">
+        <label class="block"><span class="block text-xs text-slate-400 mb-1">Plan contratado</span>
+          <select id="f-plan" class="campo text-sm" style="padding:.5rem .7rem"><option value="">Sin plan</option>${planes.map(p => `<option ${p === w.plan ? "selected" : ""}>${esc(p)}</option>`).join("")}</select></label>
+        ${campoF("puntuacion", "Puntuación de la web (0-100)", w.puntuacion, "number", 'min="0" max="100" step="1"')}
+        <div class="sm:col-span-2">${campoF("resumen", "Mensaje de estado", w.resumen, "text", 'placeholder="Tu web está segura y funcionando con normalidad."')}</div>
+        ${campoF("revisado_en", "Última revisión", aLocal(w.revisado_en), "datetime-local")}</div>`)}
+      ${bloqueF("Salud de la web", "", `<div class="${g4}">
+        ${campoF("disponibilidad", "Online últimos 30 días (%)", w.disponibilidad, "number", 'min="0" max="100" step="0.01" placeholder="99,98"')}
+        ${campoF("amenazas", "Amenazas activas", w.amenazas, "number", 'min="0" step="1"')}
+        <label class="block"><span class="block text-xs text-slate-400 mb-1">Certificado SSL</span>
+          <select id="f-ssl_activo" class="campo text-sm" style="padding:.5rem .7rem"><option value="">Sin dato</option><option value="true" ${w.ssl_activo === true ? "selected" : ""}>Activo</option><option value="false" ${w.ssl_activo === false ? "selected" : ""}>Inactivo</option></select></label>
+        ${campoF("velocidad", "Velocidad de carga (s)", w.velocidad, "number", 'min="0" step="0.1" placeholder="3,1"')}
+        <div class="col-span-2">${campoF("ultima_copia", "Última copia de seguridad", aLocal(w.ultima_copia), "datetime-local")}</div>
+        <div class="col-span-2">${campoF("copias_guardadas", "Copias guardadas", w.copias_guardadas, "number", 'min="0" step="1"')}</div></div>`)}
+      ${bloqueF("Este mes hemos hecho por ti", "", `<div class="${g4}">
+        ${campoF("mes_actualizaciones", "Actualizaciones de seguridad", w.mes_actualizaciones, "number", 'min="0" step="1"')}
+        ${campoF("mes_ataques", "Ataques bloqueados", w.mes_ataques, "number", 'min="0" step="1"')}
+        ${campoF("mes_cambios", "Cambios completados", w.mes_cambios, "number", 'min="0" step="1"')}
+        ${campoF("mes_horas", "Horas de trabajo", w.mes_horas, "number", 'min="0" step="0.5"')}
+        <div class="col-span-2">${campoF("horas_incluidas", "Horas incluidas en su plan", w.horas_incluidas, "number", 'min="0" step="0.5"')}</div>
+        <div class="col-span-2">${campoF("horas_usadas", "Horas usadas este mes", w.horas_usadas, "number", 'min="0" step="0.5"')}</div></div>`)}
+      ${bloqueF("Recomendación", "Aparece destacada con un botón «Me interesa», que os llega como una solicitud.", campoF("recomendacion", "Texto", w.recomendacion, "text", 'placeholder="Tu web tarda 3,1 s en cargar. Podemos dejarla en menos de 1,5 s."'))}
+      ${bloqueF("Próximamente", "Fechas importantes: renovaciones, informes…", filasHTML("proximos", w.proximos))}
+      ${bloqueF("SEO", "Los porcentajes son el cambio respecto al mes anterior (pueden ser negativos).", `<div class="${g4}">
+        <div class="col-span-2">${campoF("seo_periodo", "Periodo", w.seo_periodo, "text", 'placeholder="Octubre 2026"')}</div>
+        <div class="col-span-2">${campoF("seo_primera_pagina", "Palabras en primera página", w.seo_primera_pagina, "number", 'min="0" step="1"')}</div>
+        ${campoF("seo_visitas", "Visitas (%)", w.seo_visitas, "number", 'step="1"')}
+        ${campoF("seo_impresiones", "Impresiones (%)", w.seo_impresiones, "number", 'step="1"')}
+        ${campoF("seo_clics", "Clics (%)", w.seo_clics, "number", 'step="1"')}
+        <div class="col-span-2 sm:col-span-4">${campoF("seo_informe_url", "Enlace al informe (PDF, Drive…)", w.seo_informe_url, "url", 'placeholder="https://…"')}</div></div>
+        <p class="mt-4 mb-2 text-xs font-semibold text-slate-300">Palabras clave</p>${filasHTML("seo_palabras", w.seo_palabras)}
+        <p class="mt-4 mb-2 text-xs font-semibold text-slate-300">Lo que hicimos este mes</p>${filasHTML("seo_acciones", w.seo_acciones)}`)}
+      ${bloqueF("Facturación", "", `${campoF("metodo_pago", "Método de pago", w.metodo_pago, "text", 'placeholder="Visa terminada en 4242"')}
+        <p class="mt-4 mb-2 text-xs font-semibold text-slate-300">Facturas</p>${filasHTML("facturas", w.facturas)}`)}
+      <p id="ficha-error" class="hidden text-sm text-red-300"></p>
+    </form>
+    <div class="sticky bottom-0 bg-panel border-t border-line px-5 sm:px-6 py-3 flex items-center gap-2">
+      <span class="text-xs text-slate-500">${webs.get(id) ? "Última edición " + esc(hace(Date.now() - new Date(w.actualizado_en)).toLowerCase()) + (w.actualizado_por ? " por " + esc(bonito(w.actualizado_por)) : "") : "Esta ficha todavía está vacía."}</span>
+      <button type="button" data-ficha-cerrar class="ml-auto px-4 py-2 rounded-lg text-sm text-slate-300 hover:bg-raised">Cancelar</button>
+      <button type="button" id="ficha-guardar" class="rounded-lg bg-fx hover:bg-fx2 disabled:opacity-60 text-[#1a1005] text-sm font-bold px-4 py-2 transition-colors">Guardar ficha</button>
+    </div>`;
+  $("ficha-modal").classList.remove("hidden");
+  $("ficha-cuerpo").scrollTop = 0;
+  $("f-nombre").focus();
+}
+function cerrarFicha(forzar) {
+  if (!forzar && fichaId !== null && !$("ficha-modal").classList.contains("hidden") && !confirm("¿Cerrar sin guardar los cambios de la ficha?")) return;
+  fichaId = null; $("ficha-modal").classList.add("hidden"); $("ficha-cuerpo").innerHTML = "";
+}
+
+function leerFicha() {
+  const v = k => $("f-" + k).value.trim();
+  const errores = [];
+  const num = (k, nombre, { min = null, max = null, entero = false } = {}) => {
+    const t = v(k).replace(",", ".");
+    if (t === "") return null;
+    const n = Number(t);
+    if (!isFinite(n) || (entero && !Number.isInteger(n)) || (min !== null && n < min) || (max !== null && n > max))
+      errores.push(nombre + (entero ? " debe ser un número entero" : " debe ser un número") + (min !== null && max !== null ? " entre " + min + " y " + max : min !== null ? " mayor o igual que " + min : ""));
+    return n;
+  };
+  const fecha = k => v(k) ? new Date(v(k)).toISOString() : null;
+  const texto = k => v(k) || null;
+  const filas = key => [...$("ficha-cuerpo").querySelectorAll(`[data-filas="${key}"] [data-fila]`)].map(f =>
+    Object.fromEntries([...f.querySelectorAll("[data-c]")].map(i => [i.dataset.c, i.value.trim()]))).filter(o => Object.values(o).some(Boolean));
+  const palabras = filas("seo_palabras").map(p => ({ palabra: p.palabra, antes: p.antes ? Number(p.antes) : null, ahora: p.ahora ? Number(p.ahora) : null }));
+  if (palabras.some(p => !p.palabra || [p.antes, p.ahora].some(x => x !== null && !(Number.isInteger(x) && x > 0)))) errores.push("Cada palabra clave necesita texto y posiciones enteras mayores que 0");
+  const facturas = filas("facturas");
+  if (facturas.some(f => f.url && !/^https?:\/\/\S+$/i.test(f.url))) errores.push("Los enlaces de las facturas deben empezar por https://");
+  const informe = texto("seo_informe_url");
+  if (informe && !/^https?:\/\/\S+$/i.test(informe)) errores.push("El enlace al informe debe empezar por https://");
+  const nombre = v("nombre");
+  if (!nombre) errores.push("El nombre del cliente no puede estar vacío");
+  const datos = {
+    plan: texto("plan"), puntuacion: num("puntuacion", "La puntuación", { min: 0, max: 100, entero: true }), resumen: texto("resumen"), revisado_en: fecha("revisado_en"),
+    disponibilidad: num("disponibilidad", "El % online", { min: 0, max: 100 }), amenazas: num("amenazas", "Las amenazas", { min: 0, entero: true }),
+    ssl_activo: v("ssl_activo") === "" ? null : v("ssl_activo") === "true", ultima_copia: fecha("ultima_copia"),
+    copias_guardadas: num("copias_guardadas", "Las copias guardadas", { min: 0, entero: true }), velocidad: num("velocidad", "La velocidad", { min: 0 }),
+    mes_actualizaciones: num("mes_actualizaciones", "Las actualizaciones", { min: 0, entero: true }), mes_ataques: num("mes_ataques", "Los ataques", { min: 0, entero: true }),
+    mes_cambios: num("mes_cambios", "Los cambios", { min: 0, entero: true }), mes_horas: num("mes_horas", "Las horas de trabajo", { min: 0 }),
+    horas_incluidas: num("horas_incluidas", "Las horas incluidas", { min: 0 }), horas_usadas: num("horas_usadas", "Las horas usadas", { min: 0 }),
+    recomendacion: texto("recomendacion"), proximos: filas("proximos"),
+    seo_periodo: texto("seo_periodo"), seo_visitas: num("seo_visitas", "El % de visitas", { entero: true }), seo_impresiones: num("seo_impresiones", "El % de impresiones", { entero: true }),
+    seo_clics: num("seo_clics", "El % de clics", { entero: true }), seo_primera_pagina: num("seo_primera_pagina", "Las palabras en primera página", { min: 0, entero: true }),
+    seo_palabras: palabras, seo_acciones: filas("seo_acciones").map(a => ({ texto: a.texto })), seo_informe_url: informe,
+    metodo_pago: texto("metodo_pago"), facturas
+  };
+  return { errores, datos, cliente: { nombre, dominio: v("dominio").replace(/^https?:\/\//i, "").replace(/\/.*$/, "") || null } };
+}
+
+async function guardarFicha() {
+  const id = fichaId, c = clientes.find(x => x.id === id);
+  if (!c) return;
+  const { errores, datos, cliente } = leerFicha();
+  const err = $("ficha-error");
+  if (errores.length) { err.innerHTML = errores.map(esc).join("<br>"); err.classList.remove("hidden"); err.scrollIntoView({ block: "nearest" }); return; }
+  err.classList.add("hidden");
+  const btn = $("ficha-guardar"); btn.disabled = true; btn.textContent = "Guardando…";
+  const fin = () => { btn.disabled = false; btn.textContent = "Guardar ficha"; };
+  if (cliente.nombre !== c.nombre || cliente.dominio !== (c.dominio || null)) {
+    const { data, error } = await db.from("clientes").update(cliente).eq("id", id).select(COLS_CLIENTE);
+    if (error || !data || !data.length) { fin(); err.textContent = "No se pudo guardar el cliente: " + (error ? error.message : "sin permiso"); err.classList.remove("hidden"); return; }
+    clientes = clientes.map(x => x.id === id ? data[0] : x);
+  }
+  const { data, error } = await db.from("webs_cliente").upsert({ cliente_id: id, ...datos }).select().single();
+  fin();
+  if (error) { err.textContent = "No se pudo guardar la ficha: " + error.message; err.classList.remove("hidden"); return; }
+  webs.set(id, data);
+  cerrarFicha(true); render();
+  toast("Ficha de " + bonito(cliente.nombre) + " guardada. El cliente ya la ve en su portal.");
+}
+
+async function recargarClientes() {
+  const [cli, web] = await Promise.all([db.from("clientes").select(COLS_CLIENTE).order("creado_en", { ascending: false }), db.from("webs_cliente").select("*")]);
+  if (cli.error || web.error) return;
+  clientes = cli.data; webs = new Map(web.data.map(w => [w.cliente_id, w])); render();
+}
+
+$("ficha-modal").addEventListener("click", e => {
+  if (e.target.closest("[data-ficha-cerrar]")) { cerrarFicha(); return; }
+  if (e.target.closest("#ficha-guardar")) { guardarFicha(); return; }
+  const add = e.target.closest("[data-fila-add]");
+  if (add) { const k = add.dataset.filaAdd, box = $("ficha-cuerpo").querySelector(`[data-filas="${k}"]`); box.insertAdjacentHTML("beforeend", filaHTML(FILAS[k])); box.lastElementChild.querySelector("input").focus(); return; }
+  const del = e.target.closest("[data-fila-del]");
+  if (del) del.closest("[data-fila]").remove();
+});
+document.addEventListener("click", e => {
+  const f = e.target.closest("[data-ficha]");
+  if (f && !e.target.closest("#ficha-modal")) { e.stopPropagation(); abrirFicha(f.dataset.ficha); }
 }, true);
 
 // ---------- Inicio de sesión ----------
@@ -1428,7 +1655,8 @@ document.addEventListener("keydown", e => {
 
 function mostrarLogin() {
   if (canal && db) { db.removeChannel(canal); canal = null; }
-  reportes = []; notas = []; indexarNotas(); mensajes = []; indexarMensajes(); actividad = []; indexarActividad(); render();
+  reportes = []; notas = []; indexarNotas(); mensajes = []; indexarMensajes(); actividad = []; indexarActividad(); clientes = []; webs = new Map(); render();
+  cerrarFicha(true);
   estadoConexion("Sesión cerrada", "bg-slate-500");
   $("quien").textContent = "";
   $("login-pass").value = "";
