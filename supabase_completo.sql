@@ -113,6 +113,15 @@ alter table public.actividad_caso
   add column if not exists autor     text,
   add column if not exists creado_en timestamptz not null default now();
 
+-- Columna "codigo_acceso" de una instalación anterior: si existe, que se rellene sola
+do $$
+begin
+  if exists (select 1 from information_schema.columns
+             where table_schema = 'public' and table_name = 'reportes' and column_name = 'codigo_acceso') then
+    alter table public.reportes alter column codigo_acceso set default gen_random_uuid();
+  end if;
+end $$;
+
 create index if not exists notas_caso_caso_idx     on public.notas_caso (caso_id);
 create index if not exists mensajes_caso_caso_idx  on public.mensajes_caso (caso_id);
 create index if not exists actividad_caso_caso_idx on public.actividad_caso (caso_id);
