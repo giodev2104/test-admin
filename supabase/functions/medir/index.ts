@@ -3,6 +3,8 @@
 //   · Una vez al día por cliente: Google PageSpeed (gratis) → puntuación (0-100) y velocidad (s).
 //   · Desde el panel (botón «Medir ahora», sesión del staff): mide un cliente al momento.
 // Solo mide clientes con dominio y con «Medición automática» activada en su ficha.
+// Si la web falla dos comprobaciones seguidas, abre una Incidencia (una sola a la vez) y avisa por
+// correo a los propietarios (si Brevo está configurado); cuando vuelve a responder, lo anota en el caso.
 // Despliegue: Edge Functions > Deploy a new function > Via Editor, nombre "medir",
 // y DESACTIVA «Verify JWT». Opcional: secreto PAGESPEED_API_KEY (más cupo en Google).
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
@@ -48,8 +50,42 @@ async function pagespeed(dominio: string) {
   return { puntuacion: Math.round(score * 100), velocidad: typeof lcp === "number" ? Math.round(lcp / 100) / 10 : null };
 }
 
-async function medirCliente(db: SupabaseClient, c: { id: string; dominio: string }, w: Record<string, unknown> | undefined, conPageSpeed: boolean) {
+async function correoEquipo(db: SupabaseClient, asunto: string, texto: string) {
+  const clave = Deno.env.get("BREVO_API_KEY"), de = Deno.env.get("CORREO_REMITENTE");
+  if (!clave || !de) return;
+  const { data: duenos } = await db.from("staff").select("usuario,email").eq("es_dueno", true);
+  for (const s of duenos || []) {
+    await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: { "api-key": clave, "Content-Type": "application/json", accept: "application/json" },
+      body: JSON.stringify({ sender: { email: de, name: Deno.env.get("NOMBRE_REMITENTE") || "Webcare" }, to: [{ email: s.email }],
+        subject: asunto, htmlContent: `<p style="font-family:Arial,sans-serif;font-size:15px">${texto}</p>` }),
+    }).catch(() => {});
+  }
+}
+
+// Web caída: Incidencia automática tras 2 fallos seguidos; nota de recuperación cuando vuelve
+async function vigilarCaida(db: SupabaseClient, c: { id: string; dominio: string; nombre?: string; email?: string }, v: { ok: boolean; codigo: number | null }, anteriorOk: boolean | null) {
+  const { data: abiertos } = await db.from("reportes").select("id").eq("cliente_id", c.id).eq("origen", "medicion")
+    .is("eliminado_en", null).not("estado", "in", "(Aceptado,Denegado)").limit(1);
+  const abierto = abiertos && abiertos[0];
+  if (!v.ok && anteriorOk === false && !abierto) {
+    const { data: r } = await db.from("reportes").insert({
+      tipo_reporte: "Incidencia", titulo: "Tu web no responde: " + c.dominio, estado: "Entrada de leads", urgencia: 1, origen: "medicion",
+      descripcion: "La vigilancia automática ha detectado que https://" + c.dominio + " no responde" + (v.codigo ? " (código " + v.codigo + ")" : "")
+        + " en dos comprobaciones seguidas. El equipo ya lo está revisando.",
+      usuario_discord: c.nombre || null, email: c.email || null, dominio: c.dominio, cliente_id: c.id,
+    }).select("id").single();
+    await correoEquipo(db, "⚠ Web caída: " + c.dominio, "La web <b>" + c.dominio + "</b> no responde en dos comprobaciones seguidas. Se ha abierto el caso #" + (r ? r.id : "?") + " en el panel.");
+  } else if (v.ok && anteriorOk === false && abierto) {
+    await db.from("mensajes_caso").insert({ caso_id: abierto.id, autor_tipo: "staff", autor: "sistema", texto: "✅ La web vuelve a responder (comprobado automáticamente)." });
+  }
+}
+
+async function medirCliente(db: SupabaseClient, c: { id: string; dominio: string; nombre?: string; email?: string }, w: Record<string, unknown> | undefined, conPageSpeed: boolean) {
   const v = await visitar(c.dominio);
+  const { data: previa } = await db.from("comprobaciones").select("ok").eq("cliente_id", c.id).order("creado_en", { ascending: false }).limit(1);
+  await vigilarCaida(db, c, v, previa && previa.length ? previa[0].ok : null);
   await db.from("comprobaciones").insert({ cliente_id: c.id, ok: v.ok, codigo: v.codigo, ms: v.ms });
   const desde = new Date(Date.now() - 30 * 86400000).toISOString();
   const { data: hist } = await db.from("comprobaciones").select("ok").eq("cliente_id", c.id).gte("creado_en", desde);
@@ -86,7 +122,7 @@ Deno.serve(async (req) => {
     }
     if (!esCron && !esStaff) return responder({ error: "No autorizado." }, 401);
 
-    const { data: clientes } = await db.from("clientes").select("id,dominio").not("dominio", "is", null);
+    const { data: clientes } = await db.from("clientes").select("id,dominio,nombre,email").not("dominio", "is", null);
     const { data: webs } = await db.from("webs_cliente").select("cliente_id,medir_auto,pagespeed_en");
     const fichas = new Map((webs || []).map((w) => [w.cliente_id, w]));
 

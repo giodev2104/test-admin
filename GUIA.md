@@ -12,9 +12,9 @@ En Supabase > **SQL Editor**, ejecuta (pestaña nueva cada vez, botón **Run**):
 
 | Situación | Qué ejecutar |
 |---|---|
-| Proyecto vacío | `supabase_completo.sql` y después `supabase_mejoras.sql` |
-| Ya tenías la versión anterior funcionando | Solo `supabase_mejoras.sql` (no borra nada y se puede repetir) |
-| Quieres empezar de cero | `supabase_borrar_todo.sql` → `supabase_completo.sql` → `supabase_mejoras.sql` |
+| Proyecto vacío | `supabase_completo.sql` → `supabase_mejoras.sql` → `supabase_mejoras_2.sql` |
+| Ya tenías la versión anterior funcionando | Solo lo que te falte: `supabase_mejoras.sql` y/o `supabase_mejoras_2.sql` (no borran nada y se pueden repetir) |
+| Quieres empezar de cero | `supabase_borrar_todo.sql` → `supabase_completo.sql` → `supabase_mejoras.sql` → `supabase_mejoras_2.sql` |
 
 Abre cada archivo en GitHub, pulsa **Raw**, copia todo (Ctrl+A, Ctrl+C) y pégalo.
 
@@ -129,7 +129,22 @@ psql "URI_DE_LA_BASE" -f auth-webcare-AAAA-MM-DD.sql        # cuentas del equipo
 
 ---
 
-## 8. Publicar
+## 8. Ajustes del portal (lote 2)
+
+Todo está al principio del `<script>` de `test-cliente/index.html`:
+
+- **Tokens de cada plan**: `const TOKENS={"Básico":2,"Pro":5};`. Son los que se anuncian en la portada y en Facturación. Los que tiene cada cliente se rellenan en su ficha del panel («Tokens incluidos en su plan» / «Tokens usados este mes»), y el día 1 los usados vuelven a 0.
+- **Reservar una llamada (Cal.com, gratis)**: crea una cuenta en cal.com, un evento de 15–30 min y pega su enlace en `const CITA={url:"https://cal.com/tu-usuario/llamada"};`. Si lo dejas vacío, el botón no aparece.
+- **Preguntas frecuentes**: la lista `const FAQ=[…]`. Cada una tiene `p` (pregunta), `r` (respuesta) y `k` (palabras con las que se sugiere mientras el cliente escribe).
+- **App instalable**: el portal ya se puede instalar en el móvil («Mi cuenta > App y avisos»). Funciona solo con https (GitHub Pages lo es).
+
+En el panel, `URL_PORTAL` (función «Ver como cliente») apunta a `https://giodev2104.github.io/test-cliente/`; cámbialo si el portal se publica en otra dirección.
+
+Si actualizaste la función **medir**, vuelve a desplegarla (Edge Functions > medir > Code > pega `supabase/functions/medir/index.ts` > Deploy): ahora abre una Incidencia sola cuando una web deja de responder.
+
+---
+
+## 9. Publicar
 
 GitHub Pages publica la rama principal. Fusiona la rama `claude/dreamy-albattani-j8rm9a` en **los dos repositorios** (o elígela en Settings > Pages).
 
@@ -158,3 +173,22 @@ GitHub Pages publica la rama principal. Fusiona la rama `claude/dreamy-albattani
 | 17 | Historial de cambios de la ficha | Panel: ficha > «Historial de cambios» |
 | 18 | Permisos de propietario solo por `es_dueno` | Panel |
 | 21 | El portal se actualiza al instante cuando el equipo responde | Portal |
+
+### Lote 2
+
+| # | Mejora | Dónde se ve |
+|---|---|---|
+| 3 | Valoración opcional (1–5 estrellas y comentario) al cerrar una solicitud | Portal: solicitud cerrada · Panel: tarjeta, detalle, Negocio y ficha del cliente |
+| 4 | Mensajes nuevos marcados y «✓✓ Visto» en los dos sentidos | Portal: menú, Soporte y chat · Panel: chat del caso |
+| 5 | Preguntas frecuentes y sugerencias mientras el cliente escribe | Portal: Soporte |
+| 6 | Reservar una llamada (Cal.com) | Portal: Soporte y Mi web (si configuras `CITA.url`) |
+| 7 | App instalable y avisos en el móvil | Portal: Mi cuenta > App y avisos |
+| 8 | Gráficos de evolución (% online, velocidad, visitas de Google) | Portal: Mi web > Tu evolución |
+| 13 | Negocio: ingresos recurrentes, clientes, altas, primera respuesta, satisfacción y gráficos | Panel: icono de barras |
+| 14 | Incidencia automática cuando la web de un cliente no responde (y aviso al recuperarse) | Panel: tarjeta «🤖 Automático» · Portal: Soporte |
+| 16 | Ficha completa del cliente con casos, mensajes, renovaciones, valoraciones y notas que no se pierden entre casos | Panel: Clientes > «Ver cliente» |
+| 17 | Calendario de renovaciones con aviso al entrar | Panel: icono de calendario · Portal: Mi web > Próximamente |
+| 19 | Etiquetas en los casos, filtro por etiqueta y filtros guardados | Panel: detalle del caso y barra del Pipeline |
+| 21 | «Ver como cliente»: abre su portal en solo lectura durante 1 hora | Panel: ficha del cliente, detalle del caso y Clientes (👁) |
+| 23 | Ranking del equipo (resueltos, abiertos, tiempos, mensajes, valoración) | Panel: Negocio |
+| — | Las horas de los planes ahora son **tokens** | Portal y ficha del cliente |
