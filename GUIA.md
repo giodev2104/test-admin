@@ -203,7 +203,15 @@ Cómo se usa: en el panel, ficha completa del cliente → «Servicios contratado
 
 ---
 
-## 13. Publicar
+## 13. Financiación de pedidos
+
+En «Mis pedidos», los pedidos de pago único desde 150 € tienen el botón **💳 Financiar**. El cliente elige 3 plazos sin intereses, 6 plazos (+3 %, TAE 15,4 %) o 12 plazos (+6 %, TAE 13,7 %), con la primera cuota hoy, y la solicitud llega como mensaje al chat de ese pedido. Tú le mandas el enlace o la suscripción de Stripe con esas cuotas y, cuando corresponda, marcas el pedido como pagado para liberar la entrega.
+
+Los plazos, recargos y el mínimo están en `FINANCIACION` al principio del portal. Cobrar intereses a particulares puede entrar en la Ley 16/2011 de contratos de crédito al consumo: confírmalo con tu gestoría antes de activar los plazos con recargo (los 3 plazos sin intereses no tienen ese problema).
+
+---
+
+## 14. Publicar
 
 GitHub Pages publica la rama principal. Fusiona la rama `claude/dreamy-albattani-j8rm9a` en **los dos repositorios** (o elígela en Settings > Pages).
 
