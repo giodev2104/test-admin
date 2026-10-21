@@ -5,6 +5,7 @@
 //     cliente aprueba el diseño final, el 50 % restante.
 //   · Aviso de Stripe (webhook «checkout.session.completed»): registra el pedido aunque el cliente cierre la página.
 // El registro es idempotente (tabla pagos): un mismo pago nunca crea dos pedidos.
+// Las sesiones desactivan «Managed Payments» de Stripe: el vendedor es Velority (precios con IVA incluido).
 // Configuración (Supabase > Edge Functions > Secrets):
 //   STRIPE_SECRET_KEY      clave secreta de Stripe (sk_test_… en pruebas, sk_live_… para cobrar de verdad)
 //   STRIPE_WEBHOOK_SECRET  (recomendado) en Stripe > Desarrolladores > Webhooks > Añadir endpoint:
@@ -139,7 +140,7 @@ Deno.serve(async (req) => {
           const total = Number(s.importe), anticipo = Math.round(total * 50) / 100, eur = parte === "anticipo" ? anticipo : Math.round((total - anticipo) * 100) / 100;
           const { data: c } = await db.from("clientes").select("email").eq("id", cid).maybeSingle();
           const d: Record<string, string> = {
-            mode: "payment", "line_items[0][quantity]": "1", "line_items[0][price_data][currency]": "eur",
+            mode: "payment", "managed_payments[enabled]": "false", "line_items[0][quantity]": "1", "line_items[0][price_data][currency]": "eur",
             "line_items[0][price_data][unit_amount]": String(Math.round(eur * 100)),
             "line_items[0][price_data][product_data][name]": nombre + (parte === "anticipo" ? " · anticipo del 50 %" : " · pago final del 50 %"),
             client_reference_id: cid,
@@ -161,7 +162,7 @@ Deno.serve(async (req) => {
       if (!b.acepta) return responder({ error: "Para pagar tienes que aceptar el Aviso Legal y las Condiciones de Contratación de Servicios de Pago Único. Recarga la página e inténtalo de nuevo." }, 400);
       const { data: c } = await db.from("clientes").select("email").eq("id", cid).maybeSingle();
       const d: Record<string, string> = {
-        mode: it.cada ? "subscription" : "payment",
+        mode: it.cada ? "subscription" : "payment", "managed_payments[enabled]": "false",
         "line_items[0][quantity]": "1",
         "line_items[0][price_data][currency]": "eur",
         "line_items[0][price_data][unit_amount]": String(Math.round((it.cada ? it.normal : it.eur) * 100)),
