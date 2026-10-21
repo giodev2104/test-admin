@@ -8,7 +8,7 @@
 // Despliegue: Supabase > Edge Functions > Deploy a new function > Via Editor, nombre "correo",
 // y DESACTIVA «Verify JWT» (la función comprueba ella misma quién llama).
 // Secretos (Edge Functions > Secrets): BREVO_API_KEY, CORREO_REMITENTE (el correo verificado en Brevo)
-// y opcionales NOMBRE_REMITENTE, URL_PORTAL, URL_PANEL.
+// y opcionales NOMBRE_REMITENTE, URL_PORTAL, URL_PANEL, TURNSTILE_SECRET (protege «recuperar» y «enlace» de robots).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 const cors = {
@@ -30,6 +30,19 @@ const PLAZO_URGENTE_H: Record<string, number> = { "Mantenimiento Esencial": 24, 
 const esc = (s: unknown) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 const estadoCliente = (e: string) =>
   e === "Aceptado" ? "Completada" : e === "Denegado" ? "Cerrada" : !e || e === "Entrada de leads" ? "Recibida" : "En curso";
+
+// Turnstile (Cloudflare): sin el secreto TURNSTILE_SECRET no se comprueba, para no bloquear los avisos
+async function turnstileValido(token: unknown, ip: string) {
+  const secreto = env("TURNSTILE_SECRET");
+  if (!secreto) return true;
+  if (typeof token !== "string" || !token || token.length > 4096) return false;
+  const datos = new URLSearchParams({ secret: secreto, response: token });
+  if (ip) datos.set("remoteip", ip);
+  const r = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", { method: "POST", body: datos }).catch(() => null);
+  const j = r ? await r.json().catch(() => null) : null;
+  return !!j?.success;
+}
+const NO_ROBOT = "No hemos podido comprobar que no eres un robot. Recarga la página e inténtalo de nuevo.";
 
 function plantilla(titulo: string, parrafos: string[], boton?: { texto: string; url: string }) {
   return `<!doctype html><html lang="es"><body style="margin:0;background:#f4f5f8;font-family:Arial,Helvetica,sans-serif;color:#1f2433">
@@ -85,6 +98,7 @@ Deno.serve(async (req) => {
 
     if (accion === "recuperar") {
       const ip = (req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "").split(",")[0].trim();
+      if (!(await turnstileValido(cuerpo.turnstile, ip))) return responder({ error: NO_ROBOT }, 400);
       const { data, error } = await admin.rpc("servidor_crear_recuperacion", { p_email: String(cuerpo.email || ""), p_ip: ip });
       if (error) throw error;
       if (data?.error === "limite") return responder({ error: "Has pedido demasiados enlaces. Espera una hora y vuelve a probar." }, 429);
@@ -101,6 +115,7 @@ Deno.serve(async (req) => {
 
     if (accion === "enlace") {
       const ip = (req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "").split(",")[0].trim();
+      if (!(await turnstileValido(cuerpo.turnstile, ip))) return responder({ error: NO_ROBOT }, 400);
       const { data, error } = await admin.rpc("servidor_crear_enlace", { p_email: String(cuerpo.email || ""), p_ip: ip });
       if (error) throw error;
       if (data?.error === "limite") return responder({ error: "Has pedido demasiados enlaces. Espera una hora y vuelve a probar." }, 429);

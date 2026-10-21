@@ -234,6 +234,7 @@
         <button id="login-ver" type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-white px-2 py-1">Mostrar</button>
       </div>
     </div>
+    <div id="login-ts" class="flex justify-center min-h-[65px]" aria-label="Comprobación de seguridad"></div>
     <p id="login-error" class="hidden text-sm text-red-300"></p>
     <button id="login-btn" type="submit" class="w-full rounded-lg bg-fx hover:bg-fx2 disabled:opacity-60 text-[#1a1005] font-display text-base font-bold py-3 transition-colors">Entrar</button>
   </form>
@@ -3303,6 +3304,19 @@ $("login-ver").addEventListener("click", () => {
   $("login-ver").textContent = visible ? "Mostrar" : "Ocultar";
 });
 
+// Turnstile (Cloudflare) en el acceso del equipo. Cuando en Supabase > Authentication > Attack Protection está activado
+// «Captcha protection» con Turnstile, Supabase exige esta comprobación para iniciar sesión.
+const TURNSTILE_KEY = "0x4AAAAAAFfonD5Mv1JSJy4-";
+let tsToken = "", tsWidget = null;
+function pintarTurnstile() {
+  if (!TURNSTILE_KEY || !window.turnstile || tsWidget !== null) return;
+  tsWidget = turnstile.render("#login-ts", { sitekey: TURNSTILE_KEY, action: "panel", theme: "dark", language: "es",
+    callback: t => { tsToken = t; }, "expired-callback": () => { tsToken = ""; }, "error-callback": () => { tsToken = ""; } });
+}
+window.alCargarTurnstile = pintarTurnstile;
+pintarTurnstile();
+(() => { const s = document.createElement("script"); s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=alCargarTurnstile"; s.async = true; document.head.appendChild(s); })();
+
 $("login-form").addEventListener("submit", async e => {
   e.preventDefault();
   $("login-error").classList.add("hidden");
@@ -3312,12 +3326,15 @@ $("login-form").addEventListener("submit", async e => {
   const email = usuario.includes("@") ? (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(usuario) ? usuario : null)
     : /^[a-z0-9_.-]{3,30}$/.test(usuario) ? usuario + "@" + DOMINIO_STAFF : null;
   if (!email || !pw) return errorLogin("Correo o contraseña incorrectos.");
+  if (window.turnstile && tsWidget !== null && !tsToken) return errorLogin("Espera un momento a que termine la comprobación de seguridad (el recuadro de Cloudflare) y vuelve a pulsar «Entrar».");
   $("login-btn").disabled = true; $("login-btn").textContent = "Entrando…";
-  const { data, error } = await db.auth.signInWithPassword({ email, password: pw });
+  const { data, error } = await db.auth.signInWithPassword({ email, password: pw, options: tsToken ? { captchaToken: tsToken } : undefined });
+  if (tsWidget !== null) { tsToken = ""; try { turnstile.reset(tsWidget); } catch (_) {} }
   if (error) await new Promise(r => setTimeout(r, 800));        // pequeña pausa ante intentos fallidos
   $("login-btn").disabled = false; $("login-btn").textContent = "Entrar";
   if (error) return errorLogin(/confirm/i.test(error.message)
     ? "El correo " + email + " no está confirmado. En Supabase > Authentication > Users, confírmalo o vuelve a crear el usuario marcando «Auto Confirm User»."
+    : /captcha/i.test(error.message) ? "No se pudo completar la comprobación de seguridad. Espera a que el recuadro de Cloudflare se ponga en verde y vuelve a pulsar «Entrar»."
     : /invalid login/i.test(error.message) ? "Usuario o contraseña incorrectos (se ha intentado entrar como " + email + ")."
     : "No se pudo iniciar sesión: " + error.message);
   await entrar(data.session);

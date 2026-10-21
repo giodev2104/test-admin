@@ -269,6 +269,13 @@ Cada caso con un pedido del cliente muestra el bloque **💶 Pago** al abrirlo, 
 
 En ese mismo bloque, cada pedido (salvo los de mantenimiento) tiene **📦 Proyecto finalizado › Subir entrega**: sube ahí la web en .zip, el logo, el PDF… El cliente recibe el aviso y lo descarga en su portal en cuanto el pedido está pagado (hasta entonces ve «Pagar y desbloquear»).
 
+## Protección contra robots (Cloudflare Turnstile, gratis)
+- **Portal**: crear cuenta, «He olvidado mi contraseña» y «Entrar sin contraseña» piden la comprobación de Turnstile (casi siempre invisible). Se comprueba en el servidor: funciones `registro` y `correo`, con el secreto `TURNSTILE_SECRET` (la «Secret Key» del widget).
+- El registro ya no se puede hacer llamando a la base de datos directamente: solo a través de la función `registro` (`supabase_turnstile.sql`).
+- **Panel**: la pantalla de acceso muestra el recuadro de Cloudflare. Para exigirlo de verdad, en Supabase › Authentication › Attack Protection activa «Captcha protection» con Turnstile y pega la misma Secret Key.
+- En Cloudflare › Turnstile › el widget debe tener los dominios `velority.es` y `velority.info`.
+- La Site Key (pública) está en `TURNSTILE_KEY`, en el portal y en el panel.
+
 ## Marca: Velority
 - **Logo**: `test-cliente/logo.svg` (en degradado, fondo transparente). El portal, el panel y el informe en PDF lo llevan incrustado; el icono de la pestaña es `favicon.svg` y los de la app instalada son `icon-192.png`, `icon-512.png` y `apple-touch-icon.png`.
 - **Correos**: la cabecera usa `logo-correo.png`, que se carga desde el portal (`URL_PORTAL`). Si en Supabase > Edge Functions > Secrets tienes `NOMBRE_REMITENTE` = `Webcare`, cámbialo a `Velority`: si no existe, ya se usa «Velority».
