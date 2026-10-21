@@ -269,6 +269,18 @@ Cada caso con un pedido del cliente muestra el bloque **💶 Pago** al abrirlo, 
 
 En ese mismo bloque, cada pedido (salvo los de mantenimiento) tiene **📦 Proyecto finalizado › Subir entrega**: sube ahí la web en .zip, el logo, el PDF… El cliente recibe el aviso y lo descarga en su portal en cuanto el pedido está pagado (hasta entonces ve «Pagar y desbloquear»).
 
+## Proyectos web por fases (50 % + 50 %)
+Los **planes de web** siguen estas fases (`supabase_fases_pago.sql`). Se gestionan desde el caso › 💶 Pago › 🪜 Fases del proyecto:
+1. **Precio cerrado**: escribe el importe final (con IVA) y pulsa «Fijar y enviar al cliente». Le llega el desglose 50 % / 50 % por el chat.
+2. **Anticipo del 50 %**: el cliente lo paga con tarjeta desde «Mis pedidos» (se marca solo). Si paga por transferencia o Bizum, pulsa «Marcar anticipo pagado». No se empieza a diseñar hasta tenerlo.
+3. **Demo**: sube la web a tu servidor de pruebas, pega la dirección y pulsa «Enviar demo al cliente».
+4. **Revisiones**: el cliente pide cambios desde su portal (máximo **2 rondas**; llegan al chat como «✏️ Ronda de revisión 1 de 2») o aprueba el diseño final. Más cambios se presupuestan aparte.
+5. **Pago final del 50 %**: tras la aprobación, el cliente lo paga desde el portal (o pulsa «Marcar pago final»). Con el pago se desbloquean los archivos de la entrega.
+6. **Publicación**: sube los archivos en «📦 Proyecto finalizado», publica la web y pulsa «🚀 Marcar como publicada».
+7. **Garantía de 30 días**: empieza ese día, con el 100 % cobrado, y solo cubre errores o fallos técnicos. El cliente ve hasta qué fecha está cubierto.
+
+Los packs y extras siguen cobrándose al 100 % al contratarlos.
+
 ## Solo pago único (suscripciones en «Próximamente»)
 Ahora mismo el portal solo vende servicios de **pago único**: planes de web, landing pages, desarrollos a medida, packs y extras de pago único.
 - Mantenimiento, renting, extras mensuales o trimestrales y la financiación aparecen en **«Próximamente / Planes de Suscripción»**, difuminados y con los botones deshabilitados. No se ha borrado nada: precios y textos siguen en el código y en Negocio › 💶 Precios.

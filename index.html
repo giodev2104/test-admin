@@ -1532,6 +1532,77 @@ function historialHTML(r) {
 // ----- Pago de los pedidos del caso: el cliente ve «Pagar» en su portal hasta que se marca como pagado -----
 const pedidosCaso = r => servicios.filter(s => s.caso_id === r.id && s.estado !== "rechazado");
 const pagoPendiente = r => pedidosCaso(r).some(s => !s.pagado_en);
+// Proyecto web por fases: precio cerrado → anticipo 50 % → demo (2 revisiones) → aprobado → pago final 50 % → publicada (+30 días de garantía)
+const GARANTIA_DIAS = 30;
+const eurTxt = n => Number(n).toLocaleString("es-ES", { minimumFractionDigits: Number(n) % 1 ? 2 : 0, maximumFractionDigits: 2 }) + " €";
+const mitades = s => { const t = Number(s.importe) || 0, a = Math.round(t * 50) / 100; return { a, f: Math.round((t - a) * 100) / 100 }; };
+function fasesStaffHTML(s, borrado) {
+  const m = mitades(s), ok = t => `<span class="text-emerald-300">✓ ${t}</span>`, no = t => `<span class="text-slate-500">${t}</span>`, dis = borrado ? "disabled" : "";
+  const fin = s.publicado_en ? new Date(new Date(s.publicado_en).getTime() + GARANTIA_DIAS * 864e5) : null;
+  const fila = (n, t, estado, accion) => `<li class="flex flex-wrap items-center gap-2 py-1.5"><span class="w-5 text-center text-xs text-slate-500">${n}</span><span class="w-36 text-xs font-semibold text-slate-300">${t}</span><span class="text-xs">${estado}</span><span class="ml-auto flex flex-wrap items-center gap-1.5">${accion || ""}</span></li>`;
+  const btn = (attr, t, verde) => `<button type="button" ${attr} ${dis} class="rounded-md ${verde ? "bg-emerald-500 hover:bg-emerald-400 text-[#06210f] font-semibold" : "border border-line text-slate-200 hover:border-fx"} px-2.5 py-1 text-xs">${t}</button>`;
+  return `<div class="basis-full w-full rounded-lg border border-line/70 bg-panel/60 px-3 py-2">
+    <div class="text-xs font-semibold text-slate-300 mb-1">🪜 Fases del proyecto</div>
+    <ul class="divide-y divide-line/50">
+      ${fila(1, "Precio cerrado", s.importe ? ok(eurTxt(s.importe) + " · 50 % = " + eurTxt(m.a)) : no("Sin fijar"),
+        s.anticipo_en ? "" : `<input type="number" min="1" step="0.01" data-fase-importe-v="${s.id}" value="${s.importe ?? ""}" placeholder="€ con IVA" class="campo text-sm w-28 text-right" style="padding:.3rem .5rem" ${dis}>${btn(`data-fase-importe="${s.id}"`, s.importe ? "Cambiar y avisar" : "Fijar y enviar al cliente", !s.importe)}`)}
+      ${fila(2, "Anticipo 50 %", s.anticipo_en ? ok("Pagado el " + esc(fechaDia(s.anticipo_en)) + (s.anticipo_por ? " · " + esc(s.anticipo_por === "Stripe" ? "Stripe" : bonito(s.anticipo_por)) : "")) : no(s.importe ? "Pendiente · " + eurTxt(m.a) : "Tras fijar el precio"),
+        s.importe && !s.anticipo_en ? btn(`data-fase-anticipo="${s.id}"`, "✓ Marcar anticipo pagado", true) : s.anticipo_en && !s.demo_url ? btn(`data-fase-anticipo-quitar="${s.id}"`, "Quitar") : "")}
+      ${fila(3, "Demo / pruebas", s.demo_url ? ok(`<a href="${esc(s.demo_url)}" target="_blank" rel="noopener" class="underline">${esc(s.demo_url.replace(/^https?:\/\//, "").slice(0, 40))}</a>`) : no(s.anticipo_en ? "En desarrollo" : "Tras el anticipo"),
+        s.anticipo_en && !s.aprobado_en ? `<input type="url" data-fase-demo-v="${s.id}" value="${esc(s.demo_url || "")}" placeholder="https://demo…" class="campo text-sm w-52" style="padding:.3rem .5rem" ${dis}>${btn(`data-fase-demo="${s.id}"`, s.demo_url ? "Actualizar y avisar" : "Enviar demo al cliente", !s.demo_url)}` : "")}
+      ${fila(4, "Revisiones", s.aprobado_en ? ok("Diseño aprobado el " + esc(fechaDia(s.aprobado_en))) : no((s.revisiones_usadas || 0) + " de 2 rondas usadas"),
+        s.demo_url && !s.aprobado_en ? `<span class="text-[11px] text-slate-500">El cliente pide cambios o aprueba desde su portal</span>` : "")}
+      ${fila(5, "Pago final 50 %", s.pagado_en ? ok("Pagado el " + esc(fechaDia(s.pagado_en))) : no(s.aprobado_en ? "Pendiente · " + eurTxt(m.f) : "Tras la aprobación"), "")}
+      ${fila(6, "Publicación", s.publicado_en ? ok("Publicada el " + esc(fechaDia(s.publicado_en))) : no(s.pagado_en ? "Lista para publicar y entregar" : "Tras el pago final"),
+        s.pagado_en && !s.publicado_en ? btn(`data-fase-publicar="${s.id}"`, "🚀 Marcar como publicada", true) : "")}
+      ${fila(7, "Garantía 30 días", fin ? (fin > new Date() ? ok("Hasta el " + esc(fechaDia(fin))) : no("Terminó el " + esc(fechaDia(fin)))) : no("Empieza al publicar"), "")}
+    </ul></div>`;
+}
+async function cambiarServicio(id, cambios, texto, aviso) {
+  const s = servicios.find(x => x.id === id);
+  const { error } = await db.from("servicios_cliente").update(cambios).eq("id", id);
+  if (error) { toast("No se pudo guardar: " + error.message + " (¿has ejecutado supabase_fases_pago.sql?)", 8000); return false; }
+  if (texto && s && s.caso_id) {
+    await db.from("mensajes_caso").insert({ caso_id: s.caso_id, autor_tipo: "staff", autor: usuarioActual, texto });
+    avisarCorreo({ accion: "aviso_cliente", caso_id: s.caso_id });
+  }
+  toast(aviso, 5000);
+  await recargarServicios(); render(); if (detalleId) pintarDetalle();
+  return true;
+}
+document.addEventListener("click", async e => {
+  const t = e.target.closest?.("[data-fase-importe],[data-fase-anticipo],[data-fase-anticipo-quitar],[data-fase-demo],[data-fase-publicar]");
+  if (!t || t.disabled) return;
+  const d = t.dataset, id = Number(d.faseImporte || d.faseAnticipo || d.faseAnticipoQuitar || d.faseDemo || d.fasePublicar), s = servicios.find(x => x.id === id);
+  if (!s) return;
+  if (d.faseImporte) {
+    const v = Math.round(Number(document.querySelector(`[data-fase-importe-v="${id}"]`).value) * 100) / 100;
+    if (!(v > 0)) return toast("Escribe el precio cerrado en euros (con IVA).");
+    const m = mitades({ importe: v });
+    await cambiarServicio(id, { importe: v, precio: eurTxt(v) + " (precio cerrado)" },
+      "💶 Tu precio cerrado para «" + s.nombre + "» es de " + eurTxt(v) + " (IVA incluido). Se paga en dos partes: " + eurTxt(m.a) + " de anticipo para empezar y " + eurTxt(m.f) + " al aprobar el diseño final. Puedes pagar el anticipo desde «Mis pedidos» en tu portal.",
+      "Precio cerrado guardado y enviado al cliente");
+  } else if (d.faseAnticipo) {
+    if (!confirm("¿Marcar el anticipo del 50 % (" + eurTxt(mitades(s).a) + ") como pagado? Úsalo si pagó por transferencia, Bizum o en mano.")) return;
+    await cambiarServicio(id, { anticipo_en: new Date().toISOString(), anticipo_por: usuarioActual },
+      "💶 Hemos recibido tu anticipo del 50 % (" + eurTxt(mitades(s).a) + "). ¡Empezamos con el diseño y desarrollo de tu web!", "Anticipo marcado como pagado");
+  } else if (d.faseAnticipoQuitar) {
+    if (!confirm("¿Quitar la marca de anticipo pagado?")) return;
+    await cambiarServicio(id, { anticipo_en: null, anticipo_por: null }, null, "Marca de anticipo quitada");
+  } else if (d.faseDemo) {
+    const url = document.querySelector(`[data-fase-demo-v="${id}"]`).value.trim();
+    if (!/^https?:\/\/\S+\.\S+/.test(url)) return toast("Escribe la dirección completa de la demo (https://…).");
+    await cambiarServicio(id, { demo_url: url },
+      "👀 Tu web ya está en el servidor de pruebas: " + url + "\nRevísala con calma. Tienes 2 rondas de cambios incluidas: pídelas desde «Mis pedidos» o, cuando esté a tu gusto, aprueba el diseño final.",
+      "Demo enviada al cliente");
+  } else if (d.fasePublicar) {
+    const fin = new Date(Date.now() + GARANTIA_DIAS * 864e5);
+    if (!confirm("¿Marcar «" + s.nombre + "» como publicada? Empieza la garantía de " + GARANTIA_DIAS + " días (hasta el " + fechaDia(fin) + ").")) return;
+    await cambiarServicio(id, { publicado_en: new Date().toISOString(), estado: "activo" },
+      "🚀 ¡Tu web ya está publicada! Tienes todos los archivos en tu portal. Desde hoy y hasta el " + fechaDia(fin) + " tienes " + GARANTIA_DIAS + " días de garantía: si aparece cualquier error técnico, escríbenos y lo arreglamos sin coste.",
+      "Publicada: empieza la garantía de 30 días");
+  }
+});
 function pagoCasoHTML(r, borrado) {
   const l = pedidosCaso(r);
   if (!l.length) return "";
@@ -1541,7 +1612,8 @@ function pagoCasoHTML(r, borrado) {
       <span class="min-w-0 flex-1 basis-48 text-sm text-slate-200">${esc(s.nombre)}${s.precio ? `<span class="text-slate-500"> · ${esc(s.precio)}</span>` : ""}</span>
       ${s.pagado_en
         ? `<span class="mini bg-emerald-500/10 text-emerald-300 border-emerald-500/30">✓ Pagado el ${esc(fechaDia(s.pagado_en))}${s.pagado_por ? " · " + esc(s.pagado_por === "Stripe" || s.pagado_por === "Tokens" ? s.pagado_por : bonito(s.pagado_por)) : ""}</span>${borrado ? "" : `<button type="button" data-serv-pago="${s.id}" data-pagado="0" class="text-xs text-slate-500 hover:text-red-300 underline">Quitar</button>`}`
-        : `<span class="mini bg-amber-500/10 text-amber-300 border-amber-500/40">⏳ Pendiente de pago</span>${borrado ? "" : `<button type="button" data-serv-pago="${s.id}" data-pagado="1" class="rounded-md bg-emerald-500 hover:bg-emerald-400 px-3 py-1.5 text-xs font-semibold text-[#06210f]">✓ Marcar como pagado</button>`}`}
+        : `<span class="mini bg-amber-500/10 text-amber-300 border-amber-500/40">⏳ ${s.tipo === "web" ? "Pago final pendiente" : "Pendiente de pago"}</span>${borrado || (s.tipo === "web" && !s.aprobado_en) ? "" : `<button type="button" data-serv-pago="${s.id}" data-pagado="1" class="rounded-md bg-emerald-500 hover:bg-emerald-400 px-3 py-1.5 text-xs font-semibold text-[#06210f]">✓ ${s.tipo === "web" ? "Marcar pago final" : "Marcar como pagado"}</button>`}`}
+      ${s.tipo === "web" ? fasesStaffHTML(s, borrado) : ""}
       ${s.tipo === "mantenimiento" ? "" : `<div class="basis-full w-full rounded-lg border border-line/70 bg-panel/60 px-3 py-2">
         <div class="flex flex-wrap items-center gap-2"><span class="text-xs font-semibold text-slate-300">📦 Proyecto finalizado</span>
           <span class="text-[11px] text-slate-500">${s.pagado_en ? "El cliente lo descarga en su portal." : "El cliente lo podrá descargar en cuanto esté pagado."}</span>

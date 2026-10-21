@@ -1,6 +1,8 @@
 // Edge Function "pago": cobra con Stripe Checkout y solo entonces crea el pedido.
 //   · crear     {token, nombre, servicio_id?} → página de pago de Stripe con el importe de la tabla «catalogo» (no el que mande el navegador)
 //   · confirmar {token, sesion}              → al volver de Stripe: comprueba que está pagado y registra el pedido
+//   · Planes de web (proyectos por fases): {servicio_id} cobra el 50 % de anticipo del precio cerrado y, cuando el
+//     cliente aprueba el diseño final, el 50 % restante.
 //   · Aviso de Stripe (webhook «checkout.session.completed»): registra el pedido aunque el cliente cierre la página.
 // El registro es idempotente (tabla pagos): un mismo pago nunca crea dos pedidos.
 // Configuración (Supabase > Edge Functions > Secrets):
@@ -74,6 +76,14 @@ async function registrar(db: SupabaseClient, s: Record<string, any>) {
   const pagado = s.payment_status === "paid" || s.payment_status === "no_payment_required";
   if (s.status !== "complete" || !pagado) return { pendiente: true };
   const m = s.metadata || {};
+  if (m.parte) {
+    const { data, error } = await db.rpc("servidor_registrar_fase", {
+      p_sesion: s.id, p_cliente: m.cliente_id, p_servicio: Number(m.servicio_id), p_parte: m.parte, p_importe: Number(s.amount_total || 0) / 100,
+    });
+    if (error) throw error;
+    await metodoPago(db, s.id, m.cliente_id).catch(() => {});
+    return data;
+  }
   const { data, error } = await db.rpc("servidor_registrar_pago", {
     p_sesion: s.id, p_cliente: m.cliente_id, p_tipo: m.tipo, p_nombre: m.nombre,
     p_importe: m.cuota ? Number(m.cuota) : Number(s.amount_total || 0) / 100, p_modo: s.mode, p_servicio: m.servicio_id ? Number(m.servicio_id) : null,
@@ -116,10 +126,33 @@ Deno.serve(async (req) => {
     if (b.accion === "crear") {
       let nombre = String(b.nombre || ""), servicioId: number | null = null;
       if (b.servicio_id) {
-        const { data: s } = await db.from("servicios_cliente").select("id,nombre,pagado_en,estado").eq("id", Number(b.servicio_id)).eq("cliente_id", cid).maybeSingle();
+        const { data: s } = await db.from("servicios_cliente").select("id,nombre,pagado_en,estado,tipo,importe,anticipo_en,aprobado_en").eq("id", Number(b.servicio_id)).eq("cliente_id", cid).maybeSingle();
         if (!s) return responder({ error: "Pedido no encontrado." }, 404);
         if (s.pagado_en) return responder({ error: "Este pedido ya está pagado." }, 400);
         nombre = s.nombre; servicioId = s.id;
+        // Proyecto web por fases: 50 % de anticipo y 50 % al aprobar el diseño final
+        if (s.tipo === "web") {
+          if (!s.importe) return responder({ error: "Todavía no tenemos tu precio cerrado: te lo enviamos por el chat antes de empezar." }, 400);
+          const parte = s.anticipo_en ? "final" : "anticipo";
+          if (parte === "final" && !s.aprobado_en) return responder({ error: "El 50 % restante se paga cuando apruebes el diseño final en la demo." }, 400);
+          if (!b.acepta) return responder({ error: "Para pagar tienes que aceptar el Aviso Legal y las Condiciones de Contratación de Servicios de Pago Único. Recarga la página e inténtalo de nuevo." }, 400);
+          const total = Number(s.importe), anticipo = Math.round(total * 50) / 100, eur = parte === "anticipo" ? anticipo : Math.round((total - anticipo) * 100) / 100;
+          const { data: c } = await db.from("clientes").select("email").eq("id", cid).maybeSingle();
+          const d: Record<string, string> = {
+            mode: "payment", "line_items[0][quantity]": "1", "line_items[0][price_data][currency]": "eur",
+            "line_items[0][price_data][unit_amount]": String(Math.round(eur * 100)),
+            "line_items[0][price_data][product_data][name]": nombre + (parte === "anticipo" ? " · anticipo del 50 %" : " · pago final del 50 %"),
+            client_reference_id: cid,
+            "metadata[cliente_id]": cid, "metadata[tipo]": "web", "metadata[nombre]": nombre, "metadata[servicio_id]": String(s.id), "metadata[parte]": parte,
+            "metadata[acepta_condiciones]": String(b.acepta).slice(0, 60), "metadata[acepta_en]": new Date().toISOString(),
+            success_url: URL_PORTAL + (URL_PORTAL.includes("?") ? "&" : "?") + "pago=ok&sesion={CHECKOUT_SESSION_ID}",
+            cancel_url: URL_PORTAL + (URL_PORTAL.includes("?") ? "&" : "?") + "pago=cancelado",
+            locale: "es",
+          };
+          if (c?.email) d.customer_email = c.email;
+          const ses = await stripe("checkout/sessions", d);
+          return responder({ url: ses.url });
+        }
       }
       const it = await delCatalogo(db, nombre);
       if (!it) return responder({ error: "Este servicio se paga por presupuesto: el equipo te enviará el importe por el chat." }, 400);
