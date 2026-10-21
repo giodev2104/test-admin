@@ -1,0 +1,8 @@
+# GitHub Pages: no publicar en velority.info la documentación ni el código del servidor.
+# Siguen en el repositorio; solo dejan de servirse como páginas de la web.
+exclude:
+  - GUIA.md
+  - "*.sql"
+  - supabase
+  - .github
+  - wordpress/webcare-conector
