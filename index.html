@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
 <title>Panel del equipo · Velority</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='114 167 904 700'%3E%3Cpath fill='%23f6a01a' d='M560 863C521 860 492 853 459 839C445 833 425 822 425 821C425 821 429 818 434 816C451 807 460 802 476 792C490 783 510 770 514 768C516 766 514 766 509 768C482 780 450 794 424 803C395 813 375 820 356 825C343 829 335 831 332 832C325 833 320 835 316 835C310 837 295 840 290 840C278 842 273 843 260 845C250 846 219 845 212 844C163 837 148 811 167 767C182 734 224 685 275 642C286 633 287 632 287 632C287 631 287 629 287 626C286 622 285 617 284 608C283 600 284 573 285 563C293 493 334 434 403 396C446 372 493 359 548 355C569 353 607 354 621 356C623 357 625 357 627 357C634 358 655 362 664 364C745 383 811 431 842 493C848 504 848 502 838 511C822 523 812 531 794 545C781 555 777 558 762 568C743 581 728 592 710 603C652 640 587 677 533 703C501 719 493 722 493 722C492 722 490 720 487 718C478 711 467 702 462 698C451 690 427 670 399 644C396 642 393 639 391 638C382 630 376 627 374 630C374 631 374 656 374 660C379 685 383 697 391 710C401 725 417 738 434 743C439 745 439 745 435 747C410 756 412 755 386 764C375 768 365 771 364 771C362 772 362 772 355 764C324 728 302 689 292 650C291 648 290 646 290 646C289 645 261 672 247 688C231 705 218 722 212 735C191 777 207 803 254 805C257 805 260 806 262 806C292 807 347 796 402 778C442 765 490 745 526 728C528 727 534 725 538 723C544 720 572 706 581 701C680 648 758 598 826 544C833 538 841 532 843 530C845 528 851 524 855 520C902 480 938 439 952 411C963 389 964 372 956 360C950 353 941 348 926 346C919 345 899 344 891 345C881 347 869 349 868 349C867 350 867 350 868 355C872 378 876 412 876 441C877 454 877 454 875 455C874 457 871 457 870 457C869 456 867 453 864 449C845 422 830 406 806 385C776 361 732 339 688 327C681 325 679 324 670 322C656 319 655 318 659 309C668 292 680 272 692 255C700 244 700 244 711 231C726 214 751 191 770 178C782 169 782 169 789 178C822 217 846 267 861 325C862 330 864 335 864 335C864 335 867 335 870 334C908 325 951 321 974 325C1021 333 1028 368 993 423C972 454 925 503 873 547L863 555L863 559C863 561 864 566 864 570C874 701 768 830 629 858C609 862 578 864 560 863ZM687 749C722 746 746 731 761 703C769 687 775 656 774 636C773 632 773 629 773 629C772 627 763 633 752 642C748 645 740 652 717 673C708 680 698 689 686 698C641 733 632 741 635 743C638 745 649 748 662 749C666 750 683 749 687 749ZM572 658C573 655 573 652 574 651C574 649 575 645 575 641C577 629 577 628 578 624C586 588 591 582 620 574C629 572 655 567 667 566C669 565 670 565 668 564C668 564 662 563 657 562C620 556 600 550 592 542C585 534 580 516 573 472C571 459 571 459 569 472C562 521 556 538 546 545C538 551 522 556 500 560C492 561 488 562 477 564C470 565 471 565 488 568C520 573 539 578 547 585C555 590 560 603 565 632C566 636 567 642 568 646C568 650 569 655 570 658C571 666 571 666 572 658ZM240 620C233 618 208 594 189 572C160 539 135 496 120 454C118 447 118 446 124 440C184 383 278 348 377 347C387 347 387 347 388 348C391 352 389 355 382 359C317 395 271 453 254 519C246 549 243 579 246 608C247 613 247 617 247 618C246 620 243 621 240 620Z'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1547,7 +1548,7 @@ function fasesStaffHTML(s, borrado) {
     <div class="text-xs font-semibold text-slate-300 mb-1">🪜 Fases del proyecto</div>
     <ul class="divide-y divide-line/50">
       ${fila(1, "Precio cerrado", s.importe ? ok(eurTxt(s.importe) + " · 50 % = " + eurTxt(m.a)) : no("Sin fijar"),
-        s.anticipo_en ? "" : `<input type="number" min="1" step="0.01" data-fase-importe-v="${s.id}" value="${s.importe ?? ""}" placeholder="€ con IVA" class="campo text-sm w-28 text-right" style="padding:.3rem .5rem" ${dis}>${btn(`data-fase-importe="${s.id}"`, s.importe ? "Cambiar y avisar" : "Fijar y enviar al cliente", !s.importe)}`)}
+        s.anticipo_en ? "" : `<input type="number" min="1" step="0.01" data-fase-importe-v="${s.id}" value="${s.importe ?? ""}" placeholder="€ (precio final)" class="campo text-sm w-28 text-right" style="padding:.3rem .5rem" ${dis}>${btn(`data-fase-importe="${s.id}"`, s.importe ? "Cambiar y avisar" : "Fijar y enviar al cliente", !s.importe)}`)}
       ${fila(2, "Anticipo 50 %", s.anticipo_en ? ok("Pagado el " + esc(fechaDia(s.anticipo_en)) + (s.anticipo_por ? " · " + esc(s.anticipo_por === "Stripe" ? "Stripe" : bonito(s.anticipo_por)) : "")) : no(s.importe ? "Pendiente · " + eurTxt(m.a) : "Tras fijar el precio"),
         s.importe && !s.anticipo_en ? btn(`data-fase-anticipo="${s.id}"`, "✓ Marcar anticipo pagado", true) : s.anticipo_en && !s.demo_url ? btn(`data-fase-anticipo-quitar="${s.id}"`, "Quitar") : "")}
       ${fila(3, "Demo / pruebas", s.demo_url ? ok(`<a href="${esc(s.demo_url)}" target="_blank" rel="noopener" class="underline">${esc(s.demo_url.replace(/^https?:\/\//, "").slice(0, 40))}</a>`) : no(s.anticipo_en ? "En desarrollo" : "Tras el anticipo"),
@@ -1579,10 +1580,10 @@ document.addEventListener("click", async e => {
   if (!s) return;
   if (d.faseImporte) {
     const v = Math.round(Number(document.querySelector(`[data-fase-importe-v="${id}"]`).value) * 100) / 100;
-    if (!(v > 0)) return toast("Escribe el precio cerrado en euros (con IVA).");
+    if (!(v > 0)) return toast("Escribe el precio cerrado en euros (precio final).");
     const m = mitades({ importe: v });
     await cambiarServicio(id, { importe: v, precio: eurTxt(v) + " (precio cerrado)" },
-      "💶 Tu precio cerrado para «" + s.nombre + "» es de " + eurTxt(v) + " (IVA incluido). Se paga en dos partes: " + eurTxt(m.a) + " de anticipo para empezar y " + eurTxt(m.f) + " al aprobar el diseño final. Puedes pagar el anticipo desde tu portal.",
+      "💶 Tu precio cerrado para «" + s.nombre + "» es de " + eurTxt(v) + " (precio final, sin nada más que añadir). Se paga en dos partes: " + eurTxt(m.a) + " de anticipo para empezar y " + eurTxt(m.f) + " al aprobar el diseño final. Puedes pagar el anticipo desde tu portal.",
       "Precio cerrado guardado y enviado al cliente");
   } else if (d.faseAnticipo) {
     if (!confirm("¿Marcar el anticipo del 50 % (" + eurTxt(mitades(s).a) + ") como pagado? Úsalo si pagó por transferencia, Bizum o en mano.")) return;
@@ -1617,7 +1618,7 @@ function demoCasoHTML(r, borrado) {
     <p class="text-xs text-slate-400 mb-3">${estado}</p>
     <div class="grid gap-2 sm:grid-cols-[1fr_10rem]">
       <label class="text-xs text-slate-400">Enlace de la demo (opcional)<input type="url" id="demo-url" value="${esc(r.demo_url || "")}" placeholder="https://…" class="campo text-sm w-full mt-1" ${dis}></label>
-      <label class="text-xs text-slate-400">Precio cerrado (€ con IVA)<input type="number" id="demo-imp" min="1" step="0.01" value="${r.demo_importe ?? ""}" class="campo text-sm w-full mt-1 text-right" ${dis}></label>
+      <label class="text-xs text-slate-400">Precio cerrado (€, precio final)<input type="number" id="demo-imp" min="1" step="0.01" value="${r.demo_importe ?? ""}" class="campo text-sm w-full mt-1 text-right" ${dis}></label>
     </div>
     <label class="block text-xs text-slate-400 mt-2">Mensaje para el cliente (opcional)<textarea id="demo-nota" rows="2" maxlength="1500" class="campo text-sm w-full mt-1" ${dis}>${esc(r.demo_nota || "")}</textarea></label>
     <p class="text-[11px] text-slate-500 mt-1">Las imágenes o el PDF de la demo, adjúntalos en el chat de este caso: el cliente los ve también en su apartado «Demo».</p>
@@ -1632,7 +1633,7 @@ document.addEventListener("click", async e => {
   const url = document.getElementById("demo-url").value.trim(), nota = document.getElementById("demo-nota").value.trim();
   const v = Math.round(Number(document.getElementById("demo-imp").value) * 100) / 100;
   if (url && !/^https?:\/\/\S+\.\S+/.test(url)) return toast("Escribe la dirección completa de la demo (https://…).");
-  if (!(v > 0)) return toast("Pon el precio cerrado de la web, en euros con IVA.");
+  if (!(v > 0)) return toast("Pon el precio cerrado de la web, en euros (precio final).");
   if (!url && !confirm("No has puesto enlace. ¿Enviar la demo solo con las imágenes o el PDF que hayas adjuntado en el chat?")) return;
   const primera = !r.demo_enviada_en;
   t.disabled = true;
@@ -1641,7 +1642,7 @@ document.addEventListener("click", async e => {
   if (error) return toast("No se pudo guardar: " + error.message + " (¿has ejecutado supabase_demo_entrega.sql?)", 8000);
   if (data && data[0]) reportes = reportes.map(x => x.id === id ? data[0] : x);
   await db.from("mensajes_caso").insert({ caso_id: id, autor_tipo: "staff", autor: usuarioActual, texto: primera
-    ? "🎨 ¡Tu demo está lista! Ábrela en el apartado «Demo» de tu portal. Si quieres cambiar algo, pulsa «Quiero cambios»; si te gusta, «Me gusta, quiero mi web» (precio cerrado: " + eurTxt(v) + ", IVA incluido)."
+    ? "🎨 ¡Tu demo está lista! Ábrela en el apartado «Demo» de tu portal. Si quieres cambiar algo, pulsa «Quiero cambios»; si te gusta, «Me gusta, quiero mi web» (precio cerrado: " + eurTxt(v) + ")."
     : "🎨 Hemos actualizado tu demo. Puedes verla en el apartado «Demo» de tu portal." });
   avisarCorreo({ accion: "aviso_cliente", caso_id: id });
   toast(primera ? "Demo enviada al cliente" : "Demo actualizada y cliente avisado", 5000);

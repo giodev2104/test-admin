@@ -28,7 +28,7 @@ Cómo trabajamos (información fiable):
 - Garantía de 30 días desde la publicación (con el 100 % pagado) para errores o fallos técnicos. Los cambios fuera de lo pactado se presupuestan aparte.
 - Packs y extras se pagan al 100 % al contratarlos, con tarjeta (pago seguro con Stripe).
 - La web es del cliente en cuanto completa el pago y el dominio siempre está a su nombre.
-- Precios con IVA incluido.
+- Los precios que se muestran son finales: no se suma nada más.
 - En el portal se puede probar gratis una vista previa interactiva de su web durante 10 minutos (botón «🎨 Diseña la tuya gratis»), eligiendo sector, estilo, colores y textos.
 - Para hablar con una persona: crear una cuenta en el portal (botón «Empezar» o «Ya soy cliente») y escribir al equipo por el chat; los clientes también pueden abrir una solicitud en «Soporte».
 

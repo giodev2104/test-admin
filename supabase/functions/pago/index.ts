@@ -5,7 +5,7 @@
 //     cliente aprueba el diseño final, el 50 % restante.
 //   · Aviso de Stripe (webhook «checkout.session.completed»): registra el pedido aunque el cliente cierre la página.
 // El registro es idempotente (tabla pagos): un mismo pago nunca crea dos pedidos.
-// Las sesiones desactivan «Managed Payments» de Stripe: el vendedor es Velority (precios con IVA incluido).
+// Las sesiones desactivan «Managed Payments» de Stripe: el vendedor es Velority (precios finales).
 // Configuración (Supabase > Edge Functions > Secrets):
 //   STRIPE_SECRET_KEY      clave secreta de Stripe (sk_test_… en pruebas, sk_live_… para cobrar de verdad)
 //   STRIPE_WEBHOOK_SECRET  (recomendado) en Stripe > Desarrolladores > Webhooks > Añadir endpoint:

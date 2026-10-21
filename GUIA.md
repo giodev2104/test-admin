@@ -277,7 +277,7 @@ En ese mismo bloque, cada pedido (salvo los de mantenimiento) tiene **📦 Proye
 
 ## Apartado «Demo» (demo gratuita)
 Cuando un cliente pide su demo gratuita, su portal muestra el apartado **🎨 Demo** («Estamos preparando tu demo»), que no se bloquea.
-1. En el panel, abre su caso «Demo gratuita»: bloque **🎨 Demo gratuita**. Pon el enlace de la demo (opcional), el **precio cerrado** (con IVA) y, si quieres, un mensaje. Las imágenes o el PDF de la demo se adjuntan en el chat del caso: el cliente las ve también en «Demo».
+1. En el panel, abre su caso «Demo gratuita»: bloque **🎨 Demo gratuita**. Pon el enlace de la demo (opcional), el **precio cerrado** (precio final) y, si quieres, un mensaje. Las imágenes o el PDF de la demo se adjuntan en el chat del caso: el cliente las ve también en «Demo».
 2. Pulsa **Enviar demo al cliente**: le llega un aviso al chat (y por correo, si está configurado) y en su menú sale «Demo · Lista». Puedes actualizarla y volver a avisar las veces que haga falta.
 3. El cliente ve la demo dentro del portal y elige:
    - **✏️ Quiero cambios** → os llega un mensaje en el chat del caso.
@@ -299,7 +299,7 @@ El botón **«🤖 ¿Dudas? Pregúntame»** (abajo a la derecha del portal) abre
 
 ## Proyectos web por fases (50 % + 50 %)
 Los **planes de web** siguen estas fases (`supabase_fases_pago.sql`). Se gestionan desde el caso › 💶 Pago › 🪜 Fases del proyecto:
-1. **Precio cerrado**: escribe el importe final (con IVA) y pulsa «Fijar y enviar al cliente». Le llega el desglose 50 % / 50 % por el chat.
+1. **Precio cerrado**: escribe el importe final y pulsa «Fijar y enviar al cliente». Le llega el desglose 50 % / 50 % por el chat.
 2. **Anticipo del 50 %**: el cliente lo paga con tarjeta desde «Mis pedidos» (se marca solo). Si paga por transferencia o Bizum, pulsa «Marcar anticipo pagado». No se empieza a diseñar hasta tenerlo.
 3. **Demo**: sube la web a tu servidor de pruebas, pega la dirección y pulsa «Enviar demo al cliente».
 4. **Revisiones**: el cliente pide cambios desde su portal (máximo **2 rondas**; llegan al chat como «✏️ Ronda de revisión 1 de 2») o aprueba el diseño final. Más cambios se presupuestan aparte.
