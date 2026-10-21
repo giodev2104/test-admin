@@ -705,6 +705,8 @@ function suscribir() {
       if (mensajes.some(m => m.id === p.new.id)) return;
       mensajes.push(p.new); indexarMensajes();
       if (p.new.autor_tipo === "usuario") avisarMensaje(p.new);
+      // Pagos, rondas de revisión o aprobaciones del cliente llegan como mensaje: se refrescan sus pedidos
+      if (servicios.some(s => s.caso_id === p.new.caso_id)) recargarServicios().then(() => { render(); if (detalleId) pintarDetalle(); });
       render();
     })
     .on("postgres_changes", { event: "UPDATE", schema: "public", table: "mensajes_caso" }, p => {
@@ -1580,7 +1582,7 @@ document.addEventListener("click", async e => {
     if (!(v > 0)) return toast("Escribe el precio cerrado en euros (con IVA).");
     const m = mitades({ importe: v });
     await cambiarServicio(id, { importe: v, precio: eurTxt(v) + " (precio cerrado)" },
-      "💶 Tu precio cerrado para «" + s.nombre + "» es de " + eurTxt(v) + " (IVA incluido). Se paga en dos partes: " + eurTxt(m.a) + " de anticipo para empezar y " + eurTxt(m.f) + " al aprobar el diseño final. Puedes pagar el anticipo desde «Mis pedidos» en tu portal.",
+      "💶 Tu precio cerrado para «" + s.nombre + "» es de " + eurTxt(v) + " (IVA incluido). Se paga en dos partes: " + eurTxt(m.a) + " de anticipo para empezar y " + eurTxt(m.f) + " al aprobar el diseño final. Puedes pagar el anticipo desde tu portal.",
       "Precio cerrado guardado y enviado al cliente");
   } else if (d.faseAnticipo) {
     if (!confirm("¿Marcar el anticipo del 50 % (" + eurTxt(mitades(s).a) + ") como pagado? Úsalo si pagó por transferencia, Bizum o en mano.")) return;
@@ -1593,7 +1595,7 @@ document.addEventListener("click", async e => {
     const url = document.querySelector(`[data-fase-demo-v="${id}"]`).value.trim();
     if (!/^https?:\/\/\S+\.\S+/.test(url)) return toast("Escribe la dirección completa de la demo (https://…).");
     await cambiarServicio(id, { demo_url: url },
-      "👀 Tu web ya está en el servidor de pruebas: " + url + "\nRevísala con calma. Tienes 2 rondas de cambios incluidas: pídelas desde «Mis pedidos» o, cuando esté a tu gusto, aprueba el diseño final.",
+      "👀 Tu web ya está en el servidor de pruebas: " + url + "\nRevísala con calma. Tienes 2 rondas de cambios incluidas: pídelas desde tu portal o, cuando esté a tu gusto, aprueba allí el diseño final.",
       "Demo enviada al cliente");
   } else if (d.fasePublicar) {
     const fin = new Date(Date.now() + GARANTIA_DIAS * 864e5);
@@ -1779,6 +1781,8 @@ function abrirDetalle(id) {
   $("detalle-modal").classList.remove("hidden");
   pintarDetalle();
   const x = $("detalle-cuerpo").querySelector("[data-cerrar-detalle]"); if (x) x.focus();
+  // El cliente puede haber pagado, pedido cambios o aprobado su web desde el portal: se refrescan sus pedidos
+  if (servicios.some(s => s.caso_id === id)) recargarServicios().then(() => { if (detalleId === id) pintarDetalle(); });
 }
 function cerrarDetalle() { detalleId = null; $("detalle-modal").classList.add("hidden"); }
 
