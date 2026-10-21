@@ -269,6 +269,13 @@ Cada caso con un pedido del cliente muestra el bloque **💶 Pago** al abrirlo, 
 
 En ese mismo bloque, cada pedido (salvo los de mantenimiento) tiene **📦 Proyecto finalizado › Subir entrega**: sube ahí la web en .zip, el logo, el PDF… El cliente recibe el aviso y lo descarga en su portal en cuanto el pedido está pagado (hasta entonces ve «Pagar y desbloquear»).
 
+## Asistente con IA del portal
+El botón **«🤖 ¿Dudas? Pregúntame»** (abajo a la derecha del portal) abre un chat con IA (Claude) que responde dudas de visitantes y clientes: precios y servicios reales de la tabla `catalogo` (con las ofertas en vigor), cómo se paga, garantía, vista previa… Lo que no sabe, o lo que necesita a una persona (presupuestos concretos, pagos, problemas con la cuenta), lo deriva al chat del equipo.
+- Función `asistente` (desplegada) y `supabase_asistente.sql` (límite de 40 preguntas por hora e IP, aplicado).
+- **Para activarlo**: crea una clave en console.anthropic.com › API Keys y añádela en Supabase › Edge Functions › Secrets como `ANTHROPIC_API_KEY`. Sin ella, el chat contesta que aún no está configurado.
+- Lo que sabe está en `INSTRUCCIONES`, al principio de `supabase/functions/asistente/index.ts`. Si cambias cómo trabajáis, actualízalo ahí y vuelve a desplegar.
+- No guarda las conversaciones: solo viven en el navegador del usuario mientras tiene la pestaña abierta.
+
 ## Proyectos web por fases (50 % + 50 %)
 Los **planes de web** siguen estas fases (`supabase_fases_pago.sql`). Se gestionan desde el caso › 💶 Pago › 🪜 Fases del proyecto:
 1. **Precio cerrado**: escribe el importe final (con IVA) y pulsa «Fijar y enviar al cliente». Le llega el desglose 50 % / 50 % por el chat.
