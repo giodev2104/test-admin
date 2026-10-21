@@ -1,5 +1,5 @@
 -- =====================================================================
---  Webcare · Ficha del cliente automática
+--  Velority · Ficha del cliente automática
 -- =====================================================================
 -- Ejecútalo en Supabase > SQL Editor DESPUÉS de supabase_catalogo.sql.
 -- No borra datos y se puede ejecutar varias veces.
@@ -10,7 +10,7 @@
 --     (en cada caso se apuntan los tokens gastados).
 --   · Mensaje de estado y recomendación: los escribe la función «medir» si están en automático.
 --   · Renovaciones de dominio y SSL: las apunta la función «medir» con la fecha de caducidad.
---   · Datos de WordPress (actualizaciones, ataques, amenazas, copias): los envía el plugin «Webcare Conector»
+--   · Datos de WordPress (actualizaciones, ataques, amenazas, copias): los envía el plugin «Velority Conector»
 --     a la función «wp» con la clave de conexión de cada cliente.
 -- =====================================================================
 

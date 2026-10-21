@@ -1,5 +1,5 @@
 -- =====================================================================
---  Webcare · Constancia de aceptación de las condiciones (sin mensaje en el chat)
+--  Velority · Constancia de aceptación de las condiciones (sin mensaje en el chat)
 -- =====================================================================
 -- Ejecútalo en Supabase > SQL Editor DESPUÉS de supabase_fases_pago.sql. Se puede ejecutar varias veces.
 -- Guarda en el caso la fecha y hora en que el cliente marcó «He leído y acepto el Aviso Legal y las

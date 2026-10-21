@@ -1,5 +1,5 @@
 -- =====================================================================
---  Webcare · Mejoras 3
+--  Velority · Mejoras 3
 -- =====================================================================
 -- Ejecútalo entero en Supabase > SQL Editor DESPUÉS de supabase_mejoras_2.sql.
 -- No borra datos y se puede ejecutar varias veces.

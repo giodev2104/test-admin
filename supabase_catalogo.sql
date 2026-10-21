@@ -1,5 +1,5 @@
 -- =====================================================================
---  Webcare · Catálogo de precios único (portal + panel + cobros de Stripe)
+--  Velority · Catálogo de precios único (portal + panel + cobros de Stripe)
 -- =====================================================================
 -- Ejecútalo en Supabase > SQL Editor DESPUÉS de supabase_borrar_cliente.sql.
 -- No borra datos y se puede ejecutar varias veces: los precios que ya hayas cambiado desde el panel

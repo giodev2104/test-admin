@@ -1,5 +1,5 @@
 -- =====================================================================
---  Webcare · «Quiero mi demo gratuita»: crea un caso «Demo gratuita» para el equipo
+--  Velority · «Quiero mi demo gratuita»: crea un caso «Demo gratuita» para el equipo
 -- =====================================================================
 -- Ejecútalo en Supabase > SQL Editor. Se puede ejecutar varias veces.
 create or replace function public.cliente_pedir_demo(p_token text)

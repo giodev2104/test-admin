@@ -1,5 +1,5 @@
 -- =====================================================================
---  Webcare · BORRAR TODO
+--  Velority · BORRAR TODO
 -- =====================================================================
 -- Borra TODAS las tablas, vistas y funciones del esquema "public":
 -- casos, mensajes, notas, historial, clientes del portal y lista del staff.

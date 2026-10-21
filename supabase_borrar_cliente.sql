@@ -1,5 +1,5 @@
 -- =====================================================================
---  Webcare · Borrar un cliente por completo (solo propietarios)
+--  Velority · Borrar un cliente por completo (solo propietarios)
 -- =====================================================================
 -- Ejecútalo en Supabase > SQL Editor DESPUÉS de supabase_pagos.sql.
 -- No borra datos por sí solo y se puede ejecutar varias veces.

@@ -30,7 +30,7 @@ async function conTiempo<T>(ms: number, f: (s: AbortSignal) => Promise<T>) {
 async function visitar(dominio: string) {
   const inicio = Date.now();
   try {
-    const r = await conTiempo(15000, (signal) => fetch("https://" + dominio, { redirect: "follow", signal, headers: { "User-Agent": "WebcareMonitor/1.0" } }));
+    const r = await conTiempo(15000, (signal) => fetch("https://" + dominio, { redirect: "follow", signal, headers: { "User-Agent": "VelorityMonitor/1.0" } }));
     await r.body?.cancel();
     return { ok: r.status < 500, codigo: r.status, ms: Date.now() - inicio, ssl: true };
   } catch (e) {
@@ -125,7 +125,7 @@ async function correoEquipo(db: SupabaseClient, asunto: string, texto: string) {
     await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
       headers: { "api-key": clave, "Content-Type": "application/json", accept: "application/json" },
-      body: JSON.stringify({ sender: { email: de, name: Deno.env.get("NOMBRE_REMITENTE") || "Webcare" }, to: [{ email: s.email }],
+      body: JSON.stringify({ sender: { email: de, name: Deno.env.get("NOMBRE_REMITENTE") || "Velority" }, to: [{ email: s.email }],
         subject: asunto, htmlContent: `<p style="font-family:Arial,sans-serif;font-size:15px">${texto}</p>` }),
     }).catch(() => {});
   }

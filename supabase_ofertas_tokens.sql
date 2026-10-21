@@ -1,5 +1,5 @@
 -- =====================================================================
---  Webcare · Ofertas en el catálogo y pago de extras con tokens
+--  Velority · Ofertas en el catálogo y pago de extras con tokens
 -- =====================================================================
 -- Ejecútalo en Supabase > SQL Editor DESPUÉS de supabase_crecimiento.sql. Se puede ejecutar varias veces.
 --

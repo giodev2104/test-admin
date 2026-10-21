@@ -1,5 +1,5 @@
 -- =====================================================================
---  Webcare · Tarifas 2026 (Propuesta Comercial & Tarifas Web)
+--  Velority · Tarifas 2026 (Propuesta Comercial & Tarifas Web)
 -- =====================================================================
 -- Ejecútalo en Supabase > SQL Editor DESPUÉS de supabase_mejoras_3.sql.
 -- No borra datos y se puede ejecutar varias veces.

@@ -1,5 +1,5 @@
 -- =====================================================================
---  Webcare · Servicios contratados por cada cliente
+--  Velority · Servicios contratados por cada cliente
 -- ⚠ ATENCIÓN: este script ya está aplicado. NO lo vuelvas a ejecutar suelto: sustituiría funciones
 --   (como cliente_datos) por versiones antiguas y el portal dejaría de funcionar bien.
 --   Si alguna vez hay que repetirlo, ejecuta después, en orden, todos los scripts posteriores (ver GUIA.md).

@@ -16,6 +16,9 @@ const responder = (cuerpo: unknown, status = 200) =>
   new Response(JSON.stringify(cuerpo), { status, headers: { ...cors, "Content-Type": "application/json" } });
 const env = (k: string) => Deno.env.get(k) || "";
 const URL_PORTAL = env("URL_PORTAL") || "https://giodev2104.github.io/test-cliente/";
+// Logo de la cabecera de los correos: se sirve desde el propio portal (logo-correo.png)
+const BASE_PORTAL = URL_PORTAL.replace(/[?#].*$/, "");
+const LOGO = new URL("logo-correo.png", /\/[^/.]+$/.test(BASE_PORTAL) ? BASE_PORTAL + "/" : BASE_PORTAL).href;
 const esc = (s: unknown) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 const num = (v: unknown, d = 0) => Number(v).toLocaleString("es-ES", { minimumFractionDigits: d, maximumFractionDigits: d });
 const hay = (v: unknown) => v !== null && v !== undefined && v !== "";
@@ -29,7 +32,7 @@ async function enviar(para: string, nombre: string | null, asunto: string, html:
   const r = await fetch("https://api.brevo.com/v3/smtp/email", {
     method: "POST",
     headers: { "api-key": clave, "Content-Type": "application/json", accept: "application/json" },
-    body: JSON.stringify({ sender: { email: de, name: env("NOMBRE_REMITENTE") || "Webcare" },
+    body: JSON.stringify({ sender: { email: de, name: env("NOMBRE_REMITENTE") || "Velority" },
       to: [{ email: para, ...(nombre ? { name: nombre } : {}) }], subject: asunto, htmlContent: html }),
   });
   if (!r.ok) throw new Error("Brevo " + r.status + ": " + (await r.text()).slice(0, 200));
@@ -60,7 +63,7 @@ function html(nombre: string, dominio: string, mesTxt: string, d: Datos, casos: 
   const palabras = Array.isArray(d.seo_palabras) ? (d.seo_palabras as Datos[]).slice(0, 5) : [];
   return `<!doctype html><html lang="es"><body style="margin:0;background:#eef0f6;font-family:Arial,Helvetica,sans-serif;color:#1f2433">
   <div style="max-width:600px;margin:0 auto;padding:28px 14px">
-    <p style="font-size:18px;font-weight:bold;margin:0 0 16px">■ Webcare</p>
+    <p style="font-size:20px;font-weight:bold;margin:0 0 16px"><img src="${LOGO}" width="39" height="30" alt="" style="vertical-align:middle;border:0;margin-right:8px">Velority</p>
     <div style="background:#fff;border-radius:14px;padding:26px 20px">
       <p style="font-size:13px;color:#6b7186;margin:0">Informe mensual · ${esc(dominio)}</p>
       <h1 style="font-size:22px;margin:4px 0 12px">${esc(mesTxt)}</h1>
@@ -73,7 +76,7 @@ function html(nombre: string, dominio: string, mesTxt: string, d: Datos, casos: 
       <p style="margin:24px 0 4px"><a href="${esc(URL_PORTAL)}" style="background:#5b6cff;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:bold;display:inline-block">Ver el informe completo</a></p>
       <p style="font-size:13px;color:#6b7186;margin:12px 0 0">En tu portal puedes descargarlo en PDF desde «Mi web» › «Meses anteriores».</p>
     </div>
-    <p style="font-size:12px;color:#7b8194;margin:16px 4px">Recibes este informe por tu plan de mantenimiento en Webcare. Si prefieres no recibirlo, contesta a este correo o escríbenos desde tu portal.</p>
+    <p style="font-size:12px;color:#7b8194;margin:16px 4px">Recibes este informe por tu plan de mantenimiento en Velority. Si prefieres no recibirlo, contesta a este correo o escríbenos desde tu portal.</p>
   </div></body></html>`;
 }
 

@@ -1,5 +1,5 @@
 -- =====================================================================
---  Webcare · Entregas de archivos (web en .html, .zip, PDF, diseños…)
+--  Velority · Entregas de archivos (web en .html, .zip, PDF, diseños…)
 -- =====================================================================
 -- Ejecútalo en Supabase > SQL Editor DESPUÉS de supabase_servicios.sql.
 -- No borra datos y se puede ejecutar varias veces.

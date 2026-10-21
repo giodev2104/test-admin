@@ -1,5 +1,5 @@
 -- =====================================================================
---  Webcare · Plan Tienda, entrar con enlace y «Recomienda y gana»
+--  Velority · Plan Tienda, entrar con enlace y «Recomienda y gana»
 -- =====================================================================
 -- Ejecútalo en Supabase > SQL Editor DESPUÉS de supabase_ficha_auto.sql.
 -- No borra datos y se puede ejecutar varias veces.

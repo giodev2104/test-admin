@@ -1,4 +1,4 @@
-# Guía de puesta en marcha · Webcare
+# Guía de puesta en marcha · Velority
 
 Panel del equipo: **test-admin** · Portal del cliente: **test-cliente** · Base de datos: **Supabase** (proyecto `ufwuvbjrgvphbggkfkuh`).
 
@@ -76,7 +76,7 @@ Sirven para: avisar al cliente cuando le respondéis o cambia el estado de su so
 4. En Supabase > **Edge Functions > Secrets**, añade:
    - `BREVO_API_KEY` = la clave del paso 3
    - `CORREO_REMITENTE` = el correo que verificaste en el paso 2
-   - (opcional) `NOMBRE_REMITENTE` = `Webcare` o el nombre de tu negocio
+   - (opcional) `NOMBRE_REMITENTE` = `Velority` o el nombre de tu negocio
    - (opcional) `URL_PORTAL` y `URL_PANEL` si publicas las webs en otra dirección
 
 Sin estos secretos todo lo demás funciona; solo no se envían correos (el panel te lo indicará una vez).
@@ -128,9 +128,9 @@ Cada lunes se guarda una copia **cifrada** de la base de datos durante 90 días.
 
 **Restaurar una copia** (en un ordenador con `gpg` y `psql`):
 ```bash
-gpg -d webcare-AAAA-MM-DD.sql.tar.gz.gpg | tar -xz          # pide CLAVE_COPIA
-psql "URI_DE_LA_BASE" -f webcare-AAAA-MM-DD.sql             # tablas y datos (en un proyecto vacío)
-psql "URI_DE_LA_BASE" -f auth-webcare-AAAA-MM-DD.sql        # cuentas del equipo
+gpg -d velority-AAAA-MM-DD.sql.tar.gz.gpg | tar -xz          # pide CLAVE_COPIA
+psql "URI_DE_LA_BASE" -f velority-AAAA-MM-DD.sql             # tablas y datos (en un proyecto vacío)
+psql "URI_DE_LA_BASE" -f auth-velority-AAAA-MM-DD.sql        # cuentas del equipo
 ```
 
 ---
@@ -269,6 +269,12 @@ Cada caso con un pedido del cliente muestra el bloque **💶 Pago** al abrirlo, 
 
 En ese mismo bloque, cada pedido (salvo los de mantenimiento) tiene **📦 Proyecto finalizado › Subir entrega**: sube ahí la web en .zip, el logo, el PDF… El cliente recibe el aviso y lo descarga en su portal en cuanto el pedido está pagado (hasta entonces ve «Pagar y desbloquear»).
 
+## Marca: Velority
+- **Logo**: `test-cliente/logo.svg` (en degradado, fondo transparente). El portal, el panel y el informe en PDF lo llevan incrustado; el icono de la pestaña es `favicon.svg` y los de la app instalada son `icon-192.png`, `icon-512.png` y `apple-touch-icon.png`.
+- **Correos**: la cabecera usa `logo-correo.png`, que se carga desde el portal (`URL_PORTAL`). Si en Supabase > Edge Functions > Secrets tienes `NOMBRE_REMITENTE` = `Webcare`, cámbialo a `Velority`: si no existe, ya se usa «Velority».
+- **Plugin de WordPress**: ahora se llama «Velority Conector» (versión 1.0.1) y sale en Ajustes › Velority. Por dentro conserva los nombres antiguos (`webcare_…`, archivo `webcare-conector.zip`) para que las webs que ya lo tengan no pierdan la clave.
+- Las claves internas del navegador (`webcare-portal-token`, cookies, vista previa…) y las tareas programadas (`webcare-medir`, `webcare-informe`…) mantienen el nombre antiguo a propósito: así nadie pierde la sesión ni se duplican las tareas. No se ven en ningún sitio.
+
 ## Planes de web ocultos en la portada
 El bloque «Creación de tu web · pago único» (planes con precios) está oculto, no borrado: `MOSTRAR_PLANES_WEB=false` al principio del `<script>` de `test-cliente/index.html`. Con `true` vuelve a verse, junto con el enlace «Precios» del menú. Mientras está oculto, «Empezar» abre la demo gratuita.
 
@@ -318,7 +324,7 @@ Para cambiar el texto: en `index.html`, busca `const GUIA = [`.
 - **Mensaje de estado y recomendación**: los escribe la medición (se pueden poner a mano desmarcando «Automático»).
 - **Renovaciones de dominio y SSL**: con la fecha de caducidad (el dominio solo si su registro la publica; los .es no lo hacen).
 - **Método de pago**: la tarjeta con la que paga en el portal.
-- **WordPress**: plugin `wordpress/webcare-conector.zip`. En la ficha › «Conectar WordPress» se genera la clave; se instala el plugin en su web y se pega en Ajustes › Webcare. Envía cada día actualizaciones, ataques y amenazas (con Wordfence) y copias (con UpdraftPlus).
+- **WordPress**: plugin `wordpress/webcare-conector.zip`. En la ficha › «Conectar WordPress» se genera la clave; se instala el plugin en su web y se pega en Ajustes › Velority. Envía cada día actualizaciones, ataques y amenazas (con Wordfence) y copias (con UpdraftPlus).
 
 ## 21. Plan Tienda, entrar sin contraseña, recomendaciones y vista previa
 

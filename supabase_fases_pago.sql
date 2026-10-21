@@ -1,5 +1,5 @@
 -- =====================================================================
---  Webcare · Proyectos web en fases: 50 % de anticipo, demo con 2 revisiones, 50 % final y garantía
+--  Velority · Proyectos web en fases: 50 % de anticipo, demo con 2 revisiones, 50 % final y garantía
 -- =====================================================================
 -- Ejecútalo en Supabase > SQL Editor DESPUÉS de supabase_ofertas_tokens.sql. Se puede ejecutar varias veces.
 --

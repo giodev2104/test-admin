@@ -16,7 +16,7 @@ const responder = (cuerpo: unknown, status = 200) =>
   new Response(JSON.stringify(cuerpo), { status, headers: { ...cors, "Content-Type": "application/json" } });
 const env = (k: string) => Deno.env.get(k) || "";
 const MAX_PAGINAS = 40, MAX_ENLACES = 300, A_LA_VEZ = 6, TIEMPO_MAX = 110000, DIAS_ENTRE_REVISIONES = 25;
-const UA = { "User-Agent": "WebcareLinkCheck/1.0 (+revision de enlaces rotos)" };
+const UA = { "User-Agent": "VelorityLinkCheck/1.0 (+revision de enlaces rotos)" };
 
 async function conTiempo<T>(ms: number, f: (s: AbortSignal) => Promise<T>) {
   const ac = new AbortController(), t = setTimeout(() => ac.abort(), ms);

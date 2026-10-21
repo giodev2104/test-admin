@@ -1,4 +1,4 @@
-// Edge Function "wp": recibe los datos que envía el plugin «Webcare Conector» desde la web WordPress del cliente.
+// Edge Function "wp": recibe los datos que envía el plugin «Velority Conector» desde la web WordPress del cliente.
 //   · Cada día (y al pulsar «Probar conexión» en el plugin): actualizaciones del mes, ataques bloqueados
 //     (Wordfence), amenazas activas (Wordfence), última copia y copias guardadas (UpdraftPlus) y datos técnicos.
 //   · Se identifica con la clave de conexión que genera el panel (ficha del cliente > «Conectar WordPress»);
@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
     if (!/^wc_[0-9a-f]{48}$/.test(clave)) return responder({ error: "Clave de conexión no válida." }, 401);
     const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const { data: w } = await db.from("webs_cliente").select("cliente_id").eq("wp_clave_hash", await huella(clave)).maybeSingle();
-    if (!w) return responder({ error: "Esta clave no corresponde a ningún cliente. Genera una nueva en el panel de Webcare." }, 401);
+    if (!w) return responder({ error: "Esta clave no corresponde a ningún cliente. Genera una nueva en el panel de Velority." }, 401);
 
     const d = (b.datos && typeof b.datos === "object") ? b.datos : {};
     const cambios: Record<string, unknown> = { wp_visto_en: new Date().toISOString() };

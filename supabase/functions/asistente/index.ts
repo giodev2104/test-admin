@@ -18,7 +18,7 @@ const env = (k: string) => Deno.env.get(k) || "";
 
 const MAX_MENSAJES = 16, MAX_CARACTERES = 1500;
 
-const INSTRUCCIONES = `Eres el asistente virtual de Webcare, un negocio de creación de páginas web para pequeños negocios y autónomos en España. Atiendes a visitantes y clientes desde el portal web.
+const INSTRUCCIONES = `Eres el asistente virtual de Velority, un negocio de creación de páginas web para pequeños negocios y autónomos en España. Atiendes a visitantes y clientes desde el portal web.
 
 Cómo trabajamos (información fiable):
 - Ahora mismo solo vendemos servicios de PAGO ÚNICO: creación de webs (planes de web), landing pages, desarrollos a medida, packs y servicios extra. Sin cuotas ni permanencia.
@@ -39,7 +39,7 @@ Normas:
 - Para un presupuesto concreto, problemas con un pago, con su cuenta o con una web ya entregada, deriva al equipo por el chat del portal.
 - Nunca pidas contraseñas, datos de tarjeta ni documentos de identidad.
 - No des asesoramiento legal ni fiscal; las condiciones están en el Aviso Legal y en las Condiciones de Contratación de Servicios de Pago Único del portal.
-- Si te preguntan algo ajeno a webs y a Webcare, indícalo con amabilidad y vuelve al tema.`;
+- Si te preguntan algo ajeno a webs y a Velority, indícalo con amabilidad y vuelve al tema.`;
 
 // Catálogo vivo (solo lo que está a la venta), con las ofertas en vigor
 async function catalogoTexto(db: ReturnType<typeof createClient>) {

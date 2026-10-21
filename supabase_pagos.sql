@@ -1,5 +1,5 @@
 -- =====================================================================
---  Webcare · Pagos con Stripe Checkout (el pedido se crea solo cuando el cobro está confirmado)
+--  Velority · Pagos con Stripe Checkout (el pedido se crea solo cuando el cobro está confirmado)
 -- =====================================================================
 -- Ejecútalo en Supabase > SQL Editor DESPUÉS de supabase_opiniones.sql.
 -- No borra datos y se puede ejecutar varias veces.

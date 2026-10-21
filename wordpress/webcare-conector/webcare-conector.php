@@ -1,18 +1,18 @@
 <?php
 /**
- * Plugin Name: Webcare Conector
- * Description: Envía cada día a tu panel de Webcare el estado de la web: actualizaciones del mes, ataques bloqueados y amenazas (Wordfence) y copias de seguridad (UpdraftPlus).
- * Version: 1.0.0
+ * Plugin Name: Velority Conector
+ * Description: Envía cada día a tu panel de Velority el estado de la web: actualizaciones del mes, ataques bloqueados y amenazas (Wordfence) y copias de seguridad (UpdraftPlus).
+ * Version: 1.0.1
  * Requires at least: 5.8
  * Requires PHP: 7.4
- * Author: Webcare
+ * Author: Velority
  * License: GPL-2.0-or-later
  * Text Domain: webcare-conector
  */
 
 if (!defined('ABSPATH')) exit;
 
-define('WEBCARE_VERSION', '1.0.0');
+define('WEBCARE_VERSION', '1.0.1');
 define('WEBCARE_URL', 'https://ufwuvbjrgvphbggkfkuh.supabase.co/functions/v1/wp');
 
 // ---------- Envío diario ----------
@@ -119,9 +119,9 @@ function webcare_enviar() {
     return $res;
 }
 
-// ---------- Ajustes > Webcare ----------
+// ---------- Ajustes > Velority ----------
 add_action('admin_menu', function () {
-    add_options_page('Webcare', 'Webcare', 'manage_options', 'webcare', 'webcare_pagina');
+    add_options_page('Velority', 'Velority', 'manage_options', 'webcare', 'webcare_pagina');
 });
 
 add_action('admin_post_webcare_guardar', function () {
@@ -143,8 +143,8 @@ function webcare_pagina() {
     $no = '<span style="color:#b32d2e">✘</span> ';
     ?>
     <div class="wrap">
-        <h1>Webcare</h1>
-        <p>Este plugin envía una vez al día a tu panel de Webcare el estado de tu web, para que lo veas en tu portal sin que nadie tenga que apuntarlo a mano.</p>
+        <h1>Velority</h1>
+        <p>Este plugin envía una vez al día a tu panel de Velority el estado de tu web, para que lo veas en tu portal sin que nadie tenga que apuntarlo a mano.</p>
         <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
             <input type="hidden" name="action" value="webcare_guardar">
             <?php wp_nonce_field('webcare_guardar'); ?>
@@ -153,7 +153,7 @@ function webcare_pagina() {
                     <th scope="row"><label for="webcare_clave">Clave de conexión</label></th>
                     <td>
                         <input name="webcare_clave" id="webcare_clave" type="password" class="regular-text code" value="<?php echo esc_attr($clave); ?>" autocomplete="off" placeholder="wc_…">
-                        <p class="description">Te la da el equipo de Webcare (panel &gt; ficha del cliente &gt; «Conectar WordPress»).</p>
+                        <p class="description">Te la da el equipo de Velority (panel &gt; ficha del cliente &gt; «Conectar WordPress»).</p>
                     </td>
                 </tr>
                 <tr>

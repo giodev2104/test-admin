@@ -1,5 +1,5 @@
 -- =====================================================================
---  Webcare · Opiniones de clientes en la web
+--  Velority · Opiniones de clientes en la web
 -- =====================================================================
 -- Ejecútalo en Supabase > SQL Editor DESPUÉS de supabase_entregas.sql.
 -- No borra datos y se puede ejecutar varias veces.

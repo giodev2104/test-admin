@@ -49,7 +49,7 @@ jobs:
         run: |
           set -euo pipefail
           PGBIN=/usr/lib/postgresql/17/bin
-          f="webcare-$(date -u +%Y-%m-%d).sql"
+          f="velority-$(date -u +%Y-%m-%d).sql"
           # Tablas de la aplicación (estructura + datos) y cuentas del equipo (solo datos)
           $PGBIN/pg_dump "$SUPABASE_DB_URL" --schema=public --no-owner --no-privileges > "$f"
           $PGBIN/pg_dump "$SUPABASE_DB_URL" --data-only --table=auth.users --table=auth.identities --no-owner --no-privileges > "auth-$f"

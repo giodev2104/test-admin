@@ -1,4 +1,4 @@
-// Edge Function "correo": envía los correos de Webcare con Brevo (gratis hasta 300 al día).
+// Edge Function "correo": envía los correos de Velority con Brevo (gratis hasta 300 al día).
 //   · recuperar          (portal, sin sesión)      → enlace para cambiar la contraseña
 //   · enlace             (portal, sin sesión)      → enlace para entrar sin contraseña (15 minutos, un solo uso)
 //   · aviso_cliente      (panel, sesión del staff) → «el equipo te ha respondido» / «tu solicitud ha cambiado»
@@ -20,6 +20,9 @@ const responder = (cuerpo: unknown, status = 200) =>
   new Response(JSON.stringify(cuerpo), { status, headers: { ...cors, "Content-Type": "application/json" } });
 const env = (k: string) => Deno.env.get(k) || "";
 const URL_PORTAL = env("URL_PORTAL") || "https://giodev2104.github.io/test-cliente/";
+// Logo de la cabecera de los correos: se sirve desde el propio portal (logo-correo.png)
+const BASE_PORTAL = URL_PORTAL.replace(/[?#].*$/, "");
+const LOGO = new URL("logo-correo.png", /\/[^/.]+$/.test(BASE_PORTAL) ? BASE_PORTAL + "/" : BASE_PORTAL).href;
 const URL_PANEL = env("URL_PANEL") || "https://giodev2104.github.io/test-admin/";
 const MINUTOS_ENTRE_AVISOS = 10;
 // Objetivo interno de respuesta a urgencias según el plan (horas). Igual que PLAZO_URGENTE_H en el panel.
@@ -31,13 +34,13 @@ const estadoCliente = (e: string) =>
 function plantilla(titulo: string, parrafos: string[], boton?: { texto: string; url: string }) {
   return `<!doctype html><html lang="es"><body style="margin:0;background:#f4f5f8;font-family:Arial,Helvetica,sans-serif;color:#1f2433">
   <div style="max-width:560px;margin:0 auto;padding:28px 16px">
-    <p style="font-size:18px;font-weight:bold;margin:0 0 18px">■ Webcare</p>
+    <p style="font-size:20px;font-weight:bold;margin:0 0 18px"><img src="${LOGO}" width="39" height="30" alt="" style="vertical-align:middle;border:0;margin-right:8px">Velority</p>
     <div style="background:#fff;border-radius:12px;padding:26px">
       <h1 style="font-size:20px;margin:0 0 14px">${esc(titulo)}</h1>
       ${parrafos.map((p) => `<p style="font-size:15px;line-height:1.55;margin:0 0 12px">${p}</p>`).join("")}
       ${boton ? `<p style="margin:22px 0 4px"><a href="${esc(boton.url)}" style="background:#5b6cff;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:bold;display:inline-block">${esc(boton.texto)}</a></p>` : ""}
     </div>
-    <p style="font-size:12px;color:#7b8194;margin:16px 4px">Recibes este correo por tu cuenta en Webcare. Si no esperabas este mensaje, puedes ignorarlo.</p>
+    <p style="font-size:12px;color:#7b8194;margin:16px 4px">Recibes este correo por tu cuenta en Velority. Si no esperabas este mensaje, puedes ignorarlo.</p>
   </div></body></html>`;
 }
 
@@ -48,7 +51,7 @@ async function enviar(para: string, nombre: string | null, asunto: string, html:
     method: "POST",
     headers: { "api-key": clave, "Content-Type": "application/json", accept: "application/json" },
     body: JSON.stringify({
-      sender: { email: de, name: env("NOMBRE_REMITENTE") || "Webcare" },
+      sender: { email: de, name: env("NOMBRE_REMITENTE") || "Velority" },
       to: [{ email: para, ...(nombre ? { name: nombre } : {}) }],
       subject: asunto,
       htmlContent: html,
@@ -87,7 +90,7 @@ Deno.serve(async (req) => {
       if (data?.error === "limite") return responder({ error: "Has pedido demasiados enlaces. Espera una hora y vuelve a probar." }, 429);
       if (data?.token) {
         const url = URL_PORTAL + (URL_PORTAL.includes("?") ? "&" : "?") + "recuperar=" + data.token;
-        await enviar(data.email, data.nombre, "Cambia tu contraseña de Webcare", plantilla("Cambia tu contraseña", [
+        await enviar(data.email, data.nombre, "Cambia tu contraseña de Velority", plantilla("Cambia tu contraseña", [
           `Hola, ${esc(String(data.nombre).split(" ")[0])}. Hemos recibido una petición para cambiar la contraseña de tu portal.`,
           "Pulsa el botón para elegir una nueva. El enlace caduca en 1 hora y solo se puede usar una vez.",
           "Si no lo has pedido tú, ignora este correo: tu contraseña no cambiará.",
@@ -104,7 +107,7 @@ Deno.serve(async (req) => {
       if (data?.error === "reciente") return responder({ error: "Ya te hemos enviado un enlace hace un momento. Revisa tu correo (y el spam)." }, 429);
       if (data?.token) {
         const url = URL_PORTAL + (URL_PORTAL.includes("?") ? "&" : "?") + "entrar=" + data.token;
-        await enviar(data.email, data.nombre, "Tu enlace para entrar en Webcare", plantilla("Entra en tu portal", [
+        await enviar(data.email, data.nombre, "Tu enlace para entrar en Velority", plantilla("Entra en tu portal", [
           `Hola, ${esc(String(data.nombre).split(" ")[0])}. Pulsa el botón para entrar en tu portal sin contraseña.`,
           "El enlace caduca en 15 minutos y solo se puede usar una vez.",
           "Si no lo has pedido tú, ignora este correo: nadie podrá entrar sin él.",

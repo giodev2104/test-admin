@@ -1,5 +1,5 @@
 -- =====================================================================
---  Webcare · Asistente IA del portal: límite de uso por IP
+--  Velority · Asistente IA del portal: límite de uso por IP
 -- =====================================================================
 -- Ejecútalo en Supabase > SQL Editor. Se puede ejecutar varias veces.
 -- Solo lo usa la función «asistente» (service role): devuelve true si esa IP ya ha hecho demasiadas preguntas.
