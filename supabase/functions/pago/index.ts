@@ -8,6 +8,7 @@
 //   STRIPE_WEBHOOK_SECRET  (recomendado) en Stripe > Desarrolladores > Webhooks > Añadir endpoint:
 //                          URL https://<proyecto>.supabase.co/functions/v1/pago · evento checkout.session.completed
 //   URL_PORTAL             (opcional) dirección del portal, para volver después de pagar
+//   SUSCRIPCIONES_ACTIVAS  (opcional) pon «1» para volver a vender suscripciones; sin él solo se cobra lo de pago único
 // Despliegue: Edge Functions > Deploy a new function > Via Editor, nombre "pago", y DESACTIVA «Verify JWT».
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
@@ -123,6 +124,8 @@ Deno.serve(async (req) => {
       const it = await delCatalogo(db, nombre);
       if (!it) return responder({ error: "Este servicio se paga por presupuesto: el equipo te enviará el importe por el chat." }, 400);
       if (!it.activo && !servicioId) return responder({ error: "Este servicio ya no está disponible." }, 400);
+      if (it.cada && env("SUSCRIPCIONES_ACTIVAS") !== "1") return responder({ error: "Los planes de suscripción estarán disponibles muy pronto. Ahora mismo solo contratamos servicios de pago único." }, 400);
+      if (!b.acepta) return responder({ error: "Para pagar tienes que aceptar el Aviso Legal y las Condiciones de Contratación de Servicios de Pago Único. Recarga la página e inténtalo de nuevo." }, 400);
       const { data: c } = await db.from("clientes").select("email").eq("id", cid).maybeSingle();
       const d: Record<string, string> = {
         mode: it.cada ? "subscription" : "payment",
@@ -132,6 +135,8 @@ Deno.serve(async (req) => {
         "line_items[0][price_data][product_data][name]": nombre + (it.oferta && !it.cada ? " (oferta -" + it.oferta + "%)" : ""),
         client_reference_id: cid,
         "metadata[cliente_id]": cid, "metadata[tipo]": it.tipo, "metadata[nombre]": nombre,
+        // Constancia de la aceptación de las condiciones (versión y momento), guardada en el propio pago de Stripe
+        "metadata[acepta_condiciones]": String(b.acepta).slice(0, 60), "metadata[acepta_en]": new Date().toISOString(),
         success_url: URL_PORTAL + (URL_PORTAL.includes("?") ? "&" : "?") + "pago=ok&sesion={CHECKOUT_SESSION_ID}",
         cancel_url: URL_PORTAL + (URL_PORTAL.includes("?") ? "&" : "?") + "pago=cancelado",
         locale: "es",
