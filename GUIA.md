@@ -349,7 +349,7 @@ Para cambiar el texto: en `index.html`, busca `const GUIA = [`.
 GitHub Pages publica la rama principal. Fusiona la rama `claude/dreamy-albattani-j8rm9a` en **los dos repositorios** (o elígela en Settings > Pages).
 
 - Portal del cliente: https://giodev2104.github.io/test-cliente/
-- Panel del equipo: https://giodev2104.github.io/test-admin/
+- Panel del equipo: https://velority.info/ (antes https://giodev2104.github.io/test-admin/, que redirige solo)
 
 ---
 
