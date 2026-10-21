@@ -269,6 +269,9 @@ Cada caso con un pedido del cliente muestra el bloque **💶 Pago** al abrirlo, 
 
 En ese mismo bloque, cada pedido (salvo los de mantenimiento) tiene **📦 Proyecto finalizado › Subir entrega**: sube ahí la web en .zip, el logo, el PDF… El cliente recibe el aviso y lo descarga en su portal en cuanto el pedido está pagado (hasta entonces ve «Pagar y desbloquear»).
 
+## «Quiero mi demo gratuita»
+El botón principal de la portada crea un caso **«Demo gratuita»** (tipo Lead) en «Nuevos». Si el visitante no tiene cuenta, primero se registra. En el chat le llega el mensaje de bienvenida con las preguntas (secciones, materiales y webs de referencia). Si ya tiene una demo abierta, no se duplica (`supabase_demo.sql`, aplicado).
+
 ## Asistente automático del portal (gratis)
 El botón **«🤖 ¿Dudas? Pregúntame»** (abajo a la derecha del portal) abre un chat que responde al momento las dudas más habituales: precios (sacados del catálogo real, con las ofertas en vigor), cómo se paga, garantía, revisiones, tiendas online, reservas, extras, dominio, IVA, vista previa, cuenta… Cada respuesta trae botones (pedir presupuesto, ver planes, probar la vista previa, hablar con una persona).
 - **No usa IA ni ningún servicio externo: coste 0 €.** Funciona por palabras clave dentro del propio portal.
