@@ -1605,6 +1605,48 @@ document.addEventListener("click", async e => {
       "Publicada: empieza la garantía de 30 días");
   }
 });
+// ----- Demo gratuita: el equipo la envía al apartado «Demo» del portal; el cliente pide cambios o la acepta y paga el anticipo -----
+function demoCasoHTML(r, borrado) {
+  if (r.titulo !== "Demo gratuita") return "";
+  const fin = !!r.demo_aceptada_en, dis = borrado || fin ? "disabled" : "";
+  const estado = fin ? `<span class="text-emerald-300">✓ El cliente la aprobó el ${esc(fechaDia(r.demo_aceptada_en))}.</span> Su pedido «Creación de tu web» sigue en 💶 Pago (anticipo, revisiones, pago final…).`
+    : r.demo_enviada_en ? `Enviada el ${esc(fechaDia(r.demo_enviada_en))}. El cliente la ve en «Demo» y puede pedir cambios o aceptarla.`
+    : "Prepárala con lo que el cliente cuente en el chat y envíasela desde aquí.";
+  return `<section class="rounded-xl border ${fin ? "border-emerald-500/30 bg-emerald-500/5" : "border-fx/40 bg-fx/5"} p-3.5">
+    <h3 class="text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">🎨 Demo gratuita</h3>
+    <p class="text-xs text-slate-400 mb-3">${estado}</p>
+    <div class="grid gap-2 sm:grid-cols-[1fr_10rem]">
+      <label class="text-xs text-slate-400">Enlace de la demo (opcional)<input type="url" id="demo-url" value="${esc(r.demo_url || "")}" placeholder="https://…" class="campo text-sm w-full mt-1" ${dis}></label>
+      <label class="text-xs text-slate-400">Precio cerrado (€ con IVA)<input type="number" id="demo-imp" min="1" step="0.01" value="${r.demo_importe ?? ""}" class="campo text-sm w-full mt-1 text-right" ${dis}></label>
+    </div>
+    <label class="block text-xs text-slate-400 mt-2">Mensaje para el cliente (opcional)<textarea id="demo-nota" rows="2" maxlength="1500" class="campo text-sm w-full mt-1" ${dis}>${esc(r.demo_nota || "")}</textarea></label>
+    <p class="text-[11px] text-slate-500 mt-1">Las imágenes o el PDF de la demo, adjúntalos en el chat de este caso: el cliente los ve también en su apartado «Demo».</p>
+    ${fin ? "" : `<button type="button" data-demo-enviar="${r.id}" ${borrado ? "disabled" : ""} class="mt-2 rounded-md bg-fx hover:bg-fx2 px-3 py-1.5 text-xs font-semibold text-[#1a1005]">${r.demo_enviada_en ? "Actualizar y avisar al cliente" : "Enviar demo al cliente"}</button>`}
+  </section>`;
+}
+document.addEventListener("click", async e => {
+  const t = e.target.closest?.("[data-demo-enviar]");
+  if (!t || t.disabled) return;
+  const id = Number(t.dataset.demoEnviar), r = reportes.find(x => x.id === id);
+  if (!r) return;
+  const url = document.getElementById("demo-url").value.trim(), nota = document.getElementById("demo-nota").value.trim();
+  const v = Math.round(Number(document.getElementById("demo-imp").value) * 100) / 100;
+  if (url && !/^https?:\/\/\S+\.\S+/.test(url)) return toast("Escribe la dirección completa de la demo (https://…).");
+  if (!(v > 0)) return toast("Pon el precio cerrado de la web, en euros con IVA.");
+  if (!url && !confirm("No has puesto enlace. ¿Enviar la demo solo con las imágenes o el PDF que hayas adjuntado en el chat?")) return;
+  const primera = !r.demo_enviada_en;
+  t.disabled = true;
+  const { data, error } = await db.from("reportes").update({ demo_url: url || null, demo_importe: v, demo_nota: nota || null, demo_enviada_en: new Date().toISOString() }).eq("id", id).select();
+  t.disabled = false;
+  if (error) return toast("No se pudo guardar: " + error.message + " (¿has ejecutado supabase_demo_entrega.sql?)", 8000);
+  if (data && data[0]) reportes = reportes.map(x => x.id === id ? data[0] : x);
+  await db.from("mensajes_caso").insert({ caso_id: id, autor_tipo: "staff", autor: usuarioActual, texto: primera
+    ? "🎨 ¡Tu demo está lista! Ábrela en el apartado «Demo» de tu portal. Si quieres cambiar algo, pulsa «Quiero cambios»; si te gusta, «Me gusta, quiero mi web» (precio cerrado: " + eurTxt(v) + ", IVA incluido)."
+    : "🎨 Hemos actualizado tu demo. Puedes verla en el apartado «Demo» de tu portal." });
+  avisarCorreo({ accion: "aviso_cliente", caso_id: id });
+  toast(primera ? "Demo enviada al cliente" : "Demo actualizada y cliente avisado", 5000);
+  render(); if (detalleId) pintarDetalle();
+});
 function pagoCasoHTML(r, borrado) {
   const l = pedidosCaso(r);
   if (!l.length) return "";
@@ -1727,6 +1769,7 @@ function pintarDetalle() {
     </div>
     ${aviso}
     <div class="px-5 sm:px-6 py-5 space-y-6">
+      ${demoCasoHTML(r, borrado)}
       ${pagoCasoHTML(r, borrado)}
       <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         ${datoDetalle("Cliente", esc(r.usuario_discord || "Anónimo") + (r.cliente_id ? `<span class="block text-xs text-emerald-300">● Cuenta del portal del cliente</span><span class="mt-1 flex flex-wrap gap-x-3 gap-y-1"><button type="button" data-cliente="${esc(r.cliente_id)}" class="text-xs font-semibold text-fx hover:underline">Ficha del cliente →</button><button type="button" data-ficha="${esc(r.cliente_id)}" class="text-xs font-semibold text-fx hover:underline">Editar su web →</button><button type="button" data-ver-cliente="${esc(r.cliente_id)}" class="text-xs font-semibold text-slate-300 hover:text-white hover:underline">👁 Ver como cliente</button></span>` : ""))}

@@ -275,6 +275,15 @@ En ese mismo bloque, cada pedido (salvo los de mantenimiento) tiene **📦 Proye
 - **Plugin de WordPress**: ahora se llama «Velority Conector» (versión 1.0.1) y sale en Ajustes › Velority. Por dentro conserva los nombres antiguos (`webcare_…`, archivo `webcare-conector.zip`) para que las webs que ya lo tengan no pierdan la clave.
 - Las claves internas del navegador (`webcare-portal-token`, cookies, vista previa…) y las tareas programadas (`webcare-medir`, `webcare-informe`…) mantienen el nombre antiguo a propósito: así nadie pierde la sesión ni se duplican las tareas. No se ven en ningún sitio.
 
+## Apartado «Demo» (demo gratuita)
+Cuando un cliente pide su demo gratuita, su portal muestra el apartado **🎨 Demo** («Estamos preparando tu demo»), que no se bloquea.
+1. En el panel, abre su caso «Demo gratuita»: bloque **🎨 Demo gratuita**. Pon el enlace de la demo (opcional), el **precio cerrado** (con IVA) y, si quieres, un mensaje. Las imágenes o el PDF de la demo se adjuntan en el chat del caso: el cliente las ve también en «Demo».
+2. Pulsa **Enviar demo al cliente**: le llega un aviso al chat (y por correo, si está configurado) y en su menú sale «Demo · Lista». Puedes actualizarla y volver a avisar las veces que haga falta.
+3. El cliente ve la demo dentro del portal y elige:
+   - **✏️ Quiero cambios** → os llega un mensaje en el chat del caso.
+   - **✅ Me gusta, quiero mi web** → se crea su pedido «Creación de tu web» con ese precio, acepta las condiciones y paga el **50 % de anticipo**. A partir de ahí sigue el proyecto por fases (bloque 💶 Pago del mismo caso).
+Base de datos: `supabase_demo_entrega.sql` (ya aplicado).
+
 ## Planes de web ocultos en la portada
 El bloque «Creación de tu web · pago único» (planes con precios) está oculto, no borrado: `MOSTRAR_PLANES_WEB=false` al principio del `<script>` de `test-cliente/index.html`. Con `true` vuelve a verse, junto con el enlace «Precios» del menú. Mientras está oculto, «Empezar» abre la demo gratuita.
 
