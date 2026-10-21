@@ -2179,7 +2179,7 @@ document.addEventListener("click", e => {
 }, true);
 
 // ---------- Negocio, ficha completa del cliente, renovaciones, etiquetas y vista de cliente ----------
-const URL_PORTAL = "https://giodev2104.github.io/test-cliente/";
+const URL_PORTAL = "https://velority.es/";
 // El diseño que el cliente hizo en la vista previa llega como enlace: se muestra como botón
 const textoChat = t => esc(t).replace(/https:\/\/[^\s<]+/g, u => !u.startsWith(esc(URL_PORTAL + "plantillas/plantilla.html?")) ? u :
   `<a href="${u}" target="_blank" rel="noopener" class="mt-1.5 inline-flex items-center gap-1.5 rounded-md border border-fx/40 bg-fx/10 px-2.5 py-1 text-xs font-semibold text-fx hover:bg-fx/20">🖥 Abrir el diseño del cliente</a>`);

@@ -144,7 +144,7 @@ Todo está al principio del `<script>` de `test-cliente/index.html`:
 - **Preguntas frecuentes**: la lista `const FAQ=[…]`. Cada una tiene `p` (pregunta), `r` (respuesta) y `k` (palabras con las que se sugiere mientras el cliente escribe).
 - **App instalable**: el portal ya se puede instalar en el móvil («Mi cuenta > App y avisos»). Funciona solo con https (GitHub Pages lo es).
 
-En el panel, `URL_PORTAL` (función «Ver como cliente») apunta a `https://giodev2104.github.io/test-cliente/`; cámbialo si el portal se publica en otra dirección.
+En el panel, `URL_PORTAL` (función «Ver como cliente») apunta a `https://velority.es/`; cámbialo si el portal se publica en otra dirección.
 
 Si actualizaste la función **medir**, vuelve a desplegarla (Edge Functions > medir > Code > pega `supabase/functions/medir/index.ts` > Deploy): ahora abre una Incidencia sola cuando una web deja de responder.
 
@@ -348,7 +348,7 @@ Para cambiar el texto: en `index.html`, busca `const GUIA = [`.
 
 GitHub Pages publica la rama principal. Fusiona la rama `claude/dreamy-albattani-j8rm9a` en **los dos repositorios** (o elígela en Settings > Pages).
 
-- Portal del cliente: https://giodev2104.github.io/test-cliente/
+- Portal del cliente: https://velority.es/ (antes https://giodev2104.github.io/test-cliente/, que redirige solo)
 - Panel del equipo: https://velority.info/ (antes https://giodev2104.github.io/test-admin/, que redirige solo)
 
 ---
