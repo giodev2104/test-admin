@@ -284,7 +284,7 @@ Los packs y extras siguen cobrándose al 100 % al contratarlos.
 ## Solo pago único (suscripciones en «Próximamente»)
 Ahora mismo el portal solo vende servicios de **pago único**: planes de web, landing pages, desarrollos a medida, packs y extras de pago único.
 - Mantenimiento, renting, extras mensuales o trimestrales y la financiación aparecen en **«Próximamente / Planes de Suscripción»**, difuminados y con los botones deshabilitados. No se ha borrado nada: precios y textos siguen en el código y en Negocio › 💶 Precios.
-- Antes de pagar o pedir presupuesto, el cliente tiene que marcar la casilla «He leído y acepto el Aviso Legal y las Condiciones de Contratación de Servicios de Pago Único». Queda constancia en Stripe (datos del pago) o en el chat del caso.
+- Antes de pagar o pedir presupuesto, el cliente tiene que marcar la casilla «He leído y acepto el Aviso Legal y las Condiciones de Contratación de Servicios de Pago Único». Queda constancia en Stripe (datos del pago) y en el detalle del caso («Condiciones aceptadas», solo lo ve el equipo).
 - Las condiciones son el PDF `test-cliente/legal/condiciones-pago-unico.pdf`; para cambiarlas, sustituye ese archivo.
 - Los datos del titular del Aviso Legal (nombre, NIF, domicilio, correo, teléfono) están en `EMPRESA`, al principio del `<script>` de `test-cliente/index.html`.
 - Para volver a vender suscripciones: `SUSCRIPCIONES_ACTIVAS=true` en el portal y el secreto `SUSCRIPCIONES_ACTIVAS=1` en la función `pago`.
