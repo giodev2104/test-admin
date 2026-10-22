@@ -1868,7 +1868,8 @@ document.addEventListener("keydown", e => {
 
 // ---------- Clientes y ficha de su web ----------
 // La ficha (tabla webs_cliente) es lo que el cliente ve en «Mi web», «SEO» y «Facturación» de su portal.
-const PLANES = ["Mantenimiento Esencial", "Mantenimiento Pro", "Mantenimiento Tienda", "Renting Plan Lanzamiento", "Renting Plan Negocio", "Renting Plan Ecommerce"];
+// Planes que se pueden asignar en la ficha: los de web (pago único) y los de mantenimiento. Con cualquiera, el cliente ve el portal completo («Mi web», «Soporte»…)
+const PLANES = ["Plan Lanzamiento", "Plan Negocio", "Plan Ecommerce / Citas", "Mantenimiento Esencial", "Mantenimiento Pro", "Mantenimiento Tienda"];
 const FILAS = {
   proximos:     [["texto", "Qué (p. ej. Renovación del dominio)", 2], ["cuando", "Cuándo (p. ej. 12 dic · automática)", 1]],
   seo_palabras: [["palabra", "Palabra clave", 2], ["antes", "Pos. antes", .6], ["ahora", "Pos. ahora", .6]],
@@ -1946,7 +1947,7 @@ function abrirFicha(id) {
     <form id="ficha-form" class="px-5 sm:px-6 py-5 space-y-4" novalidate>
       ${bloqueF("Cliente", "", `<div class="${g2}">${campoF("nombre", "Nombre", c.nombre, "text", 'maxlength="100"')}${campoF("dominio", "Dominio de su web", c.dominio, "text", 'placeholder="mitienda.com"')}</div>`)}
       ${bloqueF("Resumen de «Mi web»", "La cabecera del portal.", `<div class="${g2}">
-        <label class="block"><span class="block text-xs text-slate-400 mb-1">Plan contratado<span class="ml-1 text-[10px] font-semibold text-emerald-300" title="Se pone solo cuando un servicio de mantenimiento o renting pasa a activo">⚡ auto</span></span>
+        <label class="block"><span class="block text-xs text-slate-400 mb-1">Plan contratado<span class="ml-1 text-[10px] font-semibold text-emerald-300" title="Se pone solo cuando un servicio de mantenimiento pasa a activo. Asigna el plan de su web para que el cliente vea el portal completo">⚡ auto</span></span>
           <select id="f-plan" class="campo text-sm" style="padding:.5rem .7rem"><option value="">Sin plan</option>${planes.map(p => `<option ${p === w.plan ? "selected" : ""}>${esc(p)}</option>`).join("")}</select></label>
         ${campoF("puntuacion", "Puntuación de la web (0-100)", w.puntuacion, "number", 'min="0" max="100" step="1"')}
         <div class="sm:col-span-2">${campoF("resumen", "Mensaje de estado", w.resumen, "text", 'placeholder="Tu web está segura y funcionando con normalidad."')}
