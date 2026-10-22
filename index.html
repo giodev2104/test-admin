@@ -2802,9 +2802,10 @@ document.addEventListener("keydown", e => {
 });
 
 // ---------- Correo > Clientes potenciales: negocios de Google Maps sin web (función «prospectos» + tabla «prospectos») ----------
-// Se buscan por tipo de negocio y zona; Google no da su correo, así que se apunta a mano (de su Instagram, Facebook…).
+// Salen solos: al abrir la pestaña la función recorre ciudades de España en OpenStreetMap (datos públicos, sin clave).
+// Si no traen correo, se apunta a mano (de su Instagram, Facebook o su ficha de Google Maps).
 // «Enviar propuesta» abre un correo ya redactado para ese negocio. Se marca como enviada si en «correos» ya hay uno nuestro a esa dirección.
-let prospectos = null, prosFiltro = "nuevo", prosBusca = "", prosSel = null, prosBuscando = false, prosEnviando = false, prosUltima = null;
+let prospectos = null, prosFiltro = "nuevo", prosBusca = "", prosSel = null, prosBuscando = false, prosEnviando = false, prosUltima = null, prosAutoHecho = false;
 const prosForm = { negocio: "", zona: "", paginas: "1" }, prosBorrador = {};
 const ESTADOS_PROS = { nuevo: "Por contactar", contactado: "Propuesta enviada", respondido: "Ha respondido", cliente: "Ya es cliente", descartado: "Descartado" };
 const prospectoDe = email => (prospectos || []).find(p => p.email && p.email.toLowerCase() === String(email || "").toLowerCase());
@@ -2861,7 +2862,8 @@ function tarjetaPros(p) {
     <div class="mt-2 flex flex-wrap gap-1.5 text-xs">
       ${tel ? `<a href="tel:${esc(tel)}" class="rounded-md border border-line px-2 py-1 text-slate-300 hover:border-fx">📞 ${esc(p.telefono)}</a><a href="https://wa.me/${esc(wa)}" target="_blank" rel="noopener" class="rounded-md border border-line px-2 py-1 text-slate-300 hover:border-fx">WhatsApp</a>` : ""}
       ${p.maps_url ? `<a href="${esc(p.maps_url)}" target="_blank" rel="noopener" class="rounded-md border border-line px-2 py-1 text-slate-300 hover:border-fx">📍 Google Maps</a>` : ""}
-      ${p.web_social ? `<a href="${esc(p.web_social)}" target="_blank" rel="noopener" class="rounded-md border border-line px-2 py-1 text-slate-300 hover:border-fx" title="Lo que tiene en Google como web">🔗 ${esc((() => { try { return new URL(p.web_social).hostname.replace(/^www\./, ""); } catch (_) { return "Perfil"; } })())}</a>` : `<span class="rounded-md border border-line px-2 py-1 text-slate-500">Sin web en Google</span>`}
+      ${p.web_social ? `<a href="${esc(p.web_social)}" target="_blank" rel="noopener" class="rounded-md border border-line px-2 py-1 text-slate-300 hover:border-fx" title="Su red social (no tiene web propia)">🔗 ${esc((() => { try { return new URL(p.web_social).hostname.replace(/^www\./, ""); } catch (_) { return "Perfil"; } })())}</a>` : `<span class="rounded-md border border-line px-2 py-1 text-slate-500">Sin web</span>`}
+      ${p.email ? "" : `<a href="https://www.google.com/search?q=${encodeURIComponent('"' + p.nombre + '" ' + (p.ciudad || "") + " correo OR email OR instagram")}" target="_blank" rel="noopener" class="rounded-md border border-line px-2 py-1 text-slate-300 hover:border-fx">🔎 Buscar su contacto</a>`}
     </div>
     <div class="mt-2 flex flex-wrap items-center gap-2">
       <input id="pros-email-${p.id}" data-pros-email="${p.id}" type="email" value="${esc(p.email || "")}" placeholder="Correo del negocio (de su Instagram, Facebook…)" aria-label="Correo de ${esc(p.nombre)}" class="campo text-sm min-w-0 basis-full sm:basis-0 flex-1" style="padding:.4rem .6rem">
@@ -2903,16 +2905,16 @@ function renderProspectos(el) {
   el.innerHTML = `
   <header class="flex flex-wrap items-start justify-between gap-3 mb-4">
     <div><h1 class="font-display text-2xl font-bold text-white leading-tight">Correo</h1>
-      <p class="text-sm text-slate-500 mt-1">Negocios de Google Maps en España que no tienen página web propia. Busca, apunta su correo y envíales una propuesta.</p></div>
+      <p class="text-sm text-slate-500 mt-1">Negocios de España sin página web propia. Salen solos (datos públicos de OpenStreetMap); compruébalos en Google Maps, apunta su correo y envíales una propuesta.</p></div>
   </header>
   ${pestanasCorreo()}
   <form id="pros-buscar" class="mb-4 grid gap-2 rounded-2xl border border-line bg-panel p-3 sm:grid-cols-[1fr_1fr_auto_auto] items-end" novalidate>
-    <label class="text-xs text-slate-400">Tipo de negocio<input id="pros-negocio" value="${esc(prosForm.negocio)}" list="pros-tipos" placeholder="peluquería, taller, fisioterapia…" maxlength="80" class="campo mt-1 text-sm" style="padding:.5rem .7rem"></label>
-    <label class="text-xs text-slate-400">Ciudad o zona<input id="pros-zona" value="${esc(prosForm.zona)}" placeholder="Valencia, Ruzafa, Getafe…" maxlength="80" class="campo mt-1 text-sm" style="padding:.5rem .7rem"></label>
-    <label class="text-xs text-slate-400">Resultados<select id="pros-paginas" class="campo mt-1 text-sm" style="padding:.5rem .7rem">${[["1", "20"], ["2", "40"], ["3", "60"]].map(([v, t]) => `<option value="${v}" ${prosForm.paginas === v ? "selected" : ""}>Hasta ${t}</option>`).join("")}</select></label>
-    <button type="submit" ${prosBuscando ? "disabled" : ""} class="rounded-lg bg-fx hover:bg-fx2 disabled:opacity-60 text-[#1a1005] text-sm font-bold px-4 py-2">${prosBuscando ? "Buscando…" : "🔎 Buscar en Google"}</button>
+    <label class="text-xs text-slate-400">Ciudad o pueblo<input id="pros-zona" value="${esc(prosForm.zona)}" placeholder="Gandía, Getafe, Alzira…" maxlength="80" class="campo mt-1 text-sm" style="padding:.5rem .7rem"></label>
+    <label class="text-xs text-slate-400">Tipo de negocio (opcional)<input id="pros-negocio" value="${esc(prosForm.negocio)}" list="pros-tipos" placeholder="Todos" maxlength="80" class="campo mt-1 text-sm" style="padding:.5rem .7rem"></label>
+    <button type="submit" ${prosBuscando ? "disabled" : ""} class="rounded-lg border border-fx/50 text-fx hover:bg-fx/10 disabled:opacity-60 text-sm font-bold px-4 py-2">🔎 Buscar aquí</button>
+    <button type="button" data-pros-auto ${prosBuscando ? "disabled" : ""} class="rounded-lg bg-fx hover:bg-fx2 disabled:opacity-60 text-[#1a1005] text-sm font-bold px-4 py-2">${prosBuscando ? "Buscando… (hasta 1 min)" : "⚡ Traer más negocios"}</button>
     <datalist id="pros-tipos">${["Peluquería", "Barbería", "Centro de estética", "Taller mecánico", "Fisioterapia", "Clínica dental", "Restaurante", "Cafetería", "Panadería", "Floristería", "Fontanero", "Electricista", "Academia", "Gimnasio", "Tienda de ropa", "Inmobiliaria", "Veterinario", "Autoescuela"].map(x => `<option value="${x}">`).join("")}</datalist>
-    ${prosUltima ? `<p class="sm:col-span-4 text-xs text-slate-400">«${esc(prosUltima.consulta)}»: ${prosUltima.total} negocios en Google, ${prosUltima.con_web} con web, <b class="text-white">${prosUltima.sin_web} sin web</b> → ${prosUltima.nuevos} nuevos${prosUltima.repetidos ? `, ${prosUltima.repetidos} ya estaban en la lista` : ""}.</p>` : ""}
+    ${prosUltima && !prosUltima.saltado ? `<p class="sm:col-span-4 text-xs text-slate-400">«${esc(prosUltima.consulta)}» (${esc(prosUltima.fuente || "")}): <b class="text-white">${prosUltima.sin_web} sin web</b>${prosUltima.con_contacto !== undefined ? `, ${prosUltima.con_contacto} con teléfono o correo` : ""} → ${prosUltima.nuevos} nuevos${prosUltima.repetidos ? `, ${prosUltima.repetidos} ya estaban en la lista` : ""}.</p>` : ""}
   </form>
   <div class="mb-3 flex flex-wrap items-center gap-2">
     ${filtro("nuevo", "Por contactar")}${filtro("contactado", "Propuesta enviada")}${filtro("respondido", "Han respondido")}${filtro("cliente", "Clientes")}${filtro("descartado", "Descartados")}${filtro("todos", "Todos")}
@@ -2922,23 +2924,28 @@ function renderProspectos(el) {
     <div class="${sel ? "hidden lg:block" : ""} min-w-0">
       ${prospectos === null ? `<p class="py-16 text-center text-sm text-slate-500">Cargando…</p>`
         : lista.length ? `<ul class="grid gap-2 ${sel ? "" : "xl:grid-cols-2"}">${lista.slice(0, 300).map(tarjetaPros).join("")}</ul>${lista.length > 300 ? `<p class="mt-2 text-center text-xs text-slate-500">Se muestran 300 de ${lista.length}. Usa el filtro.</p>` : ""}`
-        : `<p class="rounded-2xl border border-line bg-panel py-14 text-center text-sm text-slate-500">${todos.length ? "No hay negocios en este apartado." : "Todavía no hay clientes potenciales. Escribe un tipo de negocio y una ciudad y pulsa «Buscar en Google»."}</p>`}
+        : `<p class="rounded-2xl border border-line bg-panel py-14 text-center text-sm text-slate-500">${todos.length ? "No hay negocios en este apartado." : (prosBuscando ? "Buscando negocios sin web… puede tardar hasta un minuto." : "Todavía no hay clientes potenciales. Pulsa «Traer más negocios» o busca en una ciudad.")}</p>`}
     </div>
     ${sel ? `<div class="min-w-0"><button type="button" data-pros-cerrar class="lg:hidden mb-2 text-sm text-slate-400 hover:text-white">← Volver a la lista</button>${redactorPros(sel)}</div>` : ""}
   </div>`;
 }
-async function buscarProspectos() {
+// auto: la función decide si toca (como mucho cada 6 h, o si quedan pocos por contactar); forzar: «Traer más negocios»
+async function buscarProspectos(modo) {
   if (prosBuscando) return;
-  if (!prosForm.negocio.trim() || !prosForm.zona.trim()) { toast("Escribe el tipo de negocio y la ciudad o zona."); return; }
+  const cuerpo = modo ? { accion: "auto", forzar: modo === "forzar" } : { accion: "buscar", zona: prosForm.zona.trim(), negocio: prosForm.negocio.trim() };
+  if (!modo && !cuerpo.zona) { toast("Escribe la ciudad o pueblo."); return; }
   prosBuscando = true; renderCorreo();
   try {
-    prosUltima = await invocar("prospectos", { accion: "buscar", negocio: prosForm.negocio.trim(), zona: prosForm.zona.trim(), paginas: Number(prosForm.paginas) });
-    prosFiltro = "nuevo";
+    const r = await invocar("prospectos", cuerpo);
+    if (r.saltado) return;
+    prosUltima = r; prosFiltro = "nuevo";
     await cargarProspectos(true);
-    toast(prosUltima.nuevos ? "🎯 " + prosUltima.nuevos + (prosUltima.nuevos === 1 ? " negocio nuevo sin web" : " negocios nuevos sin web") : "No hay negocios nuevos sin web en esta búsqueda. Prueba otra zona o tipo de negocio.", 6000);
-  } catch (e) { toast(e.message + (/Failed to send|non-2xx|fetch/i.test(e.message) ? " (¿has desplegado la función «prospectos»?)" : ""), 9000); }
+    toast(r.nuevos ? "🎯 " + r.nuevos + (r.nuevos === 1 ? " negocio nuevo sin web" : " negocios nuevos sin web") + " en " + r.consulta.replace(/^.* en /, "")
+      : "No hay negocios nuevos sin web en «" + r.consulta + "». " + (modo ? "Pulsa otra vez para probar la siguiente ciudad." : "Prueba otra ciudad."), 6000);
+  } catch (e) { if (modo !== "auto") toast(e.message + (/Failed to send|non-2xx|fetch/i.test(e.message) ? " (¿has desplegado la función «prospectos»?)" : ""), 9000); }
   finally { prosBuscando = false; renderCorreo(); }
 }
+function autoProspectos() { if (prosAutoHecho) return; prosAutoHecho = true; buscarProspectos("auto"); }
 async function guardarProspecto(id, cambios, silencio) {
   const p = (prospectos || []).find(x => x.id === id);
   if (!p) return false;
@@ -2972,7 +2979,8 @@ document.addEventListener("click", e => {
   const t = e.target;
   if (!t.closest || !t.closest("#vista-correo")) return;
   const tab = t.closest("[data-correo-tab]");
-  if (tab) { correoTab = tab.dataset.correoTab; if (correoTab === "prospectos") cargarProspectos(); renderCorreo(); return; }
+  if (tab) { correoTab = tab.dataset.correoTab; if (correoTab === "prospectos") { cargarProspectos(); autoProspectos(); } renderCorreo(); return; }
+  if (t.closest("[data-pros-auto]")) { buscarProspectos("forzar"); return; }
   const ver = t.closest("[data-pros-ver]");
   if (ver) { correoTab = "prospectos"; prosFiltro = "todos"; prosSel = Number(ver.dataset.prosVer); renderCorreo(); return; }
   const fil = t.closest("[data-pros-filtro]");
