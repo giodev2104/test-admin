@@ -1,6 +1,6 @@
 // Edge Function "prospectos": busca negocios de España sin página web propia y los guarda en la tabla «prospectos».
-// Fuente principal: OpenStreetMap (datos públicos, gratis, sin clave). Opcional: Google Maps si existe GOOGLE_PLACES_KEY.
-//   · accion "auto"   (panel)  {forzar?}          → recorre ciudades de España, una por llamada (como mucho cada 6 h)
+// Fuente: Google Maps si existe el secreto GOOGLE_PLACES_KEY (recomendado); si no, OpenStreetMap (datos públicos, sin clave).
+//   · accion "auto"   (panel)  {forzar?}          → recorre tipos de negocio y ciudades de España, uno por llamada (como mucho cada 6 h)
 //   · accion "buscar" (panel)  {zona, negocio?}   → busca en una ciudad o zona concreta
 // Despliegue: nombre "prospectos" y DESACTIVA «Verify JWT» (la función comprueba ella misma quién llama).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
@@ -22,6 +22,11 @@ const CIUDADES = ["Gandía", "Alzira", "Sagunto", "Torrent", "Paterna", "Castell
   "León", "Burgos", "Valladolid", "Salamanca", "Cáceres", "Badajoz", "Córdoba", "Jaén", "Granada", "Almería", "Málaga", "Marbella",
   "Sevilla", "Huelva", "Cádiz", "Jerez de la Frontera", "Algeciras", "Palma", "Las Palmas de Gran Canaria", "Santa Cruz de Tenerife",
   "Tarragona", "Reus", "Lleida", "Girona", "Sabadell", "Terrassa", "Badalona", "Mataró", "Barcelona", "A Coruña", "Vigo", "Ourense", "Lugo"];
+
+// Tipos de negocio que recorre la búsqueda automática con Google Maps (en cada ciudad, todos los tipos)
+const BUSQUEDAS = ["Peluquería", "Barbería", "Centro de estética", "Taller mecánico", "Fisioterapia", "Clínica dental", "Restaurante",
+  "Cafetería", "Panadería", "Floristería", "Fontanero", "Electricista", "Academia", "Gimnasio", "Inmobiliaria", "Veterinario",
+  "Autoescuela", "Tienda de ropa", "Carpintería", "Reformas"];
 
 // Qué es cada negocio, en español (etiquetas de OpenStreetMap)
 const TIPOS: Record<string, string> = {
@@ -59,23 +64,26 @@ function consultaOSM(zona: string) {
  nwr["leisure"="fitness_centre"]${sinWeb}(area.c);nwr["healthcare"]${sinWeb}(area.c););out center tags 600;`;
 }
 async function pedirOSM(zona: string) {
-  const q = encodeURIComponent(consultaOSM(zona));
-  let ultimo = "";
+  const cuerpo = "data=" + encodeURIComponent(consultaOSM(zona));
+  const fallos: string[] = [];
   const inicio = Date.now();
-  // El servidor público a veces está lleno (502/429): se reintenta con espera y se alterna con otro servidor
-  const servidores = ["https://overpass-api.de/api/interpreter", "https://overpass.private.coffee/api/interpreter",
-    "https://overpass-api.de/api/interpreter", "https://overpass-api.de/api/interpreter"];
+  // Los servidores públicos a veces están llenos (502/429/504): se prueban varios, con una pequeña espera entre uno y otro
+  const servidores = ["https://overpass-api.de/api/interpreter", "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+    "https://overpass.osm.jp/api/interpreter", "https://overpass.private.coffee/api/interpreter", "https://overpass-api.de/api/interpreter"];
   for (const [n, base] of servidores.entries()) {
-    if (n) await new Promise((ok) => setTimeout(ok, 3000 * n));
+    if (n) await new Promise((ok) => setTimeout(ok, 1500 * n));
     const queda = 130000 - (Date.now() - inicio);
     if (queda < 10000) break;
+    const host = new URL(base).hostname;
     try {
-      const r = await fetch(base + "?data=" + q, { signal: AbortSignal.timeout(Math.min(55000, queda)), headers: { "User-Agent": "Velority-panel/1.0 (contact-velority@velority.es)" } });
+      const r = await fetch(base, { method: "POST", body: cuerpo, signal: AbortSignal.timeout(Math.min(45000, queda)),
+        headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json", "User-Agent": "Velority-panel/1.0 (contact-velority@velority.es)" } });
       if (r.ok) return ((await r.json()).elements || []) as Record<string, any>[];
-      ultimo = "OpenStreetMap ocupado (" + r.status + ")";
-    } catch (e) { ultimo = "OpenStreetMap no responde (" + String((e as Error)?.name || e) + ")"; }
+      fallos.push(host + " " + r.status);
+    } catch (e) { fallos.push(host + " " + String((e as Error)?.name || e)); }
   }
-  throw new Error(ultimo + ". Prueba otra vez en un minuto.");
+  console.error("OpenStreetMap: " + fallos.join(", "));
+  throw new Error("Los servidores gratuitos de OpenStreetMap están saturados ahora mismo. Prueba en unos minutos o añade la clave de Google Maps (GOOGLE_PLACES_KEY).");
 }
 function filaOSM(el: Record<string, any>, zona: string, consulta: string) {
   const t = el.tags || {};
@@ -100,10 +108,10 @@ const SOCIAL = /(facebook\.|instagram\.|fb\.(com|me)|linktr\.ee|tiktok\.|twitter
 const CAMPOS = ["places.id", "places.displayName", "places.formattedAddress", "places.addressComponents", "places.nationalPhoneNumber",
   "places.websiteUri", "places.googleMapsUri", "places.rating", "places.userRatingCount", "places.primaryTypeDisplayName",
   "places.businessStatus", "nextPageToken"].join(",");
-async function pedirGoogle(clave: string, negocio: string, zona: string, consulta: string) {
+async function pedirGoogle(clave: string, negocio: string, zona: string, consulta: string, paginas = 3) {
   let pageToken = "", total = 0, conWeb = 0;
   const filas: Record<string, unknown>[] = [];
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < paginas; i++) {
     const r = await fetch("https://places.googleapis.com/v1/places:searchText", {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Goog-Api-Key": clave, "X-Goog-FieldMask": CAMPOS },
@@ -119,7 +127,7 @@ async function pedirGoogle(clave: string, negocio: string, zona: string, consult
       if (web && !SOCIAL.test(host)) { conWeb++; continue; }
       const comp = (p.addressComponents || []) as Record<string, any>[];
       filas.push({
-        place_id: p.id, nombre: String(p.displayName?.text || "Sin nombre").slice(0, 300), categoria: p.primaryTypeDisplayName?.text || negocio,
+        place_id: p.id, nombre: String(p.displayName?.text || "Sin nombre").slice(0, 300), categoria: p.primaryTypeDisplayName?.text || negocio || "Negocio",
         direccion: p.formattedAddress || null, ciudad: (comp.find((c) => (c.types || []).includes("locality")) || {}).longText || zona,
         telefono: p.nationalPhoneNumber || null, maps_url: p.googleMapsUri || null,
         valoracion: typeof p.rating === "number" ? Math.round(p.rating * 10) / 10 : null, n_resenas: p.userRatingCount ?? null,
@@ -152,8 +160,11 @@ Deno.serve(async (req) => {
       estadoAuto = (aj?.valor || {}) as Record<string, any>;
       const { count } = await admin.from("prospectos").select("id", { count: "exact", head: true }).eq("estado", "nuevo");
       const reciente = estadoAuto.ultimo && Date.now() - Date.parse(estadoAuto.ultimo) < 6 * 3600e3;
-      if (!cuerpo.forzar && reciente && (count || 0) >= 20) return responder({ ok: true, saltado: true, siguiente: CIUDADES[(estadoAuto.i || 0) % CIUDADES.length] });
-      zona = CIUDADES[(estadoAuto.i || 0) % CIUDADES.length];
+      if (!cuerpo.forzar && reciente && (count || 0) >= 20) return responder({ ok: true, saltado: true });
+      const i = estadoAuto.i || 0;
+      if (env("GOOGLE_PLACES_KEY")) {   // Google: todos los tipos de negocio en una ciudad y luego la siguiente
+        zona = CIUDADES[Math.floor(i / BUSQUEDAS.length) % CIUDADES.length]; negocio = BUSQUEDAS[i % BUSQUEDAS.length];
+      } else zona = CIUDADES[i % CIUDADES.length];
     } else if (cuerpo.accion === "buscar") {
       zona = String(cuerpo.zona || "").trim().slice(0, 80);
       negocio = String(cuerpo.negocio || "").trim().slice(0, 80);
@@ -163,9 +174,9 @@ Deno.serve(async (req) => {
     const consulta = negocio ? `${negocio} en ${zona}` : `Negocios en ${zona}`;
     let filas: Record<string, any>[] = [], total = 0, conWeb = 0;
     const claveGoogle = env("GOOGLE_PLACES_KEY");
-    if (claveGoogle && negocio) {
+    if (claveGoogle) {
       fuente = "Google Maps";
-      ({ filas, total, conWeb } = await pedirGoogle(claveGoogle, negocio, zona, consulta));
+      ({ filas, total, conWeb } = await pedirGoogle(claveGoogle, negocio, zona, consulta, estadoAuto ? 2 : 3));
     } else {
       const els = (await pedirOSM(zona)).filter((e) => e.tags?.name && !e.tags?.disused && !e.tags?.["disused:shop"]);
       filas = els.map((e) => filaOSM(e, zona, consulta));
