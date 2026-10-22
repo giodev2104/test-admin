@@ -2,6 +2,8 @@
 // Fuente: Google Maps si existe el secreto GOOGLE_PLACES_KEY (recomendado); si no, OpenStreetMap (datos públicos, sin clave).
 //   · accion "auto"   (panel)  {forzar?}          → recorre tipos de negocio y ciudades de España, uno por llamada (como mucho cada 6 h)
 //   · accion "buscar" (panel)  {zona, negocio?}   → busca en una ciudad o zona concreta
+// Límite de Google: como mucho LIMITE_GOOGLE peticiones al mes (el plan gratuito de estos datos es de 1.000); al llegar,
+// la función deja de llamar a Google hasta el mes siguiente. Lo cuenta servidor_gastar_google (supabase_prospectos.sql).
 // Despliegue: nombre "prospectos" y DESACTIVA «Verify JWT» (la función comprueba ella misma quién llama).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
@@ -104,14 +106,23 @@ function filaOSM(el: Record<string, any>, zona: string, consulta: string) {
 }
 
 // Google Maps (opcional, solo si hay clave): una «web» que es una red social o un directorio cuenta como «sin web»
+const LIMITE_GOOGLE = 900;
 const SOCIAL = /(facebook\.|instagram\.|fb\.(com|me)|linktr\.ee|tiktok\.|twitter\.|(^|\.)x\.com$|wa\.me|whatsapp\.|business\.site$|g\.page|tripadvisor\.|paginasamarillas\.|eltenedor\.|thefork\.|booksy\.|treatwell\.|glovoapp\.|just-eat\.|ubereats\.)/i;
 const CAMPOS = ["places.id", "places.displayName", "places.formattedAddress", "places.addressComponents", "places.nationalPhoneNumber",
   "places.websiteUri", "places.googleMapsUri", "places.rating", "places.userRatingCount", "places.primaryTypeDisplayName",
   "places.businessStatus", "nextPageToken"].join(",");
-async function pedirGoogle(clave: string, negocio: string, zona: string, consulta: string, paginas = 3) {
-  let pageToken = "", total = 0, conWeb = 0;
+async function pedirGoogle(db: any, clave: string, negocio: string, zona: string, consulta: string, paginas = 3) {
+  let pageToken = "", total = 0, conWeb = 0, uso = 0;
   const filas: Record<string, unknown>[] = [];
   for (let i = 0; i < paginas; i++) {
+    // Antes de cada petición: si ya se ha llegado al límite del mes, no se llama a Google
+    const { data: n, error: e } = await db.rpc("servidor_gastar_google", { p_max: LIMITE_GOOGLE });
+    if (e) throw new Error("No se pudo comprobar el límite de Google: " + e.message);
+    if (n === -1) {
+      if (i === 0) throw new Error(`Límite gratuito de Google Maps alcanzado este mes (${LIMITE_GOOGLE} búsquedas). Se reanuda el día 1; mientras tanto no se gasta nada.`);
+      uso = LIMITE_GOOGLE; break;
+    }
+    uso = n;
     const r = await fetch("https://places.googleapis.com/v1/places:searchText", {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Goog-Api-Key": clave, "X-Goog-FieldMask": CAMPOS },
@@ -137,7 +148,7 @@ async function pedirGoogle(clave: string, negocio: string, zona: string, consult
     pageToken = j.nextPageToken || "";
     if (!pageToken) break;
   }
-  return { filas, total, conWeb };
+  return { filas, total, conWeb, uso };
 }
 
 Deno.serve(async (req) => {
@@ -172,11 +183,11 @@ Deno.serve(async (req) => {
     } else return responder({ error: "Acción desconocida." }, 400);
 
     const consulta = negocio ? `${negocio} en ${zona}` : `Negocios en ${zona}`;
-    let filas: Record<string, any>[] = [], total = 0, conWeb = 0;
+    let filas: Record<string, any>[] = [], total = 0, conWeb = 0, uso: number | null = null;
     const claveGoogle = env("GOOGLE_PLACES_KEY");
     if (claveGoogle) {
       fuente = "Google Maps";
-      ({ filas, total, conWeb } = await pedirGoogle(claveGoogle, negocio, zona, consulta, estadoAuto ? 2 : 3));
+      ({ filas, total, conWeb, uso } = await pedirGoogle(admin, claveGoogle, negocio, zona, consulta, estadoAuto ? 2 : 3));
     } else {
       const els = (await pedirOSM(zona)).filter((e) => e.tags?.name && !e.tags?.disused && !e.tags?.["disused:shop"]);
       filas = els.map((e) => filaOSM(e, zona, consulta));
@@ -199,7 +210,7 @@ Deno.serve(async (req) => {
     }
     console.log(`Prospectos ${fuente} «${consulta}»: ${filas.length} sin web, ${nuevos} nuevos`);
     return responder({ ok: true, fuente, consulta, total, con_web: conWeb, sin_web: filas.length, nuevos, repetidos: filas.length - nuevos,
-      con_contacto: filas.filter((f) => f.telefono || f.email).length });
+      con_contacto: filas.filter((f) => f.telefono || f.email).length, uso_google: uso, limite_google: LIMITE_GOOGLE });
   } catch (e) {
     console.error(String((e as Error)?.message || e));
     return responder({ error: String((e as Error)?.message || e) }, 500);

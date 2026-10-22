@@ -37,3 +37,20 @@ begin
   end if;
 end
 $$;
+
+-- Límite de Google Maps: cuenta las peticiones de cada mes (el mes de facturación de Google, hora del Pacífico)
+-- y se niega a pasar del máximo, para no salir nunca del plan gratuito. Lo usa la función «prospectos».
+create or replace function public.servidor_gastar_google(p_max int)
+returns int language plpgsql security definer set search_path = public as $$
+declare mes text := to_char(now() at time zone 'America/Los_Angeles', 'YYYY-MM'); usados int;
+begin
+  insert into ajustes_web (clave, valor, actualizado_por) values ('google_places_uso', jsonb_build_object('mes', mes, 'peticiones', 0), 'sistema')
+  on conflict (clave) do nothing;
+  select case when valor->>'mes' = mes then coalesce((valor->>'peticiones')::int, 0) else 0 end into usados
+    from ajustes_web where clave = 'google_places_uso' for update;
+  if usados >= p_max then return -1; end if;
+  update ajustes_web set valor = jsonb_build_object('mes', mes, 'peticiones', usados + 1), actualizado_en = now() where clave = 'google_places_uso';
+  return usados + 1;
+end $$;
+revoke all on function public.servidor_gastar_google(int) from public, anon, authenticated;
+grant execute on function public.servidor_gastar_google(int) to service_role;
