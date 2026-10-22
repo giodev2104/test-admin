@@ -82,6 +82,14 @@
   :focus-visible { outline: 2px solid #f6a01a; outline-offset: 2px; }
   @media (max-width: 640px) { #live-box, #notif-btn, #quien, #buscar + kbd { display: none !important; } }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+  /* Tema de temporada (Halloween…) en el panel: solo si en «Tema de temporada» se marca «También en el panel» */
+  html.th-hw .rail-logo { position: relative; }
+  html.th-hw .rail-logo::after { content: ""; position: absolute; left: 2px; top: -11px; width: 24px; height: 21px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 56'%3E%3Cpath d='M30 3c-4 1-8 3-12 8 4-1 7-1 9 1-1 7-3 15-5 25h24c-3-12-7-22-11-28-1-3-3-5-5-6z' fill='%233a2160'/%3E%3Cpath d='M30 3c3 2 6 6 8 11' stroke='%235a3590' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3Cellipse cx='32' cy='44' rx='30' ry='8.5' fill='%232a1745'/%3E%3Cpath d='M21.4 33h21.6l1.7 7.6H19.6z' fill='%23FF8A1F'/%3E%3Crect x='28.4' y='33.2' width='7.4' height='7.2' rx='1.2' fill='none' stroke='%23FFD27A' stroke-width='1.7'/%3E%3C/svg%3E") no-repeat center/contain; transform: rotate(-14deg); pointer-events: none; }
+  #th-deco { position: fixed; inset: 0; pointer-events: none; z-index: 5; overflow: hidden; }
+  #th-deco .th-web { position: absolute; top: 48px; right: 0; width: 120px; height: 120px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Cpath d='M120,0L-10.0,0.0M120,0L-2.2,-44.5M120,0L23.4,-87.0M120,0L65.1,-117.8M120,0L120.0,-130.0M96.0,0.0Q99.5,3.6 97.4,8.2Q102.2,10.7 102.2,16.1Q107.7,16.6 109.9,21.8Q115.5,20.1 120.0,24.0M72.0,0.0Q79.0,7.2 74.9,16.4Q84.5,21.4 84.3,32.1Q95.4,33.3 99.7,43.5Q111.1,40.3 120.0,48.0M46.0,0.0Q56.8,11.1 50.5,25.3Q65.2,32.9 65.0,49.5Q82.0,51.3 88.7,67.1Q106.2,62.1 120.0,74.0M20.0,0.0Q34.7,15.0 26.0,34.2Q46.0,44.5 45.7,66.9Q68.7,69.3 77.7,90.6Q101.4,83.9 120.0,100.0' fill='none' stroke='%23ffffff' stroke-opacity='.22' stroke-width='.9'/%3E%3Cpath d='M96 0v38' stroke='%23ffffff' stroke-opacity='.3' stroke-width='.7'/%3E%3Ccircle cx='96' cy='41' r='3.4' fill='%232a1745' stroke='%23C9A7FF' stroke-opacity='.6'/%3E%3C/svg%3E") no-repeat top right/contain; }
+  #th-deco .th-bat { position: absolute; left: -8vw; width: 30px; height: 14px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 30'%3E%3Cpath d='M32 9c1.5-3 3-4.5 3-4.5l1 3.2c1.6-.6 3-.4 3-.4-.3 1.4-.9 2.4-.9 2.4C44 6.8 52 5 63 7c-5.5 1.8-8.5 5.5-9.6 10.6-2.8-2.6-6.6-2.6-8.8.4-1.3-2.6-4.6-3.4-7.3-1.6-1 .6-2.6 3.2-5.3 7.6-2.7-4.4-4.3-7-5.3-7.6-2.7-1.8-6-1-7.3 1.6-2.2-3-6-3-8.8-.4C10.3 12.5 7.3 8.8 1 7c11-2 19-.2 24.8 2.7 0 0-.6-1-.9-2.4 0 0 1.4-.2 3 .4l1-3.2S30.5 6 32 9z' fill='%23C9A7FF'/%3E%3Ccircle cx='30.4' cy='11.6' r='.9' fill='%23FF8A1F'/%3E%3Ccircle cx='33.6' cy='11.6' r='.9' fill='%23FF8A1F'/%3E%3C/svg%3E") no-repeat center/contain; opacity: .35; animation: thVuelo 26s linear infinite; }
+  #th-deco .b1 { top: 22%; } #th-deco .b2 { top: 70%; width: 22px; height: 10px; animation-duration: 34s; animation-delay: -15s; opacity: .25; }
+  @keyframes thVuelo { 0% { transform: translate(0,0) rotate(-4deg); } 25% { transform: translate(30vw,-20px) rotate(5deg); } 50% { transform: translate(60vw,8px) rotate(-6deg); } 75% { transform: translate(90vw,-14px) rotate(4deg); } 100% { transform: translate(118vw,0) rotate(-3deg); } }
 </style>
 </head>
 <body class="text-slate-200 min-h-screen">
@@ -89,7 +97,7 @@
 <div class="min-h-screen bg-scene flex">
   <!-- ============ RAIL DE ICONOS ============ -->
   <aside class="w-14 md:w-16 h-screen sticky top-0 shrink-0 bg-panel border-r border-line flex flex-col items-center py-3 gap-1 z-30">
-    <span class="w-10 h-9 grid place-items-center mb-3 text-fx drop-shadow-[0_4px_12px_rgba(246,160,26,.35)]" title="Velority">
+    <span class="rail-logo w-10 h-9 grid place-items-center mb-3 text-fx drop-shadow-[0_4px_12px_rgba(246,160,26,.35)]" title="Velority">
       <svg viewBox="114 167 904 700" class="w-10 h-8" fill="currentColor" aria-hidden="true"><path d="M560 863C521 860 492 853 459 839C445 833 425 822 425 821C425 821 429 818 434 816C451 807 460 802 476 792C490 783 510 770 514 768C516 766 514 766 509 768C482 780 450 794 424 803C395 813 375 820 356 825C343 829 335 831 332 832C325 833 320 835 316 835C310 837 295 840 290 840C278 842 273 843 260 845C250 846 219 845 212 844C163 837 148 811 167 767C182 734 224 685 275 642C286 633 287 632 287 632C287 631 287 629 287 626C286 622 285 617 284 608C283 600 284 573 285 563C293 493 334 434 403 396C446 372 493 359 548 355C569 353 607 354 621 356C623 357 625 357 627 357C634 358 655 362 664 364C745 383 811 431 842 493C848 504 848 502 838 511C822 523 812 531 794 545C781 555 777 558 762 568C743 581 728 592 710 603C652 640 587 677 533 703C501 719 493 722 493 722C492 722 490 720 487 718C478 711 467 702 462 698C451 690 427 670 399 644C396 642 393 639 391 638C382 630 376 627 374 630C374 631 374 656 374 660C379 685 383 697 391 710C401 725 417 738 434 743C439 745 439 745 435 747C410 756 412 755 386 764C375 768 365 771 364 771C362 772 362 772 355 764C324 728 302 689 292 650C291 648 290 646 290 646C289 645 261 672 247 688C231 705 218 722 212 735C191 777 207 803 254 805C257 805 260 806 262 806C292 807 347 796 402 778C442 765 490 745 526 728C528 727 534 725 538 723C544 720 572 706 581 701C680 648 758 598 826 544C833 538 841 532 843 530C845 528 851 524 855 520C902 480 938 439 952 411C963 389 964 372 956 360C950 353 941 348 926 346C919 345 899 344 891 345C881 347 869 349 868 349C867 350 867 350 868 355C872 378 876 412 876 441C877 454 877 454 875 455C874 457 871 457 870 457C869 456 867 453 864 449C845 422 830 406 806 385C776 361 732 339 688 327C681 325 679 324 670 322C656 319 655 318 659 309C668 292 680 272 692 255C700 244 700 244 711 231C726 214 751 191 770 178C782 169 782 169 789 178C822 217 846 267 861 325C862 330 864 335 864 335C864 335 867 335 870 334C908 325 951 321 974 325C1021 333 1028 368 993 423C972 454 925 503 873 547L863 555L863 559C863 561 864 566 864 570C874 701 768 830 629 858C609 862 578 864 560 863ZM687 749C722 746 746 731 761 703C769 687 775 656 774 636C773 632 773 629 773 629C772 627 763 633 752 642C748 645 740 652 717 673C708 680 698 689 686 698C641 733 632 741 635 743C638 745 649 748 662 749C666 750 683 749 687 749ZM572 658C573 655 573 652 574 651C574 649 575 645 575 641C577 629 577 628 578 624C586 588 591 582 620 574C629 572 655 567 667 566C669 565 670 565 668 564C668 564 662 563 657 562C620 556 600 550 592 542C585 534 580 516 573 472C571 459 571 459 569 472C562 521 556 538 546 545C538 551 522 556 500 560C492 561 488 562 477 564C470 565 471 565 488 568C520 573 539 578 547 585C555 590 560 603 565 632C566 636 567 642 568 646C568 650 569 655 570 658C571 666 571 666 572 658ZM240 620C233 618 208 594 189 572C160 539 135 496 120 454C118 447 118 446 124 440C184 383 278 348 377 347C387 347 387 347 388 348C391 352 389 355 382 359C317 395 271 453 254 519C246 549 243 579 246 608C247 613 247 617 247 618C246 620 243 621 240 620Z"/></svg>
     </span>
     <button type="button" data-ir="inicio" class="rail-btn" title="Inicio" aria-label="Inicio">
@@ -118,6 +126,9 @@
     </button>
     <button id="admin-abrir" type="button" class="rail-btn" title="Equipo y administradores" aria-label="Administradores">
       <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
+    </button>
+    <button id="tema-abrir" type="button" class="rail-btn hidden" title="Tema de temporada (Halloween…) de velority.es" aria-label="Tema de temporada">
+      <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7c-1-2-1-3.5.5-5"/><path d="M12 7c-5 0-8 3-8 7s3 7 8 7 8-3 8-7-3-7-8-7z"/><path d="M9 7.6C7.6 9.6 7.6 18.4 9 20.4M15 7.6c1.4 2 1.4 10.8 0 12.8"/></svg>
     </button>
     <button id="guia-abrir" type="button" class="rail-btn mt-auto" title="Guía del panel" aria-label="Guía del panel">
       <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14"/><path d="M12 17h.01"/></svg>
@@ -245,6 +256,34 @@
   </form>
 </div>
 
+<div id="tema-modal" class="hidden fixed inset-0 z-[60] grid place-items-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="tema-titulo">
+  <form id="tema-form" class="w-full max-w-lg rounded-xl border border-line bg-panel p-5 sm:p-6 shadow-2xl space-y-4" novalidate>
+    <div class="flex items-start justify-between gap-3">
+      <div><h2 id="tema-titulo" class="font-display text-2xl font-bold text-white leading-none">Tema de temporada</h2>
+        <p class="mt-1.5 text-xs text-slate-500">Decoración temporal de velority.es (colores, logo, murciélagos…). Se activa y se quita sola en las fechas que pongas.</p></div>
+      <button id="tema-cerrar" type="button" class="text-slate-400 hover:text-white p-1" aria-label="Cerrar">✕</button>
+    </div>
+    <p id="tema-estado" class="rounded-lg border border-line bg-base px-3 py-2 text-sm text-slate-300"></p>
+    <label class="block"><span class="block text-xs font-medium text-slate-400 mb-1">Tema</span>
+      <select id="tema-tipo" class="campo text-sm"><option value="">Sin tema (aspecto normal)</option><option value="halloween">🎃 Halloween</option></select></label>
+    <div class="grid gap-3 sm:grid-cols-2">
+      <label class="block"><span class="block text-xs font-medium text-slate-400 mb-1">Desde</span><input id="tema-desde" type="datetime-local" class="campo text-sm"></label>
+      <label class="block"><span class="block text-xs font-medium text-slate-400 mb-1">Hasta (se quita solo)</span><input id="tema-hasta" type="datetime-local" class="campo text-sm"></label>
+    </div>
+    <fieldset class="rounded-lg border border-line p-3 space-y-2">
+      <label class="flex items-center gap-2 text-sm text-slate-200"><input id="tema-franja-on" type="checkbox" class="accent-[#f6a01a]"> Mostrar una franja con un mensaje</label>
+      <input id="tema-franja" maxlength="140" placeholder="🎃 ¡Feliz Halloween! Pide tu demo gratuita y sin compromiso" class="campo text-sm">
+      <label class="flex items-center gap-2 text-sm text-slate-300"><input id="tema-franja-demo" type="checkbox" class="accent-[#f6a01a]"> Con el botón «Pedir mi demo»</label>
+    </fieldset>
+    <label class="flex items-center gap-2 text-sm text-slate-200"><input id="tema-panel" type="checkbox" class="accent-[#f6a01a]"> También en el panel (solo lo veis el equipo)</label>
+    <p id="tema-error" class="hidden text-sm text-red-300"></p>
+    <div class="flex flex-wrap items-center gap-2 pt-1">
+      <a id="tema-ver" href="#" target="_blank" rel="noopener" class="rounded-lg border border-line px-3 py-2 text-sm text-slate-300 hover:border-fx">👁 Ver cómo queda</a>
+      <button id="tema-quitar" type="button" class="rounded-lg border border-line px-3 py-2 text-sm text-slate-300 hover:border-red-500/60 hover:text-red-300">Quitar ya</button>
+      <button id="tema-guardar" type="submit" class="ml-auto rounded-lg bg-fx hover:bg-fx2 text-[#1a1005] text-sm font-bold px-4 py-2">Guardar</button>
+    </div>
+  </form>
+</div>
 <div id="admin-modal" class="hidden fixed inset-0 z-[60] grid place-items-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="admin-titulo">
   <div class="w-full max-w-md rounded-xl border border-line bg-panel p-5 sm:p-6 shadow-2xl">
     <div class="flex items-start justify-between gap-3">
@@ -3518,6 +3557,8 @@ async function entrar(session) {
   usuarioActual = yo.usuario; soyDueno = yo.es_dueno === true;
   try { if (!localStorage.getItem("guia-vista")) setTimeout(abrirGuia, 800); } catch (_) {}
   $("admin-abrir").classList.toggle("hidden", !soyDueno);      // solo los propietarios gestionan administradores
+  $("tema-abrir").classList.toggle("hidden", !soyDueno);       // y el tema de temporada de la web
+  cargarTemaPanel();
   $("cerrar-mes").classList.toggle("hidden", !soyDueno);
   $("quien").textContent = bonito(yo.usuario);
   $("login").classList.add("hidden");
@@ -3622,6 +3663,65 @@ function generarClave(n = 20) {
     if (/[A-Z]/.test(c) && /[a-z]/.test(c) && /\d/.test(c) && /[-_!#$%]/.test(c)) return c;
   }
 }
+
+// ---------- Tema de temporada (Halloween…): se guarda en ajustes_web («tema») y velority.es lo lee con tema_publico() ----------
+let temaWeb = null;
+const temaVigente = t => !!t && t.tema === "halloween" && (!t.desde || Date.now() >= Date.parse(t.desde)) && (!t.hasta || Date.now() <= Date.parse(t.hasta));
+const aInputFecha = iso => { if (!iso) return ""; const d = new Date(iso), z = n => String(n).padStart(2, "0"); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`; };
+const deInputFecha = v => v ? new Date(v).toISOString() : null;
+const fechaTema = iso => new Date(iso).toLocaleString("es-ES", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
+async function cargarTemaPanel() {
+  const { data, error } = await db.from("ajustes_web").select("valor").eq("clave", "tema").maybeSingle();
+  temaWeb = error ? null : (data ? data.valor : {});
+  aplicarTemaPanel();
+}
+function aplicarTemaPanel() {
+  const on = !!temaWeb && temaWeb.en_panel === true && temaVigente(temaWeb);
+  document.documentElement.classList.toggle("th-hw", on);
+  let deco = $("th-deco");
+  if (on && !deco) { deco = document.createElement("div"); deco.id = "th-deco"; deco.setAttribute("aria-hidden", "true"); deco.innerHTML = '<i class="th-web"></i><i class="th-bat b1"></i><i class="th-bat b2"></i>'; document.body.appendChild(deco); }
+  else if (!on && deco) deco.remove();
+}
+function estadoTema(t) {
+  if (!t || !t.tema) return "⚪ Ahora mismo velority.es se ve con su aspecto normal.";
+  if (temaVigente(t)) return "🟢 Se está viendo ahora en velority.es" + (t.hasta ? " hasta el " + fechaTema(t.hasta) + ". Después se quita solo." : " (sin fecha de fin).");
+  if (t.desde && Date.now() < Date.parse(t.desde)) return "🕒 Programado: empieza el " + fechaTema(t.desde) + ".";
+  return "⚪ Terminado: la fecha de fin ya ha pasado y la web se ve normal.";
+}
+function abrirTema() {
+  if (!soyDueno) return;
+  const t = temaWeb || {};
+  $("tema-tipo").value = t.tema || "";
+  $("tema-desde").value = aInputFecha(t.desde); $("tema-hasta").value = aInputFecha(t.hasta);
+  $("tema-franja-on").checked = !!t.franja_activa; $("tema-franja").value = t.franja || ""; $("tema-franja-demo").checked = !!t.franja_demo;
+  $("tema-panel").checked = !!t.en_panel;
+  $("tema-ver").href = URL_PORTAL + "?tema=halloween";
+  $("tema-estado").textContent = estadoTema(temaWeb);
+  $("tema-error").classList.add("hidden");
+  $("tema-modal").classList.remove("hidden");
+}
+const cerrarTema = () => $("tema-modal").classList.add("hidden");
+async function guardarTema(valor) {
+  if (valor.desde && valor.hasta && Date.parse(valor.hasta) <= Date.parse(valor.desde)) { $("tema-error").textContent = "La fecha de fin tiene que ser posterior a la de inicio."; $("tema-error").classList.remove("hidden"); return; }
+  const b = $("tema-guardar"); b.disabled = true; b.textContent = "Guardando…";
+  const { error } = await db.from("ajustes_web").upsert({ clave: "tema", valor, actualizado_por: usuarioActual, actualizado_en: new Date().toISOString() }, { onConflict: "clave" });
+  b.disabled = false; b.textContent = "Guardar";
+  if (error) { $("tema-error").textContent = "No se pudo guardar: " + error.message + (/policy|permission/i.test(error.message) ? " (¿has ejecutado supabase_tema.sql? Solo los propietarios pueden cambiarlo.)" : ""); $("tema-error").classList.remove("hidden"); return; }
+  temaWeb = valor; aplicarTemaPanel(); $("tema-estado").textContent = estadoTema(temaWeb);
+  toast(valor.tema ? "🎃 Tema guardado. Los visitantes lo verán al cargar velority.es." : "Tema quitado: velority.es vuelve a su aspecto normal.", 6000);
+  cerrarTema();
+}
+$("tema-abrir").addEventListener("click", abrirTema);
+$("tema-cerrar").addEventListener("click", cerrarTema);
+$("tema-modal").addEventListener("click", e => { if (e.target === $("tema-modal")) cerrarTema(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("tema-modal").classList.contains("hidden")) cerrarTema(); });
+$("tema-form").addEventListener("submit", e => {
+  e.preventDefault();
+  guardarTema({ tema: $("tema-tipo").value, desde: deInputFecha($("tema-desde").value), hasta: deInputFecha($("tema-hasta").value),
+    franja: $("tema-franja").value.trim().slice(0, 140), franja_activa: $("tema-franja-on").checked, franja_demo: $("tema-franja-demo").checked,
+    en_panel: $("tema-panel").checked });
+});
+$("tema-quitar").addEventListener("click", () => { if (confirm("¿Quitar el tema ya? velority.es volverá a su aspecto normal.")) guardarTema({ ...(temaWeb || {}), tema: "" }); });
 $("admin-abrir").addEventListener("click", abrirAdmin);
 $("admin-cerrar").addEventListener("click", cerrarAdmin);
 $("admin-modal").addEventListener("click", e => { if (e.target === $("admin-modal")) cerrarAdmin(); });
