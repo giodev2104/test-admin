@@ -3,6 +3,8 @@
 // vive solo en Supabase > Edge Functions > Secrets, así que ni una copia de la base de datos permite leerlas.
 // Cada vez que alguien ve, crea o borra un acceso queda apuntado, y el cliente lo ve en su portal.
 //   · Portal (token del cliente):   listar, guardar, ver, borrar
+//     También con el token de una persona invitada por el cliente (supabase_boveda_invitados.sql): solo ve esta bóveda
+//     y lo que hace queda apuntado con su nombre.
 //   · Panel (sesión del staff):     s_listar, s_guardar, s_ver, s_borrar   (con cliente_id / id)
 // Despliegue: Edge Functions > Deploy a new function > Via Editor, nombre "boveda", y DESACTIVA «Verify JWT».
 // Secreto obligatorio: BOVEDA_CLAVE (una frase larga y aleatoria; si la cambias, las contraseñas guardadas dejan de poder leerse).
@@ -114,12 +116,17 @@ Deno.serve(async (req) => {
       return responder({ error: "Acción desconocida." }, 400);
     }
 
-    const { data: cid } = await db.rpc("servidor_cliente_de_token", { p_token: String(b.token || "") });
+    let { data: cid } = await db.rpc("servidor_cliente_de_token", { p_token: String(b.token || "") });
+    let quien = "cliente";
+    if (!cid) {
+      const { data: inv } = await db.rpc("servidor_invitado_de_token", { p_token: String(b.token || "") });
+      if (inv?.cliente_id) { cid = inv.cliente_id; quien = String(inv.nombre).slice(0, 80) + " (invitado)"; }
+    }
     if (!cid) return responder({ error: "Tu sesión ha caducado. Vuelve a entrar." }, 401);
     if (accion === "listar") return responder(await listar(db, cid));
-    if (accion === "guardar") return await guardar(db, cid, b, "cliente", "cliente");
-    if (accion === "ver") return await ver(db, cid, Number(b.id), "cliente", "cliente");
-    if (accion === "borrar") return await borrar(db, cid, Number(b.id), "cliente", "cliente");
+    if (accion === "guardar") return await guardar(db, cid, b, quien, "cliente");
+    if (accion === "ver") return await ver(db, cid, Number(b.id), quien, "cliente");
+    if (accion === "borrar") return await borrar(db, cid, Number(b.id), quien, "cliente");
     return responder({ error: "Acción desconocida." }, 400);
   } catch (e) {
     const msg = String((e as Error)?.message || e);
