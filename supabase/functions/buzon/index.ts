@@ -134,8 +134,10 @@ Deno.serve(async (req) => {
     if (accion === "estado" || accion === "conectar") {
       const url = await urlWebhook();
       const lista = await brevo("/webhooks?type=inbound");
-      if (!lista.ok) return responder({ error: "Brevo no responde (" + lista.status + "): " + (await lista.text()).slice(0, 200) }, 502);
-      const hooks = ((await lista.json())?.webhooks || []) as Record<string, any>[];
+      const txt = await lista.text();
+      // Sin ninguna conexión creada, Brevo responde 400/404 «document_not_found» en vez de una lista vacía
+      if (!lista.ok && !/document_not_found/.test(txt)) return responder({ error: "Brevo no responde (" + lista.status + "): " + txt.slice(0, 200) }, 502);
+      const hooks = (lista.ok ? (JSON.parse(txt || "{}")?.webhooks || []) : []) as Record<string, any>[];
       const nuestro = hooks.find((h) => String(h.url || "").includes("/functions/v1/buzon"));
       if (accion === "estado") return responder({ conectado: !!nuestro && nuestro.url === url, dominio: nuestro?.domain || null });
       const dominio = String(cuerpo.dominio || "").trim().toLowerCase();
