@@ -609,11 +609,13 @@ async function pedirDatos() {
     db.from("entregas").select("*").order("creado_en", { ascending: false }),
     db.from("catalogo").select("*").order("orden"),
     db.from("referidos").select("*"),
-    db.from("correos").select("*").order("creado_en", { ascending: false }).limit(1000)
+    db.from("correos").select("*").order("creado_en", { ascending: false }).limit(1000),
+    db.from("pagos").select("*")
   ]);
   const espera = new Promise((_, rej) => setTimeout(() => rej(new Error("Supabase no responde (10 s). Revisa la URL y que el proyecto no esté pausado.")), 10000));
-  const [rep, not, msg, act, cli, web, rr, val, ncl, ren, srv, ent, cat, rfd, crr] = await Promise.race([consulta, espera]);
+  const [rep, not, msg, act, cli, web, rr, val, ncl, ren, srv, ent, cat, rfd, crr, pgs] = await Promise.race([consulta, espera]);
   correos = crr.error ? [] : crr.data;
+  pagos = pgs.error ? [] : pgs.data;
   referidos = rfd.error ? [] : rfd.data;
   if (!cat.error) { catalogo = cat.data; catalogo.filter(c => c.tipo === "mantenimiento" || c.tipo === "renting").forEach(c => { PRECIO_PLAN[c.nombre] = Number(c.precio); }); }
   servicios = srv.error ? [] : srv.data; entregas = ent.error ? [] : ent.data;
@@ -2258,6 +2260,27 @@ const PRECIO_PLAN = { "Mantenimiento Esencial": 19, "Mantenimiento Pro": 39, "Ma
 const TIPOS_RENOV = { dominio: "Dominio", plan: "Plan", ssl: "SSL", hosting: "Hosting", correo: "Correo", otro: "Otro" };
 const DIA = 24 * HORA;
 const euros = n => n.toLocaleString("es-ES", { maximumFractionDigits: 0 }) + " €";
+const eurosC = n => n.toLocaleString("es-ES", { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 }) + " €";
+let pagos = [];                                          // cobros con tarjeta (Stripe): anticipos y pagos finales
+// Importe de un precio escrito a mano («1.290 €», «0,50 € (precio cerrado)»…)
+const importeDe = t => { const m = String(t || "").match(/\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+(?:[.,]\d+)?/); return m ? Number(m[0].replace(/\.(?=\d{3}(\D|$))/g, "").replace(",", ".")) : null; };
+// Cobros de pago único (webs, extras, packs): cada pago con tarjeta en su fecha y, al marcar el pedido como pagado,
+// lo que falte hasta su precio en la fecha de pago. Las cuotas de mantenimiento/renting van aparte (MRR).
+function cobrosUnicos() {
+  const out = [], RECURRENTE = ["mantenimiento", "renting"];
+  for (const p of pagos) {
+    const s = p.servicio_id ? servicios.find(x => x.id === p.servicio_id) : null;
+    if (p.modo === "subscription" || RECURRENTE.includes(s ? s.tipo : p.tipo)) continue;
+    out.push({ fecha: p.creado_en, importe: Number(p.importe) || 0 });
+  }
+  for (const s of servicios) {
+    if (!s.pagado_en || RECURRENTE.includes(s.tipo)) continue;
+    const yaCobrado = pagos.filter(p => p.servicio_id === s.id).reduce((t, p) => t + (Number(p.importe) || 0), 0);
+    const resto = (importeDe(s.precio) || 0) - yaCobrado;
+    if (resto > 0.004) out.push({ fecha: s.pagado_en, importe: Math.round(resto * 100) / 100 });
+  }
+  return out;
+}
 const estrellas = n => "★".repeat(n) + "☆".repeat(5 - n);
 const valDe = id => valoraciones.find(v => v.caso_id === id);
 const clienteDe = id => clientes.find(c => c.id === id);
@@ -2466,6 +2489,8 @@ function renderNegocio() {
   const cerradosMes = meses.map(m => ({ ...m, v: activos().filter(r => cerrado(r.estado) && r.resuelto_en && new Date(r.resuelto_en) >= m.d && new Date(r.resuelto_en) < m.fin).length }));
   const altasPorMes = meses.map(m => ({ ...m, v: clientes.filter(c => new Date(c.creado_en) >= m.d && new Date(c.creado_en) < m.fin).length }));
   const tile = (t, v, s) => `<div class="rounded-2xl border border-line bg-panel p-4"><p class="text-xs text-slate-500">${t}</p><p class="mt-1 font-display text-2xl font-bold text-white">${v}</p><p class="text-[11px] text-slate-500 mt-0.5">${s}</p></div>`;
+  const cobros = cobrosUnicos().filter(c => new Date(c.fecha) >= desde);
+  const cobrado = Math.round(cobros.reduce((t, c) => t + c.importe, 0) * 100) / 100;
   const bajas = activos().filter(r => r.plan_solicitado === "Cancelar" && r.estado === "Aceptado" && r.resuelto_en && new Date(r.resuelto_en) >= desde).length;
   const periodoTxt = periodoNegocio ? "últimos " + periodoNegocio + " días" : "desde siempre";
 
@@ -2484,13 +2509,13 @@ function renderNegocio() {
   $("vista-negocio").innerHTML = `
   <header class="flex flex-wrap items-start justify-between gap-3 mb-4">
     <div><h1 class="font-display text-2xl font-bold text-white leading-tight">Negocio</h1>
-      <p class="text-sm text-slate-500 mt-1">Ingresos recurrentes, clientes, rapidez y satisfacción. La cuota mensual sale del plan de la ficha de cada cliente.</p></div>
+      <p class="text-sm text-slate-500 mt-1">Ingresos, clientes, rapidez y satisfacción. Los cobrados suman los pagos únicos ya pagados; la cuota mensual sale del plan de cada cliente.</p></div>
     <div class="flex flex-wrap items-center gap-2"><button type="button" data-precios class="rounded-xl border border-line px-3 py-2 text-xs font-semibold text-slate-200 hover:border-fx">💶 Precios</button>
     <div class="flex items-center gap-1 rounded-xl border border-line bg-base p-1">${[[30, "30 días"], [90, "90 días"], [0, "Todo"]].map(([v, t]) =>
       `<button type="button" data-periodo="${v}" class="px-3 py-1.5 rounded-lg text-xs font-semibold ${periodoNegocio === v ? "bg-raised text-white" : "text-slate-500 hover:text-white"}">${t}</button>`).join("")}</div></div>
   </header>
   <section class="grid gap-3 grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-    ${tile("Ingresos recurrentes (MRR)", euros(mrr), "al mes · " + euros(mrr * 12) + " al año · " + bajas + " baja" + (bajas === 1 ? "" : "s") + " en el periodo")}
+    ${tile("Ingresos cobrados", eurosC(cobrado), "pagos únicos · " + periodoTxt + " · + " + euros(mrr) + "/mes recurrente (MRR) · " + bajas + " baja" + (bajas === 1 ? "" : "s"))}
     ${tile("Clientes con plan", conPlan.length, clientes.length + (clientes.length === 1 ? " cuenta" : " cuentas") + " en el portal")}
     ${tile("Altas este mes", altasMes, "cuentas nuevas en el portal")}
     ${tile("Primera respuesta", fmtH(tPR), "tiempo medio · " + periodoTxt)}
