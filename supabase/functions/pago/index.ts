@@ -4,6 +4,9 @@
 //   · Planes de web (proyectos por fases): {servicio_id} cobra el 50 % de anticipo del precio cerrado y, cuando el
 //     cliente aprueba el diseño final, el 50 % restante.
 //   · Aviso de Stripe (webhook «checkout.session.completed»): registra el pedido aunque el cliente cierre la página.
+//   · facturas  {token}                      → añade a «Servicios y facturas» las facturas de sus pagos que aún no estén
+//   · Cada pago de pago único genera una factura de Stripe (invoice_creation); se guarda en webs_cliente.facturas
+//     (si un pago antiguo no tiene factura, se guarda su recibo de Stripe). Requiere supabase_facturas_stripe.sql.
 // El registro es idempotente (tabla pagos): un mismo pago nunca crea dos pedidos.
 // Las sesiones desactivan «Managed Payments» de Stripe: el vendedor es Velority (precios finales).
 // Configuración (Supabase > Edge Functions > Secrets):
@@ -83,6 +86,7 @@ async function registrar(db: SupabaseClient, s: Record<string, any>) {
     });
     if (error) throw error;
     await metodoPago(db, s.id, m.cliente_id).catch(() => {});
+    await guardarFactura(db, s.id, m.cliente_id).catch((e) => console.error("Factura: " + e.message));
     return data;
   }
   const { data, error } = await db.rpc("servidor_registrar_pago", {
@@ -91,7 +95,28 @@ async function registrar(db: SupabaseClient, s: Record<string, any>) {
   });
   if (error) throw error;
   await metodoPago(db, s.id, m.cliente_id).catch(() => {});
+  await guardarFactura(db, s.id, m.cliente_id).catch((e) => console.error("Factura: " + e.message));
   return data;
+}
+
+// Factura de Stripe del pago (o, si no la hay, su recibo) en «Servicios y facturas» del portal: una sola vez por pago
+const fechaEs = (seg: number) => new Date(seg * 1000).toLocaleDateString("es-ES", { timeZone: "Europe/Madrid", day: "2-digit", month: "2-digit", year: "numeric" });
+const eurosEs = (cent: number) => (cent / 100).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+async function guardarFactura(db: SupabaseClient, sesion: string, cliente: string) {
+  if (!cliente) return;
+  const s = await stripe("checkout/sessions/" + encodeURIComponent(sesion) + "?expand[]=invoice&expand[]=payment_intent.latest_charge");
+  const inv = s.invoice && typeof s.invoice === "object" ? s.invoice : null, ch = s.payment_intent?.latest_charge;
+  let f: Record<string, unknown> | null = null;
+  if (inv && inv.status !== "draft" && (inv.hosted_invoice_url || inv.invoice_pdf)) {
+    f = { numero: inv.number || "Factura", fecha: fechaEs(inv.status_transitions?.paid_at || inv.created), importe: eurosEs(inv.amount_paid ?? s.amount_total ?? 0),
+      url: inv.invoice_pdf || inv.hosted_invoice_url, sesion };
+  } else if (ch && typeof ch === "object" && ch.receipt_url) {
+    f = { numero: "Recibo " + (ch.receipt_number || sesion.slice(-8).toUpperCase()), fecha: fechaEs(ch.created), importe: eurosEs(s.amount_total ?? ch.amount ?? 0),
+      url: ch.receipt_url, sesion };
+  }
+  if (!f) return;
+  const { error } = await db.rpc("servidor_anadir_factura", { p_cliente: cliente, p_factura: f });
+  if (error) throw error;
 }
 
 // Apunta en la ficha del cliente la tarjeta con la que ha pagado («Visa terminada en 4242»)
@@ -146,6 +171,8 @@ Deno.serve(async (req) => {
             client_reference_id: cid,
             "metadata[cliente_id]": cid, "metadata[tipo]": "web", "metadata[nombre]": nombre, "metadata[servicio_id]": String(s.id), "metadata[parte]": parte,
             "metadata[acepta_condiciones]": String(b.acepta).slice(0, 60), "metadata[acepta_en]": new Date().toISOString(),
+            "invoice_creation[enabled]": "true", "invoice_creation[invoice_data][metadata][cliente_id]": cid,
+            "invoice_creation[invoice_data][description]": nombre + (parte === "anticipo" ? " · anticipo del 50 %" : " · pago final del 50 %"),
             success_url: URL_PORTAL + (URL_PORTAL.includes("?") ? "&" : "?") + "pago=ok&sesion={CHECKOUT_SESSION_ID}",
             cancel_url: URL_PORTAL + (URL_PORTAL.includes("?") ? "&" : "?") + "pago=cancelado",
             locale: "es",
@@ -176,6 +203,7 @@ Deno.serve(async (req) => {
         locale: "es",
       };
       if (servicioId) d["metadata[servicio_id]"] = String(servicioId);
+      if (!it.cada) { d["invoice_creation[enabled]"] = "true"; d["invoice_creation[invoice_data][metadata][cliente_id]"] = cid; }
       if (c?.email) d.customer_email = c.email;
       if (it.cada) {
         d["line_items[0][price_data][recurring][interval]"] = "month";
@@ -187,6 +215,13 @@ Deno.serve(async (req) => {
       }
       const s = await stripe("checkout/sessions", d);
       return responder({ url: s.url });
+    }
+
+    if (b.accion === "facturas") {
+      const { data: ps } = await db.from("pagos").select("sesion").eq("cliente_id", cid).order("creado_en", { ascending: false }).limit(50);
+      for (const p of ps || []) await guardarFactura(db, p.sesion, cid).catch((e) => console.error("Factura " + p.sesion + ": " + e.message));
+      const { data: w } = await db.from("webs_cliente").select("facturas").eq("cliente_id", cid).maybeSingle();
+      return responder({ facturas: w?.facturas || [] });
     }
 
     if (b.accion === "confirmar") {
