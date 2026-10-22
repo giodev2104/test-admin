@@ -70,7 +70,8 @@ async function enviar(para: string, nombre: string | null, asunto: string, html:
       htmlContent: html,
     }),
   });
-  if (!r.ok) throw new Error("Brevo " + r.status + ": " + (await r.text()).slice(0, 200));
+  // El detalle de Brevo queda en los registros de la función (Supabase > Edge Functions > correo > Logs), nunca en la pantalla del cliente
+  if (!r.ok) { console.error("Brevo " + r.status + ": " + (await r.text()).slice(0, 500)); throw new Error("ENVIO_FALLIDO"); }
 }
 
 Deno.serve(async (req) => {
@@ -210,7 +211,10 @@ Deno.serve(async (req) => {
     return responder({ error: "Acción desconocida." }, 400);
   } catch (e) {
     const msg = String((e as Error)?.message || e);
-    if (msg === "SIN_CONFIGURAR") return responder({ error: "El envío de correos no está configurado (faltan BREVO_API_KEY y CORREO_REMITENTE)." }, 503);
+    if (msg === "SIN_CONFIGURAR" || msg === "ENVIO_FALLIDO") {
+      if (msg === "SIN_CONFIGURAR") console.error("Faltan los secretos BREVO_API_KEY o CORREO_REMITENTE");
+      return responder({ error: "Ahora mismo no podemos enviar correos. Inténtalo más tarde o escríbenos por WhatsApp y te ayudamos." }, 503);
+    }
     return responder({ error: msg }, 500);
   }
 });
