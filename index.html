@@ -398,7 +398,9 @@ try {
     throw new Error("La URL de Supabase no es válida. Debe ser como https://abcdefgh.supabase.co (sin /rest/v1 ni nada detrás).");
   if (typeof supabase === "undefined")
     throw new Error("No se pudo cargar la librería de Supabase. Revisa tu conexión o desactiva el bloqueador de anuncios.");
-  db = supabase.createClient(url, SUPABASE_KEY.trim());
+  // Sin el cerrojo entre pestañas de supabase-js (navigator.locks): a veces se queda bloqueado con varias pestañas
+  // abiertas y deja el acceso en «Entrando…» y las cargas en «Supabase no responde»
+  db = supabase.createClient(url, SUPABASE_KEY.trim(), { auth: { lock: (_nombre, _espera, fn) => fn() } });
 } catch (e) { errorInicial = e.message; }
 
 function mostrarError(msg) {
