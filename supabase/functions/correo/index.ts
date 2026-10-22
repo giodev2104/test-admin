@@ -72,6 +72,8 @@ async function enviar(para: string, nombre: string | null, asunto: string, html:
   });
   // El detalle de Brevo queda en los registros de la función (Supabase > Edge Functions > correo > Logs), nunca en la pantalla del cliente
   if (!r.ok) { console.error("Brevo " + r.status + ": " + (await r.text()).slice(0, 500)); throw new Error("ENVIO_FALLIDO"); }
+  const j = await r.json().catch(() => ({}));
+  console.log("Correo enviado a Brevo · «" + asunto + "» · messageId " + (j?.messageId || "?"));
 }
 
 Deno.serve(async (req) => {
@@ -103,6 +105,7 @@ Deno.serve(async (req) => {
       const { data, error } = await admin.rpc("servidor_crear_recuperacion", { p_email: String(cuerpo.email || ""), p_ip: ip });
       if (error) throw error;
       if (data?.error === "limite") return responder({ error: "Has pedido demasiados enlaces. Espera una hora y vuelve a probar." }, 429);
+      if (data?.error === "reciente") return responder({ error: "Ya te hemos enviado un enlace hace un momento. Revisa tu correo (y el spam) o espera 5 minutos para pedir otro." }, 429);
       if (data?.token) {
         const url = URL_PORTAL + (URL_PORTAL.includes("?") ? "&" : "?") + "recuperar=" + data.token;
         await enviar(data.email, data.nombre, "Cambia tu contraseña de Velority", plantilla("Cambia tu contraseña", [
