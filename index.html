@@ -1285,7 +1285,7 @@ function render() {
   if (vista === "clientes") renderClientes();
   if (vista === "negocio" && usuarioActual) renderNegocio();
   if (vista === "renovaciones") renderRenovaciones();
-  if (vista === "correo" && usuarioActual) { renderCorreo(); estadoBuzon(); }
+  if (vista === "correo" && usuarioActual) { renderCorreo(); estadoBuzon(); cargarProspectos(); }
   pintarFiltros();
   pintarMenus();
   if (usuarioActual) avisarRenovaciones();
@@ -2568,7 +2568,7 @@ function filaRenov(x, conCliente = true) {
 // ---------- Correo: el buzón de la dirección de contacto (función «buzon» + tabla «correos») ----------
 // Solo los correos que escriben las personas y las respuestas del equipo: los automáticos de la web no salen aquí.
 const CORREO_CONTACTO = "contact-velority@velority.es";
-let correos = [], correoSel = null, correoEstado = null, correoBusca = "", correoEnviando = false;
+let correos = [], correoSel = null, correoEstado = null, correoBusca = "", correoEnviando = false, correoTab = "bandeja";
 const correoBorrador = {};                         // lo escrito en cada conversación, para no perderlo al repintar
 const correosNoLeidos = () => correos.filter(c => c.direccion === "entrada" && !c.leido_en).length;
 const fechaCorreo = d => new Date(d).toLocaleString("es-ES", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -2623,9 +2623,15 @@ function burbujaCorreo(c, h) {
     ${(c.adjuntos || []).length ? `<div class="mt-2 flex flex-wrap gap-1.5">${c.adjuntos.map((a, i) => `<button type="button" data-correo-adjunto="${c.id}:${i}" class="rounded-md border border-line px-2 py-1 text-xs text-slate-300 hover:border-fx">📎 ${esc(a.nombre)}</button>`).join("")}</div>` : ""}
   </article>`;
 }
+function pestanasCorreo() {
+  const nPros = prospectos ? prospectos.filter(p => p.estado === "nuevo").length : 0;
+  const tab = (id, txt, n) => `<button type="button" data-correo-tab="${id}" class="rounded-lg px-3.5 py-1.5 text-sm font-semibold ${correoTab === id ? "bg-raised text-white border border-fx/40" : "text-slate-400 hover:text-white border border-transparent"}">${txt}${n ? ` <span class="text-xs text-slate-500">${n}</span>` : ""}</button>`;
+  return `<nav class="mb-4 inline-flex gap-1 rounded-xl border border-line bg-panel p-1" aria-label="Secciones de correo">${tab("bandeja", "📥 Bandeja", correosNoLeidos())}${tab("prospectos", "🎯 Clientes potenciales", nPros)}</nav>`;
+}
 function renderCorreo() {
   const el = $("vista-correo"), act = document.activeElement, foco = act && act.id && el.contains(act) ? act.id : null;
   const pos = foco && "selectionStart" in act ? act.selectionStart : null;
+  if (correoTab === "prospectos") { renderProspectos(el); if (foco && $(foco)) { const f = $(foco); f.focus(); if (pos !== null) try { f.setSelectionRange(pos, pos); } catch (_) {} } return; }
   const hs = hilosCorreo(), q = norm(correoBusca);
   const lista = hs.filter(h => !q || norm([h.contacto, h.nombre, ...h.l.map(c => c.asunto)].join(" ")).includes(q));
   const nuevo = correoSel === "__nuevo", h = !nuevo && correoSel ? hs.find(x => x.contacto === correoSel) : null;
@@ -2648,6 +2654,7 @@ function renderCorreo() {
       <p class="text-sm text-slate-500 mt-1">Lo que escriben a ${CORREO_CONTACTO}. Respondes desde aquí y les llega desde esa dirección.</p></div>
     <button type="button" data-correo-nuevo class="rounded-xl bg-fx hover:bg-fx2 text-[#1a1005] text-sm font-bold px-4 py-2">✉️ Escribir correo</button>
   </header>
+  ${pestanasCorreo()}
   ${bannerBuzon()}
   <div class="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)] items-start">
     <section class="${correoSel ? "hidden lg:block" : ""} rounded-2xl border border-line bg-panel p-2">
@@ -2656,7 +2663,7 @@ function renderCorreo() {
         <li><button type="button" data-correo-hilo="${esc(x.contacto)}" class="w-full text-left rounded-lg px-3 py-2.5 ${x.contacto === correoSel ? "bg-raised border border-fx/40" : "border border-transparent hover:bg-raised"}">
           <span class="flex items-center gap-2"><b class="truncate text-sm ${x.nuevos ? "text-white" : "text-slate-300"}">${esc(x.nombre || x.contacto)}</b>
             ${x.nuevos ? `<span class="ml-auto shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold grid place-items-center">${x.nuevos}</span>` : `<span class="ml-auto shrink-0 text-[11px] text-slate-500">${esc(hace(Date.now() - new Date(x.ult.creado_en)))}</span>`}</span>
-          <span class="block truncate text-xs ${x.nuevos ? "text-slate-200" : "text-slate-500"}">${x.ult.direccion === "salida" ? "Tú: " : ""}${esc(x.ult.asunto)}</span>
+          <span class="block truncate text-xs ${x.nuevos ? "text-slate-200" : "text-slate-500"}">${prospectoDe(x.contacto) ? `<span class="text-fx">🎯 </span>` : ""}${x.ult.direccion === "salida" ? "Tú: " : ""}${esc(x.ult.asunto)}</span>
         </button></li>`).join("")}</ul>`
         : `<p class="px-3 py-10 text-center text-sm text-slate-500">${q ? "Sin resultados." : "Todavía no ha llegado ningún correo."}</p>`}
     </section>
@@ -2666,6 +2673,7 @@ function renderCorreo() {
           <button type="button" data-correo-volver class="lg:hidden text-sm text-slate-400 hover:text-white" aria-label="Volver a la lista">←</button>
           <div class="min-w-0"><h2 class="truncate text-base font-semibold text-white">${esc(h.nombre || h.contacto)}</h2><p class="truncate text-xs text-slate-500">${esc(h.contacto)}</p></div>
           ${cli ? `<button type="button" data-cliente="${esc(cli.id)}" class="rounded-md border border-line px-2 py-1 text-xs text-emerald-300 hover:border-fx">Cliente · ver ficha</button>` : ""}
+          ${prospectoDe(h.contacto) ? `<button type="button" data-pros-ver="${prospectoDe(h.contacto).id}" class="rounded-md border border-fx/40 px-2 py-1 text-xs text-fx hover:bg-fx/10">🎯 Cliente potencial · ${esc(prospectoDe(h.contacto).nombre)}</button>` : ""}
           <button type="button" data-correo-borrar class="ml-auto rounded-md border border-line px-2.5 py-1 text-xs text-slate-400 hover:border-red-500/60 hover:text-red-300">Eliminar conversación</button>
         </div>
         <div id="correo-hilo" class="mt-3 space-y-3 max-h-[55vh] overflow-y-auto scroll-fino pr-1">${h.l.map(c => burbujaCorreo(c, h)).join("")}</div>${formulario}`
@@ -2766,6 +2774,226 @@ document.addEventListener("submit", e => {
 });
 document.addEventListener("keydown", e => {
   if (e.target && e.target.id === "correo-texto" && e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); enviarCorreo(); }
+});
+
+// ---------- Correo > Clientes potenciales: negocios de Google Maps sin web (función «prospectos» + tabla «prospectos») ----------
+// Se buscan por tipo de negocio y zona; Google no da su correo, así que se apunta a mano (de su Instagram, Facebook…).
+// «Enviar propuesta» abre un correo ya redactado para ese negocio. Se marca como enviada si en «correos» ya hay uno nuestro a esa dirección.
+let prospectos = null, prosFiltro = "nuevo", prosBusca = "", prosSel = null, prosBuscando = false, prosEnviando = false, prosUltima = null;
+const prosForm = { negocio: "", zona: "", paginas: "1" }, prosBorrador = {};
+const ESTADOS_PROS = { nuevo: "Por contactar", contactado: "Propuesta enviada", respondido: "Ha respondido", cliente: "Ya es cliente", descartado: "Descartado" };
+const prospectoDe = email => (prospectos || []).find(p => p.email && p.email.toLowerCase() === String(email || "").toLowerCase());
+const enviadosA = email => email ? correos.filter(c => c.contacto === email.toLowerCase() && c.direccion === "salida") : [];
+const recibidosDe = email => email ? correos.filter(c => c.contacto === email.toLowerCase() && c.direccion === "entrada") : [];
+// El estado que se ve: si ya le escribimos o nos ha respondido (según los correos), aunque no se marcara a mano
+function estadoPros(p) {
+  if (p.estado === "descartado" || p.estado === "cliente") return p.estado;
+  if (recibidosDe(p.email).length) return "respondido";
+  if (p.estado === "contactado" || enviadosA(p.email).length) return p.estado === "respondido" ? "respondido" : "contactado";
+  return p.estado;
+}
+async function cargarProspectos(forzar) {
+  if (prospectos && !forzar) return;
+  const { data, error } = await db.from("prospectos").select("*").order("creado_en", { ascending: false }).limit(2000);
+  if (error) { prospectos = []; toast("No se pudieron cargar los clientes potenciales: " + error.message + (/does not exist|relation/i.test(error.message) ? " (ejecuta supabase_prospectos.sql)" : ""), 8000); }
+  else prospectos = data;
+  if (vista === "correo") renderCorreo();
+}
+function textoPropuesta(p) {
+  const tipo = (p.categoria || "negocio").toLowerCase(), ciudad = p.ciudad || "vuestra zona";
+  const resenas = p.valoracion && p.n_resenas ? ` (¡con ${String(p.valoracion).replace(".", ",")} ⭐ y ${p.n_resenas} reseñas!)` : "";
+  const social = p.web_social ? (/instagram/i.test(p.web_social) ? " (solo el perfil de Instagram)" : /facebook|fb\./i.test(p.web_social) ? " (solo la página de Facebook)" : "") : "";
+  return {
+    asunto: `Una página web para ${p.nombre}`,
+    texto: `Hola, equipo de ${p.nombre}:
+
+Os escribo desde Velority. He visto vuestro negocio en Google Maps${resenas} y me he dado cuenta de que todavía no tenéis página web propia${social}.
+
+Hoy, cuando alguien busca «${tipo} en ${ciudad}» en Google, los negocios con web propia salen antes y dan más confianza. Con una web sencilla enseñaríais vuestros servicios, precios y horarios, y os podrían escribir por WhatsApp o pedir cita directamente.
+
+Hacemos páginas web profesionales a precio cerrado, desde 100 €, y os preparo una demo gratuita y sin compromiso con vuestro negocio para que veáis cómo quedaría: https://velority.es/?demo=1
+
+Si os interesa, respondedme a este correo o decidme un teléfono y os llamo cuando os venga bien.
+
+Un saludo,
+${usuarioActual ? bonito(usuarioActual) + "\n" : ""}Velority · https://velority.es
+
+—
+Si no queréis recibir más correos nuestros, respondednos «BAJA» y no volveremos a escribiros.`,
+  };
+}
+function tarjetaPros(p) {
+  const est = estadoPros(p), env = enviadosA(p.email), ult = env.length ? env.reduce((a, b) => new Date(a.creado_en) > new Date(b.creado_en) ? a : b) : null;
+  const col = { nuevo: "text-sky-300 border-sky-500/40", contactado: "text-fx border-fx/40", respondido: "text-emerald-300 border-emerald-500/40", cliente: "text-emerald-300 border-emerald-500/40", descartado: "text-slate-500 border-line" }[est];
+  const tel = (p.telefono || "").replace(/\s+/g, ""), wa = tel ? "34" + tel.replace(/^\+?34/, "") : "";
+  return `<li class="rounded-xl border ${prosSel === p.id ? "border-fx/60 bg-raised" : "border-line bg-panel"} p-3">
+    <div class="flex flex-wrap items-start gap-2">
+      <div class="min-w-0 flex-1"><p class="font-semibold text-white break-words">${esc(p.nombre)}</p>
+        <p class="text-xs text-slate-400">${esc(p.categoria || "")}${p.ciudad ? " · " + esc(p.ciudad) : ""}${p.valoracion ? ` · ⭐ ${esc(String(p.valoracion).replace(".", ","))}${p.n_resenas ? " (" + p.n_resenas + ")" : ""}` : ""}</p>
+        ${p.direccion ? `<p class="text-xs text-slate-500 break-words">${esc(p.direccion)}</p>` : ""}</div>
+      <span class="mini shrink-0 border ${col}">${ESTADOS_PROS[est]}</span>
+    </div>
+    <div class="mt-2 flex flex-wrap gap-1.5 text-xs">
+      ${tel ? `<a href="tel:${esc(tel)}" class="rounded-md border border-line px-2 py-1 text-slate-300 hover:border-fx">📞 ${esc(p.telefono)}</a><a href="https://wa.me/${esc(wa)}" target="_blank" rel="noopener" class="rounded-md border border-line px-2 py-1 text-slate-300 hover:border-fx">WhatsApp</a>` : ""}
+      ${p.maps_url ? `<a href="${esc(p.maps_url)}" target="_blank" rel="noopener" class="rounded-md border border-line px-2 py-1 text-slate-300 hover:border-fx">📍 Google Maps</a>` : ""}
+      ${p.web_social ? `<a href="${esc(p.web_social)}" target="_blank" rel="noopener" class="rounded-md border border-line px-2 py-1 text-slate-300 hover:border-fx" title="Lo que tiene en Google como web">🔗 ${esc((() => { try { return new URL(p.web_social).hostname.replace(/^www\./, ""); } catch (_) { return "Perfil"; } })())}</a>` : `<span class="rounded-md border border-line px-2 py-1 text-slate-500">Sin web en Google</span>`}
+    </div>
+    <div class="mt-2 flex flex-wrap items-center gap-2">
+      <input id="pros-email-${p.id}" data-pros-email="${p.id}" type="email" value="${esc(p.email || "")}" placeholder="Correo del negocio (de su Instagram, Facebook…)" aria-label="Correo de ${esc(p.nombre)}" class="campo text-sm min-w-0 basis-full sm:basis-0 flex-1" style="padding:.4rem .6rem">
+      <button type="button" data-pros-enviar="${p.id}" class="rounded-lg ${ult ? "border border-fx/50 text-fx hover:bg-fx/10" : "bg-fx hover:bg-fx2 text-[#1a1005]"} text-sm font-bold px-3 py-1.5">${ult ? "✉ Volver a escribir" : "✉ Enviar propuesta"}</button>
+      ${est === "descartado" ? `<button type="button" data-pros-estado="${p.id}:nuevo" class="rounded-lg border border-line px-2.5 py-1.5 text-xs text-slate-300 hover:border-fx">Recuperar</button>`
+        : `<button type="button" data-pros-estado="${p.id}:descartado" class="rounded-lg border border-line px-2.5 py-1.5 text-xs text-slate-400 hover:border-red-500/60 hover:text-red-300">Descartar</button>`}
+      ${est === "respondido" ? `<button type="button" data-pros-estado="${p.id}:cliente" class="rounded-lg border border-emerald-500/40 px-2.5 py-1.5 text-xs text-emerald-300 hover:bg-emerald-500/15">✓ Ya es cliente</button>` : ""}
+    </div>
+    ${ult ? `<p class="mt-2 text-xs text-fx">✉️ Propuesta enviada el ${esc(fechaCorreo(ult.creado_en))}${ult.enviado_por ? " por " + esc(bonito(ult.enviado_por)) : ""}${env.length > 1 ? ` · ${env.length} correos` : ""}${recibidosDe(p.email).length ? ` · <b class="text-emerald-300">ha respondido</b>` : ""} · <button type="button" data-pros-hilo="${esc(p.email)}" class="underline hover:text-white">ver conversación</button></p>`
+      : p.contactado_en ? `<p class="mt-2 text-xs text-fx">Marcado como contactado el ${esc(fechaCorreo(p.contactado_en))}${p.contactado_por ? " por " + esc(bonito(p.contactado_por)) : ""}</p>` : ""}
+    <textarea data-pros-notas="${p.id}" id="pros-notas-${p.id}" rows="1" maxlength="2000" placeholder="Notas (p. ej. «llamé, volver el lunes»)" class="campo mt-2 text-xs" style="padding:.35rem .6rem;resize:vertical">${esc(p.notas || "")}</textarea>
+  </li>`;
+}
+function redactorPros(p) {
+  const b = prosBorrador[p.id] ||= textoPropuesta(p), env = enviadosA(p.email);
+  return `<section class="rounded-2xl border border-fx/40 bg-panel p-4 lg:sticky lg:top-4">
+    <div class="flex items-center gap-2"><h2 class="min-w-0 truncate text-base font-semibold text-white">✉ Propuesta para ${esc(p.nombre)}</h2>
+      <button type="button" data-pros-cerrar class="ml-auto text-slate-400 hover:text-white" aria-label="Cerrar">✕</button></div>
+    ${env.length ? `<p class="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">⚠️ Ya le enviaste ${env.length === 1 ? "un correo" : env.length + " correos"} a esta dirección (el último, el ${esc(fechaCorreo(env.reduce((a, c) => new Date(a.creado_en) > new Date(c.creado_en) ? a : c).creado_en))}). Escríbele de nuevo solo si tiene sentido.</p>` : ""}
+    <form id="pros-form-correo" class="mt-3 space-y-2" novalidate>
+      <input id="pros-para" type="email" placeholder="Para: correo@negocio.es" value="${esc(b.para ?? (p.email || ""))}" class="campo text-sm" style="padding:.5rem .7rem" aria-label="Para">
+      <input id="pros-asunto" value="${esc(b.asunto)}" maxlength="200" class="campo text-sm" style="padding:.5rem .7rem" aria-label="Asunto">
+      <textarea id="pros-texto" rows="16" class="campo text-sm" style="padding:.6rem .7rem;resize:vertical" aria-label="Mensaje">${esc(b.texto)}</textarea>
+      <div class="flex flex-wrap items-center gap-2">
+        <button type="button" data-pros-plantilla="${p.id}" class="rounded-md border border-line px-2.5 py-1 text-xs text-slate-400 hover:border-fx">↺ Volver a la plantilla</button>
+        <span class="text-xs text-slate-500">Sale desde ${CORREO_CONTACTO}</span>
+        <button type="submit" ${prosEnviando ? "disabled" : ""} class="ml-auto rounded-lg bg-fx hover:bg-fx2 disabled:opacity-60 text-[#1a1005] text-sm font-bold px-4 py-2">${prosEnviando ? "Enviando…" : "Enviar"}</button></div>
+      <p class="text-[11px] leading-snug text-slate-500">Escribe a cada negocio de uno en uno y personaliza el mensaje. Si alguien responde «BAJA», márcalo como descartado y no vuelvas a escribirle.</p>
+    </form></section>`;
+}
+function renderProspectos(el) {
+  const todos = prospectos || [], q = norm(prosBusca);
+  const cuenta = k => todos.filter(p => k === "todos" || estadoPros(p) === k || (k === "contactado" && estadoPros(p) === "respondido")).length;
+  const lista = todos.filter(p => prosFiltro === "todos" || estadoPros(p) === prosFiltro || (prosFiltro === "contactado" && estadoPros(p) === "respondido"))
+    .filter(p => !q || norm([p.nombre, p.categoria, p.ciudad, p.direccion, p.email, p.busqueda].join(" ")).includes(q));
+  const sel = prosSel ? todos.find(p => p.id === prosSel) : null;
+  if (prosSel && !sel) prosSel = null;
+  const filtro = (k, t) => `<button type="button" data-pros-filtro="${k}" class="rounded-full border px-3 py-1 text-xs ${prosFiltro === k ? "border-fx/60 bg-fx/10 text-white" : "border-line text-slate-400 hover:text-white"}">${t} <span class="text-slate-500">${cuenta(k)}</span></button>`;
+  el.innerHTML = `
+  <header class="flex flex-wrap items-start justify-between gap-3 mb-4">
+    <div><h1 class="font-display text-2xl font-bold text-white leading-tight">Correo</h1>
+      <p class="text-sm text-slate-500 mt-1">Negocios de Google Maps en España que no tienen página web propia. Busca, apunta su correo y envíales una propuesta.</p></div>
+  </header>
+  ${pestanasCorreo()}
+  <form id="pros-buscar" class="mb-4 grid gap-2 rounded-2xl border border-line bg-panel p-3 sm:grid-cols-[1fr_1fr_auto_auto] items-end" novalidate>
+    <label class="text-xs text-slate-400">Tipo de negocio<input id="pros-negocio" value="${esc(prosForm.negocio)}" list="pros-tipos" placeholder="peluquería, taller, fisioterapia…" maxlength="80" class="campo mt-1 text-sm" style="padding:.5rem .7rem"></label>
+    <label class="text-xs text-slate-400">Ciudad o zona<input id="pros-zona" value="${esc(prosForm.zona)}" placeholder="Valencia, Ruzafa, Getafe…" maxlength="80" class="campo mt-1 text-sm" style="padding:.5rem .7rem"></label>
+    <label class="text-xs text-slate-400">Resultados<select id="pros-paginas" class="campo mt-1 text-sm" style="padding:.5rem .7rem">${[["1", "20"], ["2", "40"], ["3", "60"]].map(([v, t]) => `<option value="${v}" ${prosForm.paginas === v ? "selected" : ""}>Hasta ${t}</option>`).join("")}</select></label>
+    <button type="submit" ${prosBuscando ? "disabled" : ""} class="rounded-lg bg-fx hover:bg-fx2 disabled:opacity-60 text-[#1a1005] text-sm font-bold px-4 py-2">${prosBuscando ? "Buscando…" : "🔎 Buscar en Google"}</button>
+    <datalist id="pros-tipos">${["Peluquería", "Barbería", "Centro de estética", "Taller mecánico", "Fisioterapia", "Clínica dental", "Restaurante", "Cafetería", "Panadería", "Floristería", "Fontanero", "Electricista", "Academia", "Gimnasio", "Tienda de ropa", "Inmobiliaria", "Veterinario", "Autoescuela"].map(x => `<option value="${x}">`).join("")}</datalist>
+    ${prosUltima ? `<p class="sm:col-span-4 text-xs text-slate-400">«${esc(prosUltima.consulta)}»: ${prosUltima.total} negocios en Google, ${prosUltima.con_web} con web, <b class="text-white">${prosUltima.sin_web} sin web</b> → ${prosUltima.nuevos} nuevos${prosUltima.repetidos ? `, ${prosUltima.repetidos} ya estaban en la lista` : ""}.</p>` : ""}
+  </form>
+  <div class="mb-3 flex flex-wrap items-center gap-2">
+    ${filtro("nuevo", "Por contactar")}${filtro("contactado", "Propuesta enviada")}${filtro("respondido", "Han respondido")}${filtro("cliente", "Clientes")}${filtro("descartado", "Descartados")}${filtro("todos", "Todos")}
+    <input id="pros-busca" type="search" value="${esc(prosBusca)}" placeholder="Filtrar por nombre, ciudad…" aria-label="Filtrar clientes potenciales" class="campo text-sm ml-auto w-full sm:w-60" style="padding:.4rem .7rem">
+  </div>
+  <div class="grid gap-4 ${sel ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,460px)]" : ""} items-start">
+    <div class="${sel ? "hidden lg:block" : ""} min-w-0">
+      ${prospectos === null ? `<p class="py-16 text-center text-sm text-slate-500">Cargando…</p>`
+        : lista.length ? `<ul class="grid gap-2 ${sel ? "" : "xl:grid-cols-2"}">${lista.slice(0, 300).map(tarjetaPros).join("")}</ul>${lista.length > 300 ? `<p class="mt-2 text-center text-xs text-slate-500">Se muestran 300 de ${lista.length}. Usa el filtro.</p>` : ""}`
+        : `<p class="rounded-2xl border border-line bg-panel py-14 text-center text-sm text-slate-500">${todos.length ? "No hay negocios en este apartado." : "Todavía no hay clientes potenciales. Escribe un tipo de negocio y una ciudad y pulsa «Buscar en Google»."}</p>`}
+    </div>
+    ${sel ? `<div class="min-w-0"><button type="button" data-pros-cerrar class="lg:hidden mb-2 text-sm text-slate-400 hover:text-white">← Volver a la lista</button>${redactorPros(sel)}</div>` : ""}
+  </div>`;
+}
+async function buscarProspectos() {
+  if (prosBuscando) return;
+  if (!prosForm.negocio.trim() || !prosForm.zona.trim()) { toast("Escribe el tipo de negocio y la ciudad o zona."); return; }
+  prosBuscando = true; renderCorreo();
+  try {
+    prosUltima = await invocar("prospectos", { accion: "buscar", negocio: prosForm.negocio.trim(), zona: prosForm.zona.trim(), paginas: Number(prosForm.paginas) });
+    prosFiltro = "nuevo";
+    await cargarProspectos(true);
+    toast(prosUltima.nuevos ? "🎯 " + prosUltima.nuevos + (prosUltima.nuevos === 1 ? " negocio nuevo sin web" : " negocios nuevos sin web") : "No hay negocios nuevos sin web en esta búsqueda. Prueba otra zona o tipo de negocio.", 6000);
+  } catch (e) { toast(e.message + (/Failed to send|non-2xx|fetch/i.test(e.message) ? " (¿has desplegado la función «prospectos»?)" : ""), 9000); }
+  finally { prosBuscando = false; renderCorreo(); }
+}
+async function guardarProspecto(id, cambios, silencio) {
+  const p = (prospectos || []).find(x => x.id === id);
+  if (!p) return false;
+  const { error } = await db.from("prospectos").update(cambios).eq("id", id);
+  if (error) { toast("No se pudo guardar: " + error.message); return false; }
+  Object.assign(p, cambios);
+  if (!silencio) renderCorreo();
+  return true;
+}
+async function enviarPropuesta() {
+  const p = (prospectos || []).find(x => x.id === prosSel);
+  if (!p || prosEnviando) return;
+  const b = prosBorrador[p.id] || {}, para = String(($("pros-para") || {}).value || "").trim().toLowerCase();
+  const asunto = String(($("pros-asunto") || {}).value || "").trim(), texto = String(($("pros-texto") || {}).value || "").trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(para)) { toast("Escribe el correo del negocio."); return; }
+  if (!asunto || !texto) { toast("Escribe el asunto y el mensaje."); return; }
+  const otro = (prospectos || []).find(x => x.id !== p.id && (x.email || "").toLowerCase() === para);
+  if (otro && !confirm("Ese correo ya está apuntado en otro negocio («" + otro.nombre + "»). ¿Enviar igualmente?")) return;
+  if (enviadosA(para).length && !confirm("Ya le enviaste un correo a " + para + ". ¿Enviar otro?")) return;
+  prosEnviando = true; renderCorreo();
+  try {
+    const fila = await invocar("buzon", { accion: "responder", contacto: para, asunto, texto });
+    if (fila && fila.id && !correos.some(c => c.id === fila.id)) correos.unshift(fila);
+    await guardarProspecto(p.id, { email: para, estado: p.estado === "nuevo" ? "contactado" : p.estado, contactado_en: new Date().toISOString(), contactado_por: usuarioActual }, true);
+    delete prosBorrador[p.id]; prosSel = null;
+    toast("✉️ Propuesta enviada a " + p.nombre);
+  } catch (e) { toast(e.message, 8000); }
+  finally { prosEnviando = false; renderCorreo(); }
+}
+document.addEventListener("click", e => {
+  const t = e.target;
+  if (!t.closest || !t.closest("#vista-correo")) return;
+  const tab = t.closest("[data-correo-tab]");
+  if (tab) { correoTab = tab.dataset.correoTab; if (correoTab === "prospectos") cargarProspectos(); renderCorreo(); return; }
+  const ver = t.closest("[data-pros-ver]");
+  if (ver) { correoTab = "prospectos"; prosFiltro = "todos"; prosSel = Number(ver.dataset.prosVer); renderCorreo(); return; }
+  const fil = t.closest("[data-pros-filtro]");
+  if (fil) { prosFiltro = fil.dataset.prosFiltro; renderCorreo(); return; }
+  const env = t.closest("[data-pros-enviar]");
+  if (env) {
+    const id = Number(env.dataset.prosEnviar), p = prospectos.find(x => x.id === id), em = ($("pros-email-" + id) || {}).value;
+    if (p && em !== undefined && em.trim() !== (p.email || "")) (prosBorrador[id] ||= textoPropuesta(p)).para = em.trim();
+    prosSel = id; renderCorreo(); scrollTo(0, 0);
+    const f = $(((prosBorrador[id] || {}).para ?? p.email) ? "pros-texto" : "pros-para"); if (f) f.focus();
+    return;
+  }
+  if (t.closest("[data-pros-cerrar]")) { prosSel = null; renderCorreo(); return; }
+  const pl = t.closest("[data-pros-plantilla]");
+  if (pl) { const id = Number(pl.dataset.prosPlantilla), p = prospectos.find(x => x.id === id), para = (prosBorrador[id] || {}).para; prosBorrador[id] = { ...textoPropuesta(p), ...(para !== undefined ? { para } : {}) }; renderCorreo(); return; }
+  const es = t.closest("[data-pros-estado]");
+  if (es) { const [id, v] = es.dataset.prosEstado.split(":"); guardarProspecto(Number(id), { estado: v }); return; }
+  const hl = t.closest("[data-pros-hilo]");
+  if (hl) { correoTab = "bandeja"; correoSel = hl.dataset.prosHilo.toLowerCase(); renderCorreo(); return; }
+});
+document.addEventListener("input", e => {
+  const t = e.target, id = t && t.id;
+  if (!id) return;
+  if (id === "pros-busca") { prosBusca = t.value; renderCorreo(); return; }
+  const f = { "pros-negocio": "negocio", "pros-zona": "zona", "pros-paginas": "paginas" }[id];
+  if (f) { prosForm[f] = t.value; return; }
+  const c = { "pros-para": "para", "pros-asunto": "asunto", "pros-texto": "texto" }[id];
+  if (c && prosSel) prosBorrador[prosSel][c] = t.value;
+});
+document.addEventListener("change", e => {
+  const t = e.target;
+  if (!t || !t.dataset) return;
+  if (t.id === "pros-paginas") { prosForm.paginas = t.value; return; }
+  if (t.dataset.prosEmail) {
+    const id = Number(t.dataset.prosEmail), v = t.value.trim().toLowerCase();
+    if (v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) { toast("Ese correo no parece válido."); return; }
+    guardarProspecto(id, { email: v || null }, true).then(ok => { if (ok) { toast("Correo guardado"); renderCorreo(); } });
+  }
+  if (t.dataset.prosNotas) guardarProspecto(Number(t.dataset.prosNotas), { notas: t.value.trim() || null }, true).then(ok => ok && toast("Nota guardada"));
+});
+document.addEventListener("submit", e => {
+  if (e.target && e.target.id === "pros-buscar") { e.preventDefault(); buscarProspectos(); }
+  if (e.target && e.target.id === "pros-form-correo") { e.preventDefault(); enviarPropuesta(); }
+});
+document.addEventListener("keydown", e => {
+  if (e.target && e.target.id === "pros-texto" && e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); enviarPropuesta(); }
 });
 
 function renderRenovaciones() {
