@@ -2805,8 +2805,8 @@ document.addEventListener("keydown", e => {
 // Salen solos: al abrir la pestaña la función recorre ciudades de España en OpenStreetMap (datos públicos, sin clave).
 // Si no traen correo, se apunta a mano (de su Instagram, Facebook o su ficha de Google Maps).
 // «Enviar propuesta» abre un correo ya redactado para ese negocio. Se marca como enviada si en «correos» ya hay uno nuestro a esa dirección.
-// «Solo con correo» (por defecto): Google no da correos, así que los demás quedan ocultos hasta que se les apunta uno
-let prosSoloCorreo = (() => { try { return localStorage.getItem("pros-solo-correo") !== "0"; } catch (_) { return true; } })();
+// «Solo con correo» (opcional): Google no da correos, así que al marcarlo solo quedan los que tienen uno apuntado
+let prosSoloCorreo = (() => { try { return localStorage.getItem("pros-solo-correo2") === "1"; } catch (_) { return false; } })();
 let prospectos = null, prosFiltro = "nuevo", prosBusca = "", prosSel = null, prosBuscando = false, prosEnviando = false, prosUltima = null, prosAutoHecho = false;
 const prosForm = { negocio: "", zona: "", paginas: "1" }, prosBorrador = {};
 const ESTADOS_PROS = { nuevo: "Por contactar", contactado: "Propuesta enviada", respondido: "Ha respondido", cliente: "Ya es cliente", descartado: "Descartado" };
@@ -3018,7 +3018,7 @@ document.addEventListener("change", e => {
   const t = e.target;
   if (!t || !t.dataset) return;
   if (t.id === "pros-paginas") { prosForm.paginas = t.value; return; }
-  if (t.id === "pros-solo-correo") { prosSoloCorreo = t.checked; try { localStorage.setItem("pros-solo-correo", t.checked ? "1" : "0"); } catch (_) {} renderCorreo(); return; }
+  if (t.id === "pros-solo-correo") { prosSoloCorreo = t.checked; try { localStorage.setItem("pros-solo-correo2", t.checked ? "1" : "0"); } catch (_) {} renderCorreo(); return; }
   if (t.dataset.prosEmail) {
     const id = Number(t.dataset.prosEmail), v = t.value.trim().toLowerCase();
     if (v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) { toast("Ese correo no parece válido."); return; }
