@@ -1,7 +1,6 @@
 // Edge Function "prospectos": busca negocios de España sin página web propia y los guarda en la tabla «prospectos».
-// Solo se guardan negocios SIN web y CON correo publicado. Google Maps no da correos, así que la búsqueda va a
-// OpenStreetMap (datos públicos, sin clave), pidiendo directamente los que tienen correo. Google no se usa (no gasta cupo).
-//   · accion "auto"   (panel)  {forzar?}          → recorre provincias de España, una por llamada (como mucho cada 6 h)
+// Fuente: Google Maps si existe el secreto GOOGLE_PLACES_KEY (recomendado); si no, OpenStreetMap (datos públicos, sin clave).
+//   · accion "auto"   (panel)  {forzar?}          → recorre tipos de negocio y ciudades de España, uno por llamada (como mucho cada 6 h)
 //   · accion "buscar" (panel)  {zona, negocio?}   → busca en una ciudad o zona concreta
 // Límite de Google: como mucho LIMITE_GOOGLE peticiones al mes (el plan gratuito de estos datos es de 1.000); al llegar,
 // la función deja de llamar a Google hasta el mes siguiente. Lo cuenta servidor_gastar_google (supabase_prospectos.sql).
@@ -18,12 +17,18 @@ const responder = (cuerpo: unknown, status = 200) =>
 const env = (k: string) => Deno.env.get(k) || "";
 const norm = (s: unknown) => String(s ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-// Provincias que recorre la búsqueda automática (nombre en español, «name:es» de OpenStreetMap; nivel administrativo 6)
-const PROVINCIAS = ["Valencia", "Alicante", "Castellón", "Murcia", "Madrid", "Barcelona", "Málaga", "Sevilla", "Zaragoza", "Islas Baleares",
-  "Las Palmas", "Santa Cruz de Tenerife", "Vizcaya", "Asturias", "La Coruña", "Pontevedra", "Granada", "Córdoba", "Cádiz", "Almería",
-  "Albacete", "Toledo", "Ciudad Real", "Badajoz", "Cáceres", "Valladolid", "Salamanca", "Burgos", "León", "Navarra", "La Rioja", "Cantabria",
-  "Guipúzcoa", "Álava", "Tarragona", "Lérida", "Gerona", "Huesca", "Teruel", "Cuenca", "Guadalajara", "Jaén", "Huelva", "Lugo", "Orense",
-  "Palencia", "Segovia", "Ávila", "Soria", "Zamora"];
+// Ciudades que recorre la búsqueda automática (nombre en español, como en OpenStreetMap «name:es»/«name»)
+const CIUDADES = ["Gandía", "Alzira", "Sagunto", "Torrent", "Paterna", "Castellón de la Plana", "Elche", "Alicante", "Benidorm", "Murcia",
+  "Cartagena", "Albacete", "Valencia", "Getafe", "Alcalá de Henares", "Móstoles", "Leganés", "Fuenlabrada", "Alcorcón", "Madrid",
+  "Toledo", "Guadalajara", "Zaragoza", "Logroño", "Pamplona", "Vitoria-Gasteiz", "Bilbao", "San Sebastián", "Santander", "Oviedo", "Gijón",
+  "León", "Burgos", "Valladolid", "Salamanca", "Cáceres", "Badajoz", "Córdoba", "Jaén", "Granada", "Almería", "Málaga", "Marbella",
+  "Sevilla", "Huelva", "Cádiz", "Jerez de la Frontera", "Algeciras", "Palma", "Las Palmas de Gran Canaria", "Santa Cruz de Tenerife",
+  "Tarragona", "Reus", "Lleida", "Girona", "Sabadell", "Terrassa", "Badalona", "Mataró", "Barcelona", "A Coruña", "Vigo", "Ourense", "Lugo"];
+
+// Tipos de negocio que recorre la búsqueda automática con Google Maps (en cada ciudad, todos los tipos)
+const BUSQUEDAS = ["Peluquería", "Barbería", "Centro de estética", "Taller mecánico", "Fisioterapia", "Clínica dental", "Restaurante",
+  "Cafetería", "Panadería", "Floristería", "Fontanero", "Electricista", "Academia", "Gimnasio", "Inmobiliaria", "Veterinario",
+  "Autoescuela", "Tienda de ropa", "Carpintería", "Reformas"];
 
 // Qué es cada negocio, en español (etiquetas de OpenStreetMap)
 const TIPOS: Record<string, string> = {
@@ -49,20 +54,19 @@ function patronZona(zona: string) {
   const base = norm(zona).replace(/[^a-z0-9 '·-]/g, "").trim().replace(/\s+/g, " ");
   return "(^|/)" + [...base].map((ch) => VOC[ch] || (ch === " " ? "[ -]" : ch)).join("") + "($|/| -)";
 }
-function consultaOSM(zona: string, provincia = false) {
-  const z = patronZona(zona), nivel = provincia ? "^6$" : "^(6|7|8|9|10)$";
-  // Sin web propia, sin marca (cadenas) y con correo publicado
-  const sinWeb = `["name"][!"website"][!"contact:website"][!"url"][!"brand"][!"brand:wikidata"][~"^(email|contact:email)$"~"@"]`;
-  return `[out:json][timeout:60];area["ISO3166-1"="ES"]->.es;
-(area["boundary"="administrative"]["admin_level"~"${nivel}"]["name"~"${z}",i](area.es);
- area["boundary"="administrative"]["admin_level"~"${nivel}"]["name:es"~"${z}",i](area.es);)->.c;
+function consultaOSM(zona: string) {
+  const z = patronZona(zona);
+  const sinWeb = `["name"][!"website"][!"contact:website"][!"url"][!"brand"][!"brand:wikidata"]`;
+  return `[out:json][timeout:50];area["ISO3166-1"="ES"]->.es;
+(area["boundary"="administrative"]["admin_level"~"^(7|8|9|10)$"]["name"~"${z}",i](area.es);
+ area["boundary"="administrative"]["admin_level"~"^(7|8|9|10)$"]["name:es"~"${z}",i](area.es);)->.c;
 (nwr["shop"]${sinWeb}(area.c);nwr["craft"]${sinWeb}(area.c);
  nwr["amenity"~"^(restaurant|cafe|dentist|clinic|veterinary|driving_school)$"]${sinWeb}(area.c);
- nwr["office"]${sinWeb}(area.c);
+ nwr["office"~"^(estate_agent|lawyer|accountant|insurance)$"]${sinWeb}(area.c);
  nwr["leisure"="fitness_centre"]${sinWeb}(area.c);nwr["healthcare"]${sinWeb}(area.c););out center tags 600;`;
 }
-async function pedirOSM(zona: string, provincia = false) {
-  const cuerpo = "data=" + encodeURIComponent(consultaOSM(zona, provincia));
+async function pedirOSM(zona: string) {
+  const cuerpo = "data=" + encodeURIComponent(consultaOSM(zona));
   const fallos: string[] = [];
   const inicio = Date.now();
   // Los servidores públicos a veces están llenos (502/429/504): se prueban varios, con una pequeña espera entre uno y otro
@@ -81,7 +85,7 @@ async function pedirOSM(zona: string, provincia = false) {
     } catch (e) { fallos.push(host + " " + String((e as Error)?.name || e)); }
   }
   console.error("OpenStreetMap: " + fallos.join(", "));
-  throw new Error("Los servidores gratuitos de OpenStreetMap están saturados ahora mismo. Prueba otra vez en unos minutos.");
+  throw new Error("Los servidores gratuitos de OpenStreetMap están saturados ahora mismo. Prueba en unos minutos o añade la clave de Google Maps (GOOGLE_PLACES_KEY).");
 }
 function filaOSM(el: Record<string, any>, zona: string, consulta: string) {
   const t = el.tags || {};
@@ -103,7 +107,6 @@ function filaOSM(el: Record<string, any>, zona: string, consulta: string) {
 
 // Google Maps (opcional, solo si hay clave): una «web» que es una red social o un directorio cuenta como «sin web»
 const LIMITE_GOOGLE = 900;
-const SOLO_CON_CORREO = true;
 const SOCIAL = /(facebook\.|instagram\.|fb\.(com|me)|linktr\.ee|tiktok\.|twitter\.|(^|\.)x\.com$|wa\.me|whatsapp\.|business\.site$|g\.page|tripadvisor\.|paginasamarillas\.|eltenedor\.|thefork\.|booksy\.|treatwell\.|glovoapp\.|just-eat\.|ubereats\.)/i;
 const CAMPOS = ["places.id", "places.displayName", "places.formattedAddress", "places.addressComponents", "places.nationalPhoneNumber",
   "places.websiteUri", "places.googleMapsUri", "places.rating", "places.userRatingCount", "places.primaryTypeDisplayName",
@@ -169,27 +172,28 @@ Deno.serve(async (req) => {
       const { count } = await admin.from("prospectos").select("id", { count: "exact", head: true }).eq("estado", "nuevo");
       const reciente = estadoAuto.ultimo && Date.now() - Date.parse(estadoAuto.ultimo) < 6 * 3600e3;
       if (!cuerpo.forzar && reciente && (count || 0) >= 20) return responder({ ok: true, saltado: true });
-      zona = PROVINCIAS[(estadoAuto.i || 0) % PROVINCIAS.length];
+      const i = estadoAuto.i || 0;
+      if (env("GOOGLE_PLACES_KEY")) {   // Google: todos los tipos de negocio en una ciudad y luego la siguiente
+        zona = CIUDADES[Math.floor(i / BUSQUEDAS.length) % CIUDADES.length]; negocio = BUSQUEDAS[i % BUSQUEDAS.length];
+      } else zona = CIUDADES[i % CIUDADES.length];
     } else if (cuerpo.accion === "buscar") {
       zona = String(cuerpo.zona || "").trim().slice(0, 80);
       negocio = String(cuerpo.negocio || "").trim().slice(0, 80);
       if (!zona) return responder({ error: "Escribe la ciudad o zona." }, 400);
     } else return responder({ error: "Acción desconocida." }, 400);
 
-    const consulta = (negocio ? `${negocio} en ${zona}` : `Negocios en ${zona}`) + " (con correo)";
+    const consulta = negocio ? `${negocio} en ${zona}` : `Negocios en ${zona}`;
     let filas: Record<string, any>[] = [], total = 0, conWeb = 0, uso: number | null = null;
-    // Google Maps no da correos: con «solo con correo» no se le llama nunca (no se gasta cupo). Se deja por si cambia.
-    const claveGoogle = SOLO_CON_CORREO ? "" : env("GOOGLE_PLACES_KEY");
+    const claveGoogle = env("GOOGLE_PLACES_KEY");
     if (claveGoogle) {
       fuente = "Google Maps";
       ({ filas, total, conWeb, uso } = await pedirGoogle(admin, claveGoogle, negocio, zona, consulta, estadoAuto ? 2 : 3));
     } else {
-      const els = (await pedirOSM(zona, !!estadoAuto)).filter((e) => e.tags?.name && !e.tags?.disused && !e.tags?.["disused:shop"]);
+      const els = (await pedirOSM(zona)).filter((e) => e.tags?.name && !e.tags?.disused && !e.tags?.["disused:shop"]);
       filas = els.map((e) => filaOSM(e, zona, consulta));
       if (negocio) { const n = norm(negocio); filas = filas.filter((f) => norm(f.categoria + " " + f.nombre).includes(n)); }
       total = filas.length;
     }
-    if (SOLO_CON_CORREO) filas = filas.filter((f) => f.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email));
     // Primero los que tienen forma de contactarlos
     filas.sort((a, b) => (b.email ? 2 : 0) + (b.telefono ? 1 : 0) - (a.email ? 2 : 0) - (a.telefono ? 1 : 0));
     filas = filas.slice(0, 300);
