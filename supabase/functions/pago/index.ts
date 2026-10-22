@@ -4,6 +4,8 @@
 //   · Planes de web (proyectos por fases): {servicio_id} cobra el 50 % de anticipo del precio cerrado y, cuando el
 //     cliente aprueba el diseño final, el 50 % restante.
 //   · Aviso de Stripe (webhook «checkout.session.completed»): registra el pedido aunque el cliente cierre la página.
+//   · codigo    {token, codigo, nombre | servicio_id} → comprueba un código promocional y devuelve el importe con descuento
+//     (crear acepta también {codigo}; el descuento se aplica al importe de Stripe y el uso se apunta al confirmar el pago)
 //   · facturas  {token}                      → añade a «Servicios y facturas» las facturas de sus pagos que aún no estén
 //   · Cada pago de pago único genera una factura de Stripe (invoice_creation); se guarda en webs_cliente.facturas
 //     (si un pago antiguo no tiene factura, se guarda su recibo de Stripe). Requiere supabase_facturas_stripe.sql.
@@ -75,6 +77,21 @@ async function firmaValida(cuerpo: string, cabecera: string) {
   return v1.includes(hex);
 }
 
+// Códigos promocionales (tabla codigos_promo, ver supabase_codigos.sql). En webs por fases el descuento se reparte entre
+// las dos partes: el porcentaje se aplica a cada mitad y el importe fijo, la mitad en cada una. Stripe no cobra menos de 0,50 €.
+type Codigo = { id: number; codigo: string; tipo: string; valor: number };
+async function validarCodigo(db: SupabaseClient, codigo: string, cliente: string, tipo: string): Promise<Codigo> {
+  const { data, error } = await db.rpc("servidor_validar_codigo", { p_codigo: codigo, p_cliente: cliente, p_tipo: tipo });
+  if (error) throw new Error(error.message);
+  return data as Codigo;
+}
+function descontar(eur: number, c: Codigo, fase: boolean) {
+  const d = c.tipo === "porcentaje" ? Math.round(eur * c.valor) / 100 : (fase ? c.valor / 2 : c.valor);
+  const ahora = Math.max(0.5, Math.round((eur - d) * 100) / 100);
+  return { ahora, descuento: Math.round((eur - ahora) * 100) / 100 };
+}
+const textoCodigo = (c: Codigo) => c.tipo === "porcentaje" ? `-${Number(c.valor)} %` : `-${Number(c.valor).toLocaleString("es-ES")} €`;
+
 // Registra un pago completado (una sola vez por sesión de Stripe)
 async function registrar(db: SupabaseClient, s: Record<string, any>) {
   const pagado = s.payment_status === "paid" || s.payment_status === "no_payment_required";
@@ -85,6 +102,7 @@ async function registrar(db: SupabaseClient, s: Record<string, any>) {
       p_sesion: s.id, p_cliente: m.cliente_id, p_servicio: Number(m.servicio_id), p_parte: m.parte, p_importe: Number(s.amount_total || 0) / 100,
     });
     if (error) throw error;
+    if (m.codigo_id && !m.codigo_fijado) await db.rpc("servidor_usar_codigo", { p_codigo: Number(m.codigo_id), p_cliente: m.cliente_id, p_sesion: s.id, p_descuento: Number(m.descuento || 0), p_servicio: m.servicio_id ? Number(m.servicio_id) : null });
     await metodoPago(db, s.id, m.cliente_id).catch(() => {});
     await guardarFactura(db, s.id, m.cliente_id).catch((e) => console.error("Factura: " + e.message));
     return data;
@@ -94,6 +112,7 @@ async function registrar(db: SupabaseClient, s: Record<string, any>) {
     p_importe: m.cuota ? Number(m.cuota) : Number(s.amount_total || 0) / 100, p_modo: s.mode, p_servicio: m.servicio_id ? Number(m.servicio_id) : null,
   });
   if (error) throw error;
+  if (m.codigo_id) await db.rpc("servidor_usar_codigo", { p_codigo: Number(m.codigo_id), p_cliente: m.cliente_id, p_sesion: s.id, p_descuento: Number(m.descuento || 0), p_servicio: null });
   await metodoPago(db, s.id, m.cliente_id).catch(() => {});
   await guardarFactura(db, s.id, m.cliente_id).catch((e) => console.error("Factura: " + e.message));
   return data;
@@ -152,7 +171,7 @@ Deno.serve(async (req) => {
     if (b.accion === "crear") {
       let nombre = String(b.nombre || ""), servicioId: number | null = null;
       if (b.servicio_id) {
-        const { data: s } = await db.from("servicios_cliente").select("id,nombre,pagado_en,estado,tipo,importe,anticipo_en,aprobado_en").eq("id", Number(b.servicio_id)).eq("cliente_id", cid).maybeSingle();
+        const { data: s } = await db.from("servicios_cliente").select("id,nombre,pagado_en,estado,tipo,importe,anticipo_en,aprobado_en,codigo_id").eq("id", Number(b.servicio_id)).eq("cliente_id", cid).maybeSingle();
         if (!s) return responder({ error: "Pedido no encontrado." }, 404);
         if (s.pagado_en) return responder({ error: "Este pedido ya está pagado." }, 400);
         nombre = s.nombre; servicioId = s.id;
@@ -162,12 +181,21 @@ Deno.serve(async (req) => {
           const parte = s.anticipo_en ? "final" : "anticipo";
           if (parte === "final" && !s.aprobado_en) return responder({ error: "El 50 % restante se paga cuando apruebes el diseño final en la demo." }, 400);
           if (!b.acepta) return responder({ error: "Para pagar tienes que aceptar el Aviso Legal y las Condiciones de Contratación de Servicios de Pago Único. Recarga la página e inténtalo de nuevo." }, 400);
-          const total = Number(s.importe), anticipo = Math.round(total * 50) / 100, eur = parte === "anticipo" ? anticipo : Math.round((total - anticipo) * 100) / 100;
+          const total = Number(s.importe), anticipo = Math.round(total * 50) / 100;
+          let eur = parte === "anticipo" ? anticipo : Math.round((total - anticipo) * 100) / 100;
+          // Código: el que ya quedó fijado en el anticipo se aplica solo al pago final; si no, el que escriba ahora el cliente
+          let cod: Codigo | null = null, fijado = false;
+          if (s.codigo_id) {
+            const { data: c } = await db.from("codigos_promo").select("id,codigo,tipo,valor").eq("id", s.codigo_id).maybeSingle();
+            if (c) { cod = c as Codigo; fijado = true; }
+          } else if (b.codigo) cod = await validarCodigo(db, String(b.codigo), cid, "web");
+          const rebaja = cod ? descontar(eur, cod, true) : null;
+          if (rebaja) eur = rebaja.ahora;
           const { data: c } = await db.from("clientes").select("email").eq("id", cid).maybeSingle();
           const d: Record<string, string> = {
             mode: "payment", "managed_payments[enabled]": "false", "line_items[0][quantity]": "1", "line_items[0][price_data][currency]": "eur",
             "line_items[0][price_data][unit_amount]": String(Math.round(eur * 100)),
-            "line_items[0][price_data][product_data][name]": nombre + (parte === "anticipo" ? " · anticipo del 50 %" : " · pago final del 50 %"),
+            "line_items[0][price_data][product_data][name]": nombre + (parte === "anticipo" ? " · anticipo del 50 %" : " · pago final del 50 %") + (cod ? ` (código ${cod.codigo} ${textoCodigo(cod)})` : ""),
             client_reference_id: cid,
             "metadata[cliente_id]": cid, "metadata[tipo]": "web", "metadata[nombre]": nombre, "metadata[servicio_id]": String(s.id), "metadata[parte]": parte,
             "metadata[acepta_condiciones]": String(b.acepta).slice(0, 60), "metadata[acepta_en]": new Date().toISOString(),
@@ -178,6 +206,7 @@ Deno.serve(async (req) => {
             locale: "es",
           };
           if (c?.email) d.customer_email = c.email;
+          if (cod && rebaja) { d["metadata[codigo_id]"] = String(cod.id); d["metadata[codigo]"] = cod.codigo; d["metadata[descuento]"] = String(rebaja.descuento); if (fijado) d["metadata[codigo_fijado]"] = "1"; }
           const ses = await stripe("checkout/sessions", d);
           return responder({ url: ses.url });
         }
@@ -188,12 +217,15 @@ Deno.serve(async (req) => {
       if (it.cada && env("SUSCRIPCIONES_ACTIVAS") !== "1") return responder({ error: "Los planes de suscripción estarán disponibles muy pronto. Ahora mismo solo contratamos servicios de pago único." }, 400);
       if (!b.acepta) return responder({ error: "Para pagar tienes que aceptar el Aviso Legal y las Condiciones de Contratación de Servicios de Pago Único. Recarga la página e inténtalo de nuevo." }, 400);
       const { data: c } = await db.from("clientes").select("email").eq("id", cid).maybeSingle();
+      const cod = b.codigo && !it.cada ? await validarCodigo(db, String(b.codigo), cid, it.tipo) : null;
+      const rebaja = cod ? descontar(it.eur, cod, false) : null;
+      if (rebaja) it.eur = rebaja.ahora;
       const d: Record<string, string> = {
         mode: it.cada ? "subscription" : "payment", "managed_payments[enabled]": "false",
         "line_items[0][quantity]": "1",
         "line_items[0][price_data][currency]": "eur",
         "line_items[0][price_data][unit_amount]": String(Math.round((it.cada ? it.normal : it.eur) * 100)),
-        "line_items[0][price_data][product_data][name]": nombre + (it.oferta && !it.cada ? " (oferta -" + it.oferta + "%)" : ""),
+        "line_items[0][price_data][product_data][name]": nombre + (it.oferta && !it.cada ? " (oferta -" + it.oferta + "%)" : "") + (cod ? ` (código ${cod.codigo} ${textoCodigo(cod)})` : ""),
         client_reference_id: cid,
         "metadata[cliente_id]": cid, "metadata[tipo]": it.tipo, "metadata[nombre]": nombre,
         // Constancia de la aceptación de las condiciones (versión y momento), guardada en el propio pago de Stripe
@@ -203,6 +235,7 @@ Deno.serve(async (req) => {
         locale: "es",
       };
       if (servicioId) d["metadata[servicio_id]"] = String(servicioId);
+      if (cod && rebaja) { d["metadata[codigo_id]"] = String(cod.id); d["metadata[codigo]"] = cod.codigo; d["metadata[descuento]"] = String(rebaja.descuento); }
       if (!it.cada) { d["invoice_creation[enabled]"] = "true"; d["invoice_creation[invoice_data][metadata][cliente_id]"] = cid; }
       if (c?.email) d.customer_email = c.email;
       if (it.cada) {
@@ -215,6 +248,23 @@ Deno.serve(async (req) => {
       }
       const s = await stripe("checkout/sessions", d);
       return responder({ url: s.url });
+    }
+
+    if (b.accion === "codigo") {
+      // Solo calcula: el cobro real lo vuelve a comprobar «crear»
+      let tipo = "", eur = 0, fase = false;
+      if (b.servicio_id) {
+        const { data: s } = await db.from("servicios_cliente").select("nombre,tipo,importe,anticipo_en,codigo_id").eq("id", Number(b.servicio_id)).eq("cliente_id", cid).maybeSingle();
+        if (!s) return responder({ error: "Pedido no encontrado." }, 404);
+        if (s.tipo === "web") {
+          if (s.codigo_id) return responder({ error: "Ya aplicaste un código en el anticipo: se descuenta también en este pago." }, 400);
+          const total = Number(s.importe || 0), anticipo = Math.round(total * 50) / 100;
+          tipo = "web"; fase = true; eur = s.anticipo_en ? Math.round((total - anticipo) * 100) / 100 : anticipo;
+        } else { const it = await delCatalogo(db, s.nombre); if (!it) return responder({ error: "Este pedido no admite códigos." }, 400); tipo = it.tipo; eur = it.eur; }
+      } else { const it = await delCatalogo(db, String(b.nombre || "")); if (!it || it.cada) return responder({ error: "Este servicio no admite códigos." }, 400); tipo = it.tipo; eur = it.eur; }
+      const cod = await validarCodigo(db, String(b.codigo || ""), cid, tipo);
+      const r = descontar(eur, cod, fase);
+      return responder({ ok: true, codigo: cod.codigo, texto: textoCodigo(cod), antes: eur, ahora: r.ahora, descuento: r.descuento, fase });
     }
 
     if (b.accion === "facturas") {

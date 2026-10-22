@@ -394,6 +394,15 @@
       <button type="button" id="precios-guardar" class="ml-auto rounded-md bg-fx hover:bg-fx2 text-[#1a1005] text-sm font-semibold px-4 py-2">Guardar cambios</button></div>
   </div>
 </div>
+<div id="codigos-modal" class="hidden fixed inset-0 z-[66] grid place-items-center bg-black/70 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="codigos-titulo">
+  <div class="w-full max-w-3xl max-h-[90vh] flex flex-col rounded-xl border border-line bg-panel shadow-2xl">
+    <div class="flex items-start justify-between gap-3 px-5 sm:px-6 pt-5 pb-3 border-b border-line">
+      <div class="min-w-0"><h2 id="codigos-titulo" class="font-display text-xl font-bold text-white">Códigos promocionales</h2>
+        <p class="text-xs text-slate-400 mt-1">El cliente lo escribe en «Antes de pagar» y el descuento se aplica en el cobro con tarjeta. En webs por fases se aplica a los dos pagos (el 50 % y el 50 %).</p></div>
+      <button type="button" data-codigos-cerrar class="text-slate-400 hover:text-white p-1" aria-label="Cerrar">✕</button></div>
+    <div id="codigos-cuerpo" class="overflow-y-auto px-5 sm:px-6 py-4 space-y-5"></div>
+  </div>
+</div>
 <div id="renov-modal" class="hidden fixed inset-0 z-[66] grid place-items-center bg-black/70 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="renov-titulo">
   <div class="w-full max-w-md rounded-xl border border-line bg-panel p-5 sm:p-6 shadow-2xl space-y-3">
     <div class="flex items-start justify-between gap-3"><h2 id="renov-titulo" class="font-display text-xl font-bold text-white">Nueva renovación</h2>
@@ -1930,6 +1939,7 @@ $("detalle-modal").addEventListener("click", e => { if (e.target === $("detalle-
 // Escape cierra primero lo que esté más arriba (si el diálogo de confirmar está abierto, lo cierra él)
 document.addEventListener("keydown", e => {
   if (e.key !== "Escape" || !$("confirmar").classList.contains("hidden")) return;
+  if (!$("codigos-modal").classList.contains("hidden")) { $("codigos-modal").classList.add("hidden"); return; }
   if (!$("ficha-modal").classList.contains("hidden")) { cerrarFicha(); return; }
   if (!$("detalle-modal").classList.contains("hidden")) cerrarDetalle();
   else if (!$("papelera-modal").classList.contains("hidden")) cerrarPapelera();
@@ -2510,7 +2520,7 @@ function renderNegocio() {
   <header class="flex flex-wrap items-start justify-between gap-3 mb-4">
     <div><h1 class="font-display text-2xl font-bold text-white leading-tight">Negocio</h1>
       <p class="text-sm text-slate-500 mt-1">Ingresos, clientes, rapidez y satisfacción. Los cobrados suman los pagos únicos ya pagados; la cuota mensual sale del plan de cada cliente.</p></div>
-    <div class="flex flex-wrap items-center gap-2"><button type="button" data-precios class="rounded-xl border border-line px-3 py-2 text-xs font-semibold text-slate-200 hover:border-fx">💶 Precios</button>
+    <div class="flex flex-wrap items-center gap-2"><button type="button" data-precios class="rounded-xl border border-line px-3 py-2 text-xs font-semibold text-slate-200 hover:border-fx">💶 Precios</button><button type="button" data-codigos class="rounded-xl border border-line px-3 py-2 text-xs font-semibold text-slate-200 hover:border-fx">🏷️ Códigos</button>
     <div class="flex items-center gap-1 rounded-xl border border-line bg-base p-1">${[[30, "30 días"], [90, "90 días"], [0, "Todo"]].map(([v, t]) =>
       `<button type="button" data-periodo="${v}" class="px-3 py-1.5 rounded-lg text-xs font-semibold ${periodoNegocio === v ? "bg-raised text-white" : "text-slate-500 hover:text-white"}">${t}</button>`).join("")}</div></div>
   </header>
@@ -3386,6 +3396,78 @@ function abrirPrecios() {
   $("precios-modal").classList.remove("hidden");
 }
 const cerrarPrecios = () => $("precios-modal").classList.add("hidden");
+// ---------- Códigos promocionales (tabla codigos_promo; los valida y aplica la función «pago») ----------
+let codigosPromo = null;
+const APLICA_COD = { todo: "Todo", web: "Creación web", extra: "Servicios adicionales", pack: "Packs" };
+const textoDescuento = c => c.tipo === "porcentaje" ? "−" + Number(c.valor) + " %" : "−" + Number(c.valor).toLocaleString("es-ES") + " €";
+function estadoCodigo(c) {
+  const hoy = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Madrid" });
+  if (!c.activo) return ["Pausado", "bg-base text-slate-400 border-line"];
+  if (c.hasta && c.hasta < hoy) return ["Caducado", "bg-red-500/10 text-red-300 border-red-500/30"];
+  if (c.usos_max && c.usos >= c.usos_max) return ["Agotado", "bg-amber-500/10 text-amber-300 border-amber-500/30"];
+  return ["Activo", "bg-emerald-500/10 text-emerald-300 border-emerald-500/30"];
+}
+async function abrirCodigos() {
+  $("codigos-modal").classList.remove("hidden");
+  $("codigos-cuerpo").innerHTML = `<p class="text-sm text-slate-500">Cargando…</p>`;
+  const { data, error } = await db.from("codigos_promo").select("*").order("creado_en", { ascending: false });
+  if (error) { $("codigos-cuerpo").innerHTML = `<p class="text-sm text-amber-200">No se pudieron cargar: ${esc(error.message)}${/does not exist|relation/i.test(error.message) ? " (ejecuta supabase_codigos.sql)" : ""}</p>`; return; }
+  codigosPromo = data; renderCodigos();
+}
+function renderCodigos() {
+  const ro = !soyDueno, campo = 'class="campo text-sm" style="padding:.45rem .6rem"';
+  const form = ro ? `<p class="text-xs text-slate-400">Solo los propietarios pueden crear o cambiar códigos.</p>` : `
+    <form id="codigo-form" class="rounded-xl border border-line bg-base/60 p-3 grid gap-2 sm:grid-cols-6 items-end" novalidate>
+      <label class="text-[11px] text-slate-400 sm:col-span-2">Código<input id="cod-codigo" ${campo} maxlength="30" placeholder="BIENVENIDA10" style="padding:.45rem .6rem;text-transform:uppercase" required></label>
+      <label class="text-[11px] text-slate-400">Descuento<input id="cod-valor" type="number" min="0.01" step="0.01" inputmode="decimal" ${campo} placeholder="10"></label>
+      <label class="text-[11px] text-slate-400">Tipo<select id="cod-tipo" ${campo}><option value="porcentaje">%</option><option value="importe">€</option></select></label>
+      <label class="text-[11px] text-slate-400 sm:col-span-2">Sirve para<select id="cod-aplica" ${campo}>${Object.entries(APLICA_COD).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select></label>
+      <label class="text-[11px] text-slate-400 sm:col-span-2">Válido hasta (opcional)<input id="cod-hasta" type="date" ${campo}></label>
+      <label class="text-[11px] text-slate-400">Usos máx. (opcional)<input id="cod-max" type="number" min="1" step="1" ${campo} placeholder="∞"></label>
+      <label class="flex items-center gap-2 text-xs text-slate-300 sm:col-span-2 pb-2"><input id="cod-uno" type="checkbox" checked> Una vez por cliente</label>
+      <button type="submit" class="rounded-md bg-fx hover:bg-fx2 text-[#1a1005] text-sm font-semibold px-4 py-2">Crear código</button>
+      <input id="cod-nota" maxlength="300" placeholder="Nota interna (opcional): para quién es, campaña…" class="sm:col-span-6 campo text-sm" style="padding:.45rem .6rem">
+    </form>`;
+  const l = codigosPromo || [];
+  $("codigos-cuerpo").innerHTML = form + (l.length ? `<ul class="divide-y divide-line/70">${l.map(c => { const [et, col] = estadoCodigo(c); return `
+    <li class="py-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+      <span class="min-w-0 flex-1 basis-56"><span class="flex items-center gap-2"><b class="font-mono text-sm text-white tracking-wide">${esc(c.codigo)}</b><span class="mini ${col}">${et}</span></span>
+        <span class="block text-[11px] text-slate-500">${esc(APLICA_COD[c.aplica] || c.aplica)} · ${c.hasta ? "hasta el " + esc(fechaDia(c.hasta + "T12:00:00")) : "sin caducidad"} · ${c.uno_por_cliente ? "1 por cliente" : "varios por cliente"}${c.nota ? " · " + esc(c.nota) : ""}</span></span>
+      <b class="text-sm text-fx tabular-nums">${textoDescuento(c)}</b>
+      <span class="text-xs text-slate-400 tabular-nums w-20 text-right" title="Usos">${c.usos}${c.usos_max ? " / " + c.usos_max : ""} usos</span>
+      <span class="flex gap-1"><button type="button" data-cod-copiar="${esc(c.codigo)}" class="rounded-md border border-line px-2 py-1 text-xs text-slate-300 hover:border-fx" title="Copiar">Copiar</button>
+      ${ro ? "" : `<button type="button" data-cod-activo="${c.id}" class="rounded-md border border-line px-2 py-1 text-xs text-slate-300 hover:border-fx">${c.activo ? "Pausar" : "Activar"}</button>
+      <button type="button" data-cod-borrar="${c.id}" class="rounded-md border border-line px-2 py-1 text-xs text-slate-400 hover:border-red-500/60 hover:text-red-300">Borrar</button>`}</span>
+    </li>`; }).join("")}</ul>` : `<p class="text-sm text-slate-500">Todavía no hay códigos.</p>`);
+}
+async function crearCodigo() {
+  const codigo = ($("cod-codigo").value || "").trim().toUpperCase(), valor = Number($("cod-valor").value), tipo = $("cod-tipo").value;
+  if (!/^[A-Z0-9_-]{3,30}$/.test(codigo)) { toast("El código debe tener de 3 a 30 letras, números, guiones o guiones bajos (sin espacios ni tildes)."); return; }
+  if (!(valor > 0) || (tipo === "porcentaje" && valor > 100)) { toast(tipo === "porcentaje" ? "El porcentaje debe estar entre 1 y 100." : "Escribe el importe del descuento."); return; }
+  const fila = { codigo, valor, tipo, aplica: $("cod-aplica").value, hasta: $("cod-hasta").value || null, usos_max: Number($("cod-max").value) || null,
+    uno_por_cliente: $("cod-uno").checked, nota: ($("cod-nota").value || "").trim() || null, creado_por: usuarioActual };
+  const { data, error } = await db.from("codigos_promo").insert(fila).select().single();
+  if (error) { toast(/duplicate|unique/i.test(error.message) ? "Ya existe un código con ese nombre." : "No se pudo crear: " + error.message, 7000); return; }
+  codigosPromo.unshift(data); renderCodigos(); toast("🏷️ Código " + codigo + " creado");
+}
+async function cambiarCodigo(id, cambios) {
+  const { error } = await db.from("codigos_promo").update(cambios).eq("id", id);
+  if (error) { toast("No se pudo guardar: " + error.message); return; }
+  Object.assign(codigosPromo.find(c => c.id === id) || {}, cambios); renderCodigos();
+}
+$("codigos-modal").addEventListener("click", e => {
+  const t = e.target;
+  if (t === $("codigos-modal") || t.closest("[data-codigos-cerrar]")) { $("codigos-modal").classList.add("hidden"); return; }
+  const cp = t.closest("[data-cod-copiar]");
+  if (cp) { navigator.clipboard?.writeText(cp.dataset.codCopiar).then(() => toast("Copiado: " + cp.dataset.codCopiar)).catch(() => {}); return; }
+  const ac = t.closest("[data-cod-activo]");
+  if (ac) { const c = codigosPromo.find(x => x.id === Number(ac.dataset.codActivo)); if (c) cambiarCodigo(c.id, { activo: !c.activo }); return; }
+  const bo = t.closest("[data-cod-borrar]");
+  if (bo) { const c = codigosPromo.find(x => x.id === Number(bo.dataset.codBorrar));
+    if (!c || !confirm("¿Borrar el código " + c.codigo + "?" + (c.usos ? " Ya se ha usado " + c.usos + " veces: si solo quieres que deje de funcionar, mejor «Pausar»." : ""))) return;
+    db.from("codigos_promo").delete().eq("id", c.id).then(({ error }) => { if (error) return toast("No se pudo borrar: " + error.message); codigosPromo = codigosPromo.filter(x => x.id !== c.id); renderCodigos(); }); }
+});
+$("codigos-modal").addEventListener("submit", e => { if (e.target.id === "codigo-form") { e.preventDefault(); crearCodigo(); } });
 async function guardarPrecios() {
   if (!soyDueno) return;
   const cambios = new Map();
@@ -3457,6 +3539,7 @@ document.addEventListener("click", e => {
   const cl = t.closest("[data-cliente]");
   if (cl) { e.stopPropagation(); abrirCliente(cl.dataset.cliente); return; }
   if (t.closest("[data-precios]")) { e.stopPropagation(); abrirPrecios(); return; }
+  if (t.closest("[data-codigos]")) { e.stopPropagation(); abrirCodigos(); return; }
   const bc = t.closest("[data-borrar-cliente]");
   if (bc) { e.stopPropagation(); borrarCliente(bc.dataset.borrarCliente); return; }
   const vc = t.closest("[data-ver-cliente]");
