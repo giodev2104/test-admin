@@ -2649,7 +2649,7 @@ function burbujaCorreo(c, h) {
   </article>`;
 }
 function pestanasCorreo() {
-  const nPros = prospectos ? prospectos.filter(p => p.estado === "nuevo").length : 0;
+  const nPros = prospectos ? prospectos.filter(p => p.estado === "nuevo" && (!prosSoloCorreo || p.email)).length : 0;
   const tab = (id, txt, n) => `<button type="button" data-correo-tab="${id}" class="rounded-lg px-3.5 py-1.5 text-sm font-semibold ${correoTab === id ? "bg-raised text-white border border-fx/40" : "text-slate-400 hover:text-white border border-transparent"}">${txt}${n ? ` <span class="text-xs text-slate-500">${n}</span>` : ""}</button>`;
   return `<nav class="mb-4 inline-flex gap-1 rounded-xl border border-line bg-panel p-1" aria-label="Secciones de correo">${tab("bandeja", "📥 Bandeja", correosNoLeidos())}${tab("prospectos", "🎯 Clientes potenciales", nPros)}</nav>`;
 }
@@ -2805,6 +2805,8 @@ document.addEventListener("keydown", e => {
 // Salen solos: al abrir la pestaña la función recorre ciudades de España en OpenStreetMap (datos públicos, sin clave).
 // Si no traen correo, se apunta a mano (de su Instagram, Facebook o su ficha de Google Maps).
 // «Enviar propuesta» abre un correo ya redactado para ese negocio. Se marca como enviada si en «correos» ya hay uno nuestro a esa dirección.
+// «Solo con correo» (por defecto): Google no da correos, así que los demás quedan ocultos hasta que se les apunta uno
+let prosSoloCorreo = (() => { try { return localStorage.getItem("pros-solo-correo") !== "0"; } catch (_) { return true; } })();
 let prospectos = null, prosFiltro = "nuevo", prosBusca = "", prosSel = null, prosBuscando = false, prosEnviando = false, prosUltima = null, prosAutoHecho = false;
 const prosForm = { negocio: "", zona: "", paginas: "1" }, prosBorrador = {};
 const ESTADOS_PROS = { nuevo: "Por contactar", contactado: "Propuesta enviada", respondido: "Ha respondido", cliente: "Ya es cliente", descartado: "Descartado" };
@@ -2896,8 +2898,9 @@ function redactorPros(p) {
 }
 function renderProspectos(el) {
   const todos = prospectos || [], q = norm(prosBusca);
-  const cuenta = k => todos.filter(p => k === "todos" || estadoPros(p) === k || (k === "contactado" && estadoPros(p) === "respondido")).length;
-  const lista = todos.filter(p => prosFiltro === "todos" || estadoPros(p) === prosFiltro || (prosFiltro === "contactado" && estadoPros(p) === "respondido"))
+  const sinCorreo = todos.filter(p => !p.email).length, base = prosSoloCorreo ? todos.filter(p => p.email) : todos;
+  const cuenta = k => base.filter(p => k === "todos" || estadoPros(p) === k || (k === "contactado" && estadoPros(p) === "respondido")).length;
+  const lista = base.filter(p => prosFiltro === "todos" || estadoPros(p) === prosFiltro || (prosFiltro === "contactado" && estadoPros(p) === "respondido"))
     .filter(p => !q || norm([p.nombre, p.categoria, p.ciudad, p.direccion, p.email, p.busqueda].join(" ")).includes(q));
   const sel = prosSel ? todos.find(p => p.id === prosSel) : null;
   if (prosSel && !sel) prosSel = null;
@@ -2918,13 +2921,14 @@ function renderProspectos(el) {
   </form>
   <div class="mb-3 flex flex-wrap items-center gap-2">
     ${filtro("nuevo", "Por contactar")}${filtro("contactado", "Propuesta enviada")}${filtro("respondido", "Han respondido")}${filtro("cliente", "Clientes")}${filtro("descartado", "Descartados")}${filtro("todos", "Todos")}
+    <label class="inline-flex items-center gap-2 rounded-full border ${prosSoloCorreo ? "border-fx/60 bg-fx/10 text-white" : "border-line text-slate-400"} px-3 py-1 text-xs cursor-pointer"><input id="pros-solo-correo" type="checkbox" ${prosSoloCorreo ? "checked" : ""} class="accent-amber-500"> ✉ Solo con correo${sinCorreo ? ` <span class="text-slate-500">(${sinCorreo} sin correo ocultos)</span>` : ""}</label>
     <input id="pros-busca" type="search" value="${esc(prosBusca)}" placeholder="Filtrar por nombre, ciudad…" aria-label="Filtrar clientes potenciales" class="campo text-sm ml-auto w-full sm:w-60" style="padding:.4rem .7rem">
   </div>
   <div class="grid gap-4 ${sel ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,460px)]" : ""} items-start">
     <div class="${sel ? "hidden lg:block" : ""} min-w-0">
       ${prospectos === null ? `<p class="py-16 text-center text-sm text-slate-500">Cargando…</p>`
         : lista.length ? `<ul class="grid gap-2 ${sel ? "" : "xl:grid-cols-2"}">${lista.slice(0, 300).map(tarjetaPros).join("")}</ul>${lista.length > 300 ? `<p class="mt-2 text-center text-xs text-slate-500">Se muestran 300 de ${lista.length}. Usa el filtro.</p>` : ""}`
-        : `<p class="rounded-2xl border border-line bg-panel py-14 text-center text-sm text-slate-500">${todos.length ? "No hay negocios en este apartado." : (prosBuscando ? "Buscando negocios sin web… puede tardar hasta un minuto." : "Todavía no hay clientes potenciales. Pulsa «Traer más negocios» o busca en una ciudad.")}</p>`}
+        : `<p class="rounded-2xl border border-line bg-panel py-14 text-center text-sm text-slate-500">${todos.length ? (prosSoloCorreo && sinCorreo ? `Ningún negocio de este apartado tiene correo todavía. Google Maps no da correos: desmarca «Solo con correo» para ver los ${sinCorreo} que faltan, búscalo con «🔎 Buscar su contacto» y apúntalo en su ficha.` : "No hay negocios en este apartado.") : (prosBuscando ? "Buscando negocios sin web… puede tardar hasta un minuto." : "Todavía no hay clientes potenciales. Pulsa «Traer más negocios» o busca en una ciudad.")}</p>`}
     </div>
     ${sel ? `<div class="min-w-0"><button type="button" data-pros-cerrar class="lg:hidden mb-2 text-sm text-slate-400 hover:text-white">← Volver a la lista</button>${redactorPros(sel)}</div>` : ""}
   </div>`;
@@ -3014,6 +3018,7 @@ document.addEventListener("change", e => {
   const t = e.target;
   if (!t || !t.dataset) return;
   if (t.id === "pros-paginas") { prosForm.paginas = t.value; return; }
+  if (t.id === "pros-solo-correo") { prosSoloCorreo = t.checked; try { localStorage.setItem("pros-solo-correo", t.checked ? "1" : "0"); } catch (_) {} renderCorreo(); return; }
   if (t.dataset.prosEmail) {
     const id = Number(t.dataset.prosEmail), v = t.value.trim().toLowerCase();
     if (v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) { toast("Ese correo no parece válido."); return; }
