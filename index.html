@@ -2841,23 +2841,22 @@ function textoPropuesta(p) {
   const tipo = (p.categoria || "negocio").toLowerCase(), ciudad = p.ciudad || "vuestra zona";
   const resenas = p.valoracion && p.n_resenas ? ` (con ${String(p.valoracion).replace(".", ",")} de valoración y ${p.n_resenas} reseñas)` : "";
   const social = p.web_social ? (/instagram/i.test(p.web_social) ? " (solo el perfil de Instagram)" : /facebook|fb\./i.test(p.web_social) ? " (solo la página de Facebook)" : "") : "";
-  // Corto y con aspecto de correo personal: sin emojis ni palabras de oferta en el asunto (Gmail lo mandaría a Promociones)
+  // Muy corto y con aspecto de correo personal (sin emojis ni palabras de oferta en el asunto: Gmail lo mandaría a Promociones).
+  // Pide una respuesta de una palabra: las respuestas son lo que más ayuda a llegar a la bandeja principal.
   return {
-    asunto: `Idea para ${p.nombre}`,
+    asunto: `Vi ${p.nombre} en Google Maps`,
     texto: `Hola, equipo de ${p.nombre}:
 
-He visto vuestro negocio en Google Maps${resenas} y me he fijado en que todavía no tenéis página web propia${social}. Cuando alguien busca «${tipo} en ${ciudad}», Google enseña primero a los que sí la tienen.
+Vi vuestro negocio en Google Maps${resenas} y aún no tenéis web propia${social}.
 
-Os propongo una prueba gratuita: os preparo una demo de vuestra web, con vuestro negocio, para que la veáis antes de decidir nada. Si os gusta, la publicamos desde 100 € (pago único, sin cuotas); si no, no pagáis nada.
+Os propongo una prueba gratuita: os preparo una demo de vuestra web y solo si os convence la publicamos (desde 100 €, pago único).
 
-Podéis pedirla aquí: https://velority.es/?demo=1
-O respondedme a este correo y os llamo.
+¿Os la preparo? Respondedme «sí» o pedidla aquí: https://velority.es/?demo=1
 
-Un saludo,
-${usuarioActual ? bonito(usuarioActual) + "\n" : ""}Velority · velority.es
+${usuarioActual ? bonito(usuarioActual) + " · " : ""}Velority
 
 —
-Si no queréis recibir más correos míos, respondedme «BAJA» y no volveré a escribiros.`,
+Si no queréis más correos míos, respondedme «BAJA».`,
   };
 }
 function tarjetaPros(p) {

@@ -35,13 +35,13 @@ const urlWebhook = async () => env("SUPABASE_URL") + "/functions/v1/buzon?k=" + 
 
 // Propuesta a un negocio sin web: el texto lo escribe el equipo en el panel. Va con aspecto de correo personal (sin imágenes,
 // colores, botones ni texto oculto) para que Gmail lo deje en «Principal» y no en «Promociones» o spam.
-// Solo se resalta en negrita «prueba gratuita»; desde la línea «—» es la letra pequeña (baja).
+// Solo se resalta «prueba gratuita» (negrita con fondo de rotulador); desde la línea «—» es la letra pequeña (baja).
 const enlaces = (h: string) => h.replace(/https?:\/\/[^\s<]+/g, (u) => `<a href="${u}">${u}</a>`);
 function htmlPropuesta(texto: string) {
   const lineas = texto.split("\n"), corte = lineas.findIndex((l) => l.trim().startsWith("—"));
   const cuerpo = corte >= 0 ? lineas.slice(0, corte) : lineas, pie = corte >= 0 ? lineas.slice(corte + 1).join(" ").trim() : "";
   const parrafos = cuerpo.join("\n").split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean)
-    .map((b) => `<p style="margin:0 0 14px">${enlaces(esc(b)).replace(/prueba gratuita/gi, (m) => `<b>${m}</b>`).replace(/\n/g, "<br>")}</p>`).join("");
+    .map((b) => `<p style="margin:0 0 14px">${enlaces(esc(b)).replace(/prueba gratuita/gi, (m) => `<b style="background:#fff1b8;padding:1px 4px;border-radius:3px">${m}</b>`).replace(/\n/g, "<br>")}</p>`).join("");
   return `<!doctype html><html lang="es"><body style="margin:0;padding:8px 4px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#222">
 <div style="max-width:620px">${parrafos}${pie ? `<p style="margin:18px 0 0;font-size:12px;color:#888">${esc(pie)}</p>` : ""}</div></body></html>`;
 }
