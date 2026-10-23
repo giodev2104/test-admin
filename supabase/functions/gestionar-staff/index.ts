@@ -1,4 +1,5 @@
-// Edge Function "gestionar-staff": la usa el panel para añadir y quitar administradores.
+// Edge Function "gestionar-staff": la usa el panel para añadir y quitar administradores y para nombrar propietarios.
+//   · crear {usuario, correo, password, propietario?} · borrar {usuario} · propietario {usuario} (no se puede deshacer desde el panel)
 // Solo un propietario (staff.es_dueno = true) puede usarla.
 // Despliegue: Supabase > Edge Functions > Deploy a new function > Via Editor,
 // nombre exacto "gestionar-staff", pega este archivo y despliega.
@@ -27,7 +28,7 @@ Deno.serve(async (req) => {
     const { data: yo } = await admin.from("staff").select("usuario,es_dueno").eq("email", user.email.toLowerCase()).maybeSingle();
     if (!yo?.es_dueno) return responder({ error: "Solo los propietarios pueden gestionar administradores." }, 403);
 
-    const { accion, usuario, password, correo } = await req.json();
+    const { accion, usuario, password, correo, propietario } = await req.json();
     if (!/^[a-z0-9_.-]{3,30}$/.test(usuario || "")) return responder({ error: "Usuario no válido." }, 400);
 
     if (accion === "crear") {
@@ -37,8 +38,18 @@ Deno.serve(async (req) => {
         return responder({ error: "La contraseña debe tener al menos 12 caracteres." }, 400);
       const { data: nuevo, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
       if (error) return responder({ error: error.message }, 400);
-      const { error: e2 } = await admin.from("staff").insert({ usuario, email, creado_por: yo.usuario, es_dueno: false });
+      const { error: e2 } = await admin.from("staff").insert({ usuario, email, creado_por: yo.usuario, es_dueno: propietario === true });
       if (e2) { await admin.auth.admin.deleteUser(nuevo.user.id); return responder({ error: e2.message }, 400); }
+      return responder({ ok: true });
+    }
+
+    if (accion === "propietario") {
+      const { data: obj } = await admin.from("staff").select("usuario,es_dueno").eq("usuario", usuario).maybeSingle();
+      if (!obj) return responder({ error: "Ese administrador no existe." }, 404);
+      if (obj.es_dueno) return responder({ ok: true });
+      const { error } = await admin.from("staff").update({ es_dueno: true }).eq("usuario", usuario);
+      if (error) return responder({ error: error.message }, 400);
+      console.log(`Propietario: ${yo.usuario} nombró propietario a ${usuario}`);
       return responder({ ok: true });
     }
 

@@ -317,6 +317,8 @@
           <button id="admin-ver" type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-white px-2 py-1">Mostrar</button>
         </div>
       </div>
+      <label class="flex items-start gap-2 text-sm text-slate-300 cursor-pointer"><input id="admin-dueno" type="checkbox" class="mt-1 accent-amber-500">
+        <span>Propietario <span class="block text-[11px] text-slate-500">Puede gestionar administradores, borrar casos, cambiar precios y códigos, el tema de la web y cerrar el mes. Un propietario no se puede quitar desde el panel.</span></span></label>
       <p id="admin-error" class="hidden text-sm text-red-300"></p>
       <div id="admin-ok" class="hidden rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-200">
         <p class="font-semibold">Administrador creado. Copia estos datos ahora:</p>
@@ -4006,7 +4008,8 @@ function pintarAdmins() {
   $("admin-lista").innerHTML = listaStaff.map(x => {
     const dueno = x.es_dueno === true, yoMismo = x.usuario === usuarioActual;
     const info = dueno ? "propietario" : (x.creado_por && x.creado_por !== "sistema" ? "añadido por " + bonito(x.creado_por) : "");
-    const accion = (dueno || yoMismo) ? "" : (quitando === x.usuario
+    const ascender = (dueno || yoMismo) ? "" : `<button type="button" data-ascender="${esc(x.usuario)}" class="shrink-0 rounded-md text-slate-400 hover:text-amber-300 hover:bg-amber-500/15 text-xs px-2.5 py-1 transition-colors" title="Darle todos los permisos de propietario">Hacer propietario</button>`;
+    const accion = (dueno || yoMismo) ? "" : ascender + (quitando === x.usuario
       ? `<button type="button" data-quitar="${esc(x.usuario)}" class="shrink-0 rounded-md bg-red-500 hover:bg-red-400 text-white text-xs font-semibold px-2.5 py-1">Confirmar</button>`
       : `<button type="button" data-quitar="${esc(x.usuario)}" class="shrink-0 rounded-md text-slate-400 hover:text-red-300 hover:bg-red-500/15 text-xs px-2.5 py-1 transition-colors" title="Quitar administrador">Quitar</button>`);
     return `
@@ -4153,17 +4156,31 @@ $("admin-form").addEventListener("submit", async e => {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) return fallo("Escribe el correo real de la persona.");
   if (password.length < 12) return fallo("La contraseña debe tener al menos 12 caracteres.");
   if (listaStaff.some(x => x.usuario === usuario)) return fallo("Ese usuario ya existe.");
+  const propietario = $("admin-dueno").checked;
+  if (propietario && !confirm("¿Crear a " + usuario + " como PROPIETARIO? Tendrá todos los permisos y no se podrá quitar desde el panel.")) return;
   $("admin-btn").disabled = true; $("admin-btn").textContent = "Creando…";
-  const { error } = await invocarStaff({ accion: "crear", usuario, password, correo });
+  const { error } = await invocarStaff({ accion: "crear", usuario, password, correo, propietario });
   $("admin-btn").disabled = false; $("admin-btn").textContent = "Añadir administrador";
   if (error) return fallo("No se pudo crear: " + await mensajeError(error));
   await recargarStaff();
   $("admin-ok-usuario").textContent = correo; $("admin-ok-clave").textContent = password; $("admin-ok").classList.remove("hidden");
-  $("admin-correo").value = ""; $("admin-user").value = ""; $("admin-pass").value = ""; $("admin-pass").type = "password"; $("admin-ver").textContent = "Mostrar";
-  toast("Administrador " + bonito(usuario) + " añadido");
+  $("admin-correo").value = ""; $("admin-user").value = ""; $("admin-pass").value = ""; $("admin-pass").type = "password"; $("admin-ver").textContent = "Mostrar"; $("admin-dueno").checked = false;
+  toast((propietario ? "Propietario " : "Administrador ") + bonito(usuario) + " añadido");
 });
 
 // Quitar administrador: primer clic pide confirmación (4 s), segundo clic lo quita
+// Nombrar propietario (con confirmación; no se puede deshacer desde el panel)
+$("admin-lista").addEventListener("click", async e => {
+  const b = e.target.closest("[data-ascender]");
+  if (!b) return;
+  const usuario = b.dataset.ascender;
+  if (!confirm("¿Hacer PROPIETARIO a " + bonito(usuario) + "? Tendrá todos los permisos (administradores, borrar casos, precios, códigos, tema y cierre de mes) y no se podrá quitar desde el panel.")) return;
+  b.disabled = true; b.textContent = "Guardando…";
+  $("admin-error").classList.add("hidden"); $("admin-ok").classList.add("hidden");
+  const { error } = await invocarStaff({ accion: "propietario", usuario });
+  if (error) { pintarAdmins(); $("admin-error").textContent = "No se pudo: " + await mensajeError(error); $("admin-error").classList.remove("hidden"); return; }
+  await recargarStaff(); toast(bonito(usuario) + " ya es propietario");
+});
 $("admin-lista").addEventListener("click", async e => {
   const b = e.target.closest("[data-quitar]");
   if (!b) return;
