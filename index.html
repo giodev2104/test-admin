@@ -2839,26 +2839,25 @@ async function cargarProspectos(forzar) {
 }
 function textoPropuesta(p) {
   const tipo = (p.categoria || "negocio").toLowerCase(), ciudad = p.ciudad || "vuestra zona";
-  const resenas = p.valoracion && p.n_resenas ? ` (¡con ${String(p.valoracion).replace(".", ",")} ⭐ y ${p.n_resenas} reseñas!)` : "";
+  const resenas = p.valoracion && p.n_resenas ? ` (con ${String(p.valoracion).replace(".", ",")} de valoración y ${p.n_resenas} reseñas)` : "";
   const social = p.web_social ? (/instagram/i.test(p.web_social) ? " (solo el perfil de Instagram)" : /facebook|fb\./i.test(p.web_social) ? " (solo la página de Facebook)" : "") : "";
+  // Corto y con aspecto de correo personal: sin emojis ni palabras de oferta en el asunto (Gmail lo mandaría a Promociones)
   return {
-    asunto: `Prueba gratuita: la web de ${p.nombre}, sin pagar nada`,
+    asunto: `Idea para ${p.nombre}`,
     texto: `Hola, equipo de ${p.nombre}:
 
-He visto vuestro negocio en Google Maps${resenas} y todavía no tenéis página web propia${social}. Quien busca «${tipo} en ${ciudad}» en Google acaba en los negocios que sí la tienen.
+He visto vuestro negocio en Google Maps${resenas} y me he fijado en que todavía no tenéis página web propia${social}. Cuando alguien busca «${tipo} en ${ciudad}», Google enseña primero a los que sí la tienen.
 
-🎁 PRUEBA GRATUITA: os preparamos gratis una demo de vuestra web, con vuestro negocio, para que la veáis antes de decidir nada. Sin compromiso.
+Os propongo una prueba gratuita: os preparo una demo de vuestra web, con vuestro negocio, para que la veáis antes de decidir nada. Si os gusta, la publicamos desde 100 € (pago único, sin cuotas); si no, no pagáis nada.
 
-Si os gusta, la publicamos desde 100 € (pago único, sin cuotas). Si no, no pagáis nada.
-
-👉 Pedid vuestra prueba gratuita: https://velority.es/?demo=1
+Podéis pedirla aquí: https://velority.es/?demo=1
 O respondedme a este correo y os llamo.
 
 Un saludo,
-${usuarioActual ? bonito(usuarioActual) + "\n" : ""}Velority · https://velority.es
+${usuarioActual ? bonito(usuarioActual) + "\n" : ""}Velority · velority.es
 
 —
-Si no queréis recibir más correos nuestros, respondednos «BAJA» y no volveremos a escribiros.`,
+Si no queréis recibir más correos míos, respondedme «BAJA» y no volveré a escribiros.`,
   };
 }
 function tarjetaPros(p) {
@@ -2905,7 +2904,7 @@ function redactorPros(p) {
         <button type="button" data-pros-vista class="rounded-md border border-fx/50 px-2.5 py-1 text-xs text-fx hover:bg-fx/10">👁 Ver cómo le llega</button>
         <span class="text-xs text-slate-500">Sale desde ${CORREO_CONTACTO}</span>
         <button type="submit" ${prosEnviando ? "disabled" : ""} class="ml-auto rounded-lg bg-fx hover:bg-fx2 disabled:opacity-60 text-[#1a1005] text-sm font-bold px-4 py-2">${prosEnviando ? "Enviando…" : "Enviar"}</button></div>
-      <p class="text-[11px] leading-snug text-slate-500">Se envía con el diseño de «🎁 Prueba gratuita»: la línea del enlace a la demo se convierte en un botón grande y la que empieza por 🎁 sale destacada. Escribe a cada negocio de uno en uno y personaliza el mensaje. Si alguien responde «BAJA», márcalo como descartado y no vuelvas a escribirle.</p>
+      <p class="text-[11px] leading-snug text-slate-500">Sale como un correo personal (sin imágenes ni colores, para no caer en Promociones o spam) con «prueba gratuita» en negrita. Evita emojis, mayúsculas y palabras como «gratis» u «oferta» en el asunto. Escribe a cada negocio de uno en uno y personaliza el mensaje. Si alguien responde «BAJA», márcalo como descartado y no vuelvas a escribirle.</p>
     </form></section>`;
 }
 function renderProspectos(el) {
