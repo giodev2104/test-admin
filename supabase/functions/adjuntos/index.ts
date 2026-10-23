@@ -59,8 +59,9 @@ Deno.serve(async (req) => {
     }
 
     if (accion === "entrega") {
-      const { data: cid } = await admin.rpc("servidor_cliente_de_token", { p_token: String(token || "") });
-      if (!cid) return responder({ error: "Tu sesión ha caducado. Vuelve a entrar." }, 401);
+      // Titular o persona invitada con permiso de «Servicios y pedidos»
+      const { data: cid } = await admin.rpc("servidor_acceso", { p_token: String(token || ""), p_permisos: "servicios" });
+      if (!cid) return responder({ error: "Tu sesión ha caducado o tu usuario no puede descargar entregas." }, 401);
       const { data: e } = await admin.from("entregas").select("id,cliente_id,servicio_id,nombre,ruta,descargas").eq("id", Number(id)).eq("cliente_id", cid).maybeSingle();
       if (!e) return responder({ error: "No se encontró el archivo." }, 404);
       if (e.servicio_id) {

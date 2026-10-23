@@ -165,8 +165,13 @@ Deno.serve(async (req) => {
     }
 
     const b = JSON.parse(texto || "{}");
-    const { data: cid } = await db.rpc("servidor_cliente_de_token", { p_token: String(b.token || "") });
-    if (!cid) return responder({ error: "Tu sesión ha caducado. Vuelve a entrar." }, 401);
+    // Titular o persona invitada con permiso de «Facturación y pagos»
+    const { data: cid } = await db.rpc("servidor_acceso", { p_token: String(b.token || ""), p_permisos: "facturacion" });
+    if (!cid) {
+      const { data: inv } = await db.rpc("servidor_invitado_de_token", { p_token: String(b.token || "") });
+      if (inv) return responder({ error: "Tu usuario no tiene permiso para pagos. Pídeselo al titular de la cuenta." }, 403);
+      return responder({ error: "Tu sesión ha caducado. Vuelve a entrar." }, 401);
+    }
 
     if (b.accion === "crear") {
       let nombre = String(b.nombre || ""), servicioId: number | null = null;

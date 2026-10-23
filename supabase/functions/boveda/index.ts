@@ -120,7 +120,7 @@ Deno.serve(async (req) => {
     let quien = "cliente";
     if (!cid) {
       const { data: inv } = await db.rpc("servidor_invitado_de_token", { p_token: String(b.token || "") });
-      if (inv?.cliente_id) { cid = inv.cliente_id; quien = String(inv.nombre).slice(0, 80) + " (invitado)"; }
+      if (inv?.cliente_id && (inv.permisos || []).includes("accesos")) { cid = inv.cliente_id; quien = String(inv.nombre).slice(0, 80) + " (invitado)"; }
     }
     if (!cid) return responder({ error: "Tu sesión ha caducado. Vuelve a entrar." }, 401);
     if (accion === "listar") return responder(await listar(db, cid));
