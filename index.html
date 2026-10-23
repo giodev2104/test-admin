@@ -2842,16 +2842,17 @@ function textoPropuesta(p) {
   const resenas = p.valoracion && p.n_resenas ? ` (¡con ${String(p.valoracion).replace(".", ",")} ⭐ y ${p.n_resenas} reseñas!)` : "";
   const social = p.web_social ? (/instagram/i.test(p.web_social) ? " (solo el perfil de Instagram)" : /facebook|fb\./i.test(p.web_social) ? " (solo la página de Facebook)" : "") : "";
   return {
-    asunto: `Una página web para ${p.nombre}`,
+    asunto: `Prueba gratuita: la web de ${p.nombre}, sin pagar nada`,
     texto: `Hola, equipo de ${p.nombre}:
 
-Os escribo desde Velority. He visto vuestro negocio en Google Maps${resenas} y me he dado cuenta de que todavía no tenéis página web propia${social}.
+He visto vuestro negocio en Google Maps${resenas} y todavía no tenéis página web propia${social}. Quien busca «${tipo} en ${ciudad}» en Google acaba en los negocios que sí la tienen.
 
-Hoy, cuando alguien busca «${tipo} en ${ciudad}» en Google, los negocios con web propia salen antes y dan más confianza. Con una web sencilla enseñaríais vuestros servicios, precios y horarios, y os podrían escribir por WhatsApp o pedir cita directamente.
+🎁 PRUEBA GRATUITA: os preparamos gratis una demo de vuestra web, con vuestro negocio, para que la veáis antes de decidir nada. Sin compromiso.
 
-Hacemos páginas web profesionales a precio cerrado, desde 100 €, y os preparo una demo gratuita y sin compromiso con vuestro negocio para que veáis cómo quedaría: https://velority.es/?demo=1
+Si os gusta, la publicamos desde 100 € (pago único, sin cuotas). Si no, no pagáis nada.
 
-Si os interesa, respondedme a este correo o decidme un teléfono y os llamo cuando os venga bien.
+👉 Pedid vuestra prueba gratuita: https://velority.es/?demo=1
+O respondedme a este correo y os llamo.
 
 Un saludo,
 ${usuarioActual ? bonito(usuarioActual) + "\n" : ""}Velority · https://velority.es
@@ -2901,9 +2902,10 @@ function redactorPros(p) {
       <textarea id="pros-texto" rows="16" class="campo text-sm" style="padding:.6rem .7rem;resize:vertical" aria-label="Mensaje">${esc(b.texto)}</textarea>
       <div class="flex flex-wrap items-center gap-2">
         <button type="button" data-pros-plantilla="${p.id}" class="rounded-md border border-line px-2.5 py-1 text-xs text-slate-400 hover:border-fx">↺ Volver a la plantilla</button>
+        <button type="button" data-pros-vista class="rounded-md border border-fx/50 px-2.5 py-1 text-xs text-fx hover:bg-fx/10">👁 Ver cómo le llega</button>
         <span class="text-xs text-slate-500">Sale desde ${CORREO_CONTACTO}</span>
         <button type="submit" ${prosEnviando ? "disabled" : ""} class="ml-auto rounded-lg bg-fx hover:bg-fx2 disabled:opacity-60 text-[#1a1005] text-sm font-bold px-4 py-2">${prosEnviando ? "Enviando…" : "Enviar"}</button></div>
-      <p class="text-[11px] leading-snug text-slate-500">Escribe a cada negocio de uno en uno y personaliza el mensaje. Si alguien responde «BAJA», márcalo como descartado y no vuelvas a escribirle.</p>
+      <p class="text-[11px] leading-snug text-slate-500">Se envía con el diseño de «🎁 Prueba gratuita»: la línea del enlace a la demo se convierte en un botón grande y la que empieza por 🎁 sale destacada. Escribe a cada negocio de uno en uno y personaliza el mensaje. Si alguien responde «BAJA», márcalo como descartado y no vuelvas a escribirle.</p>
     </form></section>`;
 }
 function renderProspectos(el) {
@@ -2969,6 +2971,18 @@ async function guardarProspecto(id, cambios, silencio) {
   if (!silencio) renderCorreo();
   return true;
 }
+// Vista previa: el HTML lo genera la función «buzon», igual que al enviar
+async function verPropuesta() {
+  const texto = String(($("pros-texto") || {}).value || "").trim(), asunto = String(($("pros-asunto") || {}).value || "").trim();
+  if (!texto) { toast("Escribe el mensaje."); return; }
+  const w = window.open("", "_blank");
+  if (!w) { toast("Permite las ventanas emergentes para ver la vista previa."); return; }
+  w.document.write("<p style='font-family:sans-serif;padding:20px'>Cargando vista previa…</p>");
+  try {
+    const { html } = await invocar("buzon", { accion: "vista", texto });
+    w.document.open(); w.document.write(html.replace("<body", `<title>${esc(asunto)}</title><body`)); w.document.close();
+  } catch (e) { w.close(); toast(e.message, 6000); }
+}
 async function enviarPropuesta() {
   const p = (prospectos || []).find(x => x.id === prosSel);
   if (!p || prosEnviando) return;
@@ -2981,7 +2995,7 @@ async function enviarPropuesta() {
   if (enviadosA(para).length && !confirm("Ya le enviaste un correo a " + para + ". ¿Enviar otro?")) return;
   prosEnviando = true; renderCorreo();
   try {
-    const fila = await invocar("buzon", { accion: "responder", contacto: para, asunto, texto });
+    const fila = await invocar("buzon", { accion: "responder", contacto: para, asunto, texto, plantilla: "propuesta" });
     if (fila && fila.id && !correos.some(c => c.id === fila.id)) correos.unshift(fila);
     await guardarProspecto(p.id, { email: para, estado: p.estado === "nuevo" ? "contactado" : p.estado, contactado_en: new Date().toISOString(), contactado_por: usuarioActual }, true);
     delete prosBorrador[p.id]; prosSel = null;
@@ -2995,6 +3009,7 @@ document.addEventListener("click", e => {
   const tab = t.closest("[data-correo-tab]");
   if (tab) { correoTab = tab.dataset.correoTab; if (correoTab === "prospectos") { cargarProspectos(); autoProspectos(); } renderCorreo(); return; }
   if (t.closest("[data-pros-auto]")) { buscarProspectos("forzar"); return; }
+  if (t.closest("[data-pros-vista]")) { verPropuesta(); return; }
   const ver = t.closest("[data-pros-ver]");
   if (ver) { correoTab = "prospectos"; prosFiltro = "todos"; prosSel = Number(ver.dataset.prosVer); renderCorreo(); return; }
   const fil = t.closest("[data-pros-filtro]");
