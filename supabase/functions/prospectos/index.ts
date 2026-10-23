@@ -2,6 +2,12 @@
 // Fuente: Google Maps si existe el secreto GOOGLE_PLACES_KEY (recomendado); si no, OpenStreetMap (datos públicos, sin clave).
 //   · accion "auto"   (panel)  {forzar?}          → recorre tipos de negocio y ciudades de España, uno por llamada (como mucho cada 6 h)
 //   · accion "buscar" (panel)  {zona, negocio?}   → busca en una ciudad o zona concreta
+//   · accion "correos" (panel) {ids?}             → busca el correo de los negocios que no lo tienen (hasta 8 por llamada)
+// Correos: Google Maps no los da. Primero se mira su página de enlaces (Linktree, business.site…) si la tiene; después, con el
+// secreto BRAVE_SEARCH_KEY, se busca en toda la web con Brave Search (nombre + ciudad, su teléfono y correos de Gmail/Hotmail…
+// con su nombre): el correo suele salir en Facebook, Instagram, directorios, asociaciones, prensa local…
+// Solo se acepta un correo que aparezca junto al nombre o el teléfono del negocio. Límite: LIMITE_BRAVE búsquedas al mes
+// (servidor_gastar_cupo, supabase_prospectos_correos.sql), por debajo del crédito gratuito mensual de Brave.
 // Límite de Google: como mucho LIMITE_GOOGLE peticiones al mes (el plan gratuito de estos datos es de 1.000); al llegar,
 // la función deja de llamar a Google hasta el mes siguiente. Lo cuenta servidor_gastar_google (supabase_prospectos.sql).
 // Despliegue: nombre "prospectos" y DESACTIVA «Verify JWT» (la función comprueba ella misma quién llama).
@@ -151,6 +157,93 @@ async function pedirGoogle(db: any, clave: string, negocio: string, zona: string
   return { filas, total, conWeb, uso };
 }
 
+// ---------- Correos con Brave Search ----------
+const LIMITE_BRAVE = 900, POR_LLAMADA = 8;
+const RE_CORREO = /[a-z0-9][a-z0-9._%+-]{0,63}@[a-z0-9.-]+\.[a-z]{2,}/gi;
+// Correos que no son del negocio: los de las propias webs y directorios, ejemplos, imágenes…
+const CORREO_NO = /@(.*\.)?(facebook|instagram|google|example|sentry|wixpress|paginasamarillas|infoisinfo|cylex|yelp|tripadvisor|einforma|axesor|empresite|guiaempresa|qdq|habitissimo|brave|domain|tudominio|sudominio|email|correo)\.|\.(png|jpe?g|gif|webp|svg)$|^(noreply|no-reply|privacy|abuse|webmaster|postmaster)@/i;
+const GENERICAS = new Set(["peluqueria", "barberia", "centro", "estetica", "taller", "mecanico", "fisioterapia", "clinica", "dental", "restaurante",
+  "cafeteria", "panaderia", "floristeria", "fontanero", "fontaneria", "electricista", "academia", "gimnasio", "inmobiliaria", "veterinario",
+  "veterinaria", "autoescuela", "tienda", "ropa", "carpinteria", "reformas", "bar", "casa", "arte", "floral", "salon", "beauty", "hair", "studio", "estudio"]);
+const plano = (s: string) => norm(s).replace(/[^a-z0-9]+/g, " ").trim();
+const espera = (ms: number) => new Promise((ok) => setTimeout(ok, ms));
+async function brave(clave: string, q: string, intento = 0): Promise<{ url: string; texto: string }[]> {
+  const u = "https://api.search.brave.com/res/v1/web/search?" + new URLSearchParams({ q, country: "ES", search_lang: "es", count: "20", extra_snippets: "true" });
+  const r = await fetch(u, { headers: { Accept: "application/json", "X-Subscription-Token": clave } });
+  if (r.status === 429 && intento < 2) { await espera(1500); return brave(clave, q, intento + 1); }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error("Brave Search no ha respondido (" + r.status + "): " + (j?.error?.detail || j?.message || "revisa la clave BRAVE_SEARCH_KEY"));
+  return ((j.web?.results || []) as Record<string, any>[]).map((x) => ({
+    url: String(x.url || ""), texto: [x.title, x.description, ...(x.extra_snippets || [])].join(" ").replace(/<[^>]+>/g, " ").replace(/&[a-z#0-9]+;/gi, " "),
+  }));
+}
+// Su propia página de enlaces (Linktree, business.site…): si tiene correo, es suyo. Facebook e Instagram no se abren
+// (no permiten la lectura automática): de esas solo se usa lo que muestran los buscadores.
+const PAGINA_PROPIA = /(^|\.)(linktr\.ee|business\.site|carrd\.co|beacons\.ai|bio\.link|linkin\.bio|taplink\.cc|wixsite\.com|blogspot\.com|wordpress\.com|webnode\.es|jimdosite\.com|site123\.me)$/i;
+async function correoDePagina(url: string) {
+  let host = ""; try { host = new URL(url).hostname; } catch (_) { return null; }
+  if (!PAGINA_PROPIA.test(host)) return null;
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(8000), headers: { "User-Agent": "Velority-panel/1.0 (contact-velority@velority.es)", Accept: "text/html" } });
+    if (!r.ok) return null;
+    const html = (await r.text()).slice(0, 400000).replace(/&#64;|\[at\]|\(at\)/gi, "@");
+    const c = [...new Set((html.match(RE_CORREO) || []).map((x) => x.toLowerCase()))].find((x) => !CORREO_NO.test(x));
+    return c ? { email: c, fuente: url } : null;
+  } catch (_) { return null; }
+}
+// Elige el correo que aparece junto al nombre (palabras propias, no «peluquería») o el teléfono del negocio
+function elegirCorreo(p: Record<string, any>, res: { url: string; texto: string }[]) {
+  const palabras = plano(p.nombre).split(" ").filter((w) => w.length >= 4 && !GENERICAS.has(w));
+  const tel = String(p.telefono || "").replace(/\D/g, "").slice(-9);
+  const ciudad = plano(p.ciudad || "");
+  const puntos = new Map<string, { n: number; url: string }>();
+  for (const r of res) {
+    const t = plano(r.texto), digitos = r.texto.replace(/\D/g, "");
+    const conTel = tel.length === 9 && digitos.includes(tel);
+    const conNombre = palabras.length ? palabras.every((w) => t.includes(w)) : false;
+    for (const c of new Set((r.texto.match(RE_CORREO) || []).map((x) => x.toLowerCase().replace(/\.$/, "")))) {
+      if (CORREO_NO.test(c)) continue;
+      const enCorreo = palabras.some((w) => c.replace(/[^a-z0-9]/g, "").includes(w));
+      let n = (conTel ? 4 : 0) + (conNombre ? 3 : 0) + (enCorreo ? 3 : 0) + (ciudad && t.includes(ciudad) ? 1 : 0);
+      if (!conTel && !conNombre && !enCorreo) n = 0;
+      const prev = puntos.get(c);
+      if (n && (!prev || n > prev.n)) puntos.set(c, { n: (prev ? Math.max(prev.n, n) : n), url: r.url });
+      else if (n && prev) prev.n += 1;   // aparece en varios resultados
+    }
+  }
+  const mejor = [...puntos.entries()].sort((a, b) => b[1].n - a[1].n)[0];
+  return mejor && mejor[1].n >= 4 ? { email: mejor[0], fuente: mejor[1].url } : null;
+}
+async function buscarCorreos(db: any, clave: string, ids?: number[]) {
+  let q = db.from("prospectos").select("id,nombre,ciudad,telefono,web_social").is("email", null).is("correo_buscado_en", null).eq("estado", "nuevo")
+    .order("creado_en", { ascending: false }).limit(POR_LLAMADA);
+  if (ids?.length) q = db.from("prospectos").select("id,nombre,ciudad,telefono,web_social").in("id", ids.slice(0, POR_LLAMADA)).is("email", null);
+  const { data: lista, error } = await q;
+  if (error) throw error;
+  let encontrados = 0, buscados = 0, uso = 0, agotado = false;
+  for (const p of (lista || []) as Record<string, any>[]) {
+    // 1) su página de enlaces; 2) toda la web: nombre + ciudad; 3) su teléfono; 4) correos de Gmail, Hotmail… con su nombre
+    const consultas = [`${p.nombre} ${p.ciudad || ""} email correo contacto`];
+    if (p.telefono) consultas.push(`"${String(p.telefono).replace(/\s+/g, " ")}" email`);
+    consultas.push(`"${p.nombre}" ${p.ciudad || ""} "@gmail.com" OR "@hotmail.com" OR "@outlook.es" OR "@hotmail.es" OR "@yahoo.es"`);
+    let hallado: { email: string; fuente: string } | null = p.web_social ? await correoDePagina(p.web_social) : null;
+    for (const c of hallado ? [] : consultas) {
+      const { data: n } = await db.rpc("servidor_gastar_cupo", { p_clave: "brave_search_uso", p_max: LIMITE_BRAVE });
+      if (n === -1) { agotado = true; break; }
+      uso = n;
+      hallado = elegirCorreo(p, await brave(clave, c));
+      await espera(1100);   // el plan de Brave admite 1 búsqueda por segundo
+      if (hallado) break;
+    }
+    if (agotado) break;
+    buscados++;
+    if (hallado) encontrados++;
+    await db.from("prospectos").update({ correo_buscado_en: new Date().toISOString(), ...(hallado ? { email: hallado.email, correo_fuente: hallado.fuente.slice(0, 500) } : {}) }).eq("id", p.id);
+  }
+  const { count } = await db.from("prospectos").select("id", { count: "exact", head: true }).is("email", null).is("correo_buscado_en", null).eq("estado", "nuevo");
+  return { buscados, encontrados, pendientes: count || 0, uso_brave: uso, limite_brave: LIMITE_BRAVE, agotado };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   try {
@@ -165,6 +258,13 @@ Deno.serve(async (req) => {
     const cuerpo = await req.json().catch(() => ({}));
     let zona = "", negocio = "", fuente = "OpenStreetMap";
     let estadoAuto: Record<string, any> | null = null;
+
+    if (cuerpo.accion === "correos") {
+      const clave = env("BRAVE_SEARCH_KEY");
+      if (!clave) return responder({ ok: true, sin_clave: true });
+      const ids = Array.isArray(cuerpo.ids) ? cuerpo.ids.map(Number).filter(Boolean) : undefined;
+      return responder({ ok: true, ...(await buscarCorreos(admin, clave, ids)) });
+    }
 
     if (cuerpo.accion === "auto") {
       const { data: aj } = await admin.from("ajustes_web").select("valor").eq("clave", "prospectos_auto").maybeSingle();
