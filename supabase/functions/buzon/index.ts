@@ -34,7 +34,7 @@ async function claveWebhook() {
 const urlWebhook = async () => env("SUPABASE_URL") + "/functions/v1/buzon?k=" + (await claveWebhook());
 
 // Propuesta a un negocio sin web: el texto lo escribe el equipo en el panel; aquí se le da diseño.
-// La línea con el enlace a la web (👉 … https://velority.es/) se destaca y lleva debajo un botón grande; las líneas que empiezan por 🎁 se destacan;
+// El botón grande a la web va tras el texto (si el texto trae una línea con el enlace a velority.es, se cambia por el botón); las líneas que empiezan por 🎁 se destacan;
 // desde «—» es la letra pequeña (baja). Ojo: este diseño puede hacer que Gmail lo deje en «Promociones».
 const DEMO = "https://velority.es/", LOGO = "https://velority.es/logo-correo.png";
 const enlaces = (h: string) => h.replace(/https?:\/\/[^\s<]+/g, (u) => `<a href="${u}" style="color:#e8590c;font-weight:bold">${u}</a>`);
@@ -45,10 +45,10 @@ function htmlPropuesta(texto: string) {
   const cuerpo = corte >= 0 ? lineas.slice(0, corte) : lineas, pie = corte >= 0 ? lineas.slice(corte + 1).join(" ").trim() : "";
   let conBoton = false;
   const bloques = cuerpo.join("\n").split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean).map((b) => {
-    if (/https?:\/\/(www\.)?velority\.es\//.test(b) && /👉|prueba gratis/i.test(b)) {
+    if ((/https?:\/\/(www\.)?velority\.es\//.test(b) && /👉|prueba gratis/i.test(b)) || (!conBoton && /^O respondedme/i.test(b))) {
       conBoton = true;
-      const [linea, ...resto] = b.split("\n").map((l) => l.trim()).filter(Boolean);
-      return `<p style="margin:0;text-align:center;font-size:17px;font-weight:bold;color:#1f2433">${enlaces(esc(linea))}</p>` + boton("🎁 Entrar y pedir mi prueba gratis", DEMO) + resto.map((l) => `<p style="margin:0 0 18px;text-align:center;font-size:14px;color:#5b6170">${enlaces(esc(l))}</p>`).join("");
+      const resto = b.split("\n").map((l) => l.trim()).filter((l) => l && !/https?:\/\/(www\.)?velority\.es\//.test(l));
+      return boton("🎁 Entrar y pedir mi prueba gratis", DEMO) + resto.map((l) => `<p style="margin:0 0 18px;text-align:center;font-size:14px;color:#5b6170">${enlaces(esc(l))}</p>`).join("");
     }
     const h = enlaces(esc(b)).replace(/\n/g, "<br>");
     if (b.startsWith("🎁")) return `<div style="margin:0 0 16px;padding:14px 16px;border-radius:12px;background:#fff4ec;border:2px solid #ff8a3d;font-size:16px;line-height:1.5;color:#1f2433">${h.replace(/^🎁\s*([^:<]+:)/, '🎁 <strong style="color:#e8590c">$1</strong>')}</div>`;
