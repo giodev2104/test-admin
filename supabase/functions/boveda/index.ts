@@ -5,7 +5,7 @@
 //   · Portal (token del cliente):   listar, guardar, ver, borrar
 //     También con el token de una persona invitada por el cliente (supabase_boveda_invitados.sql): solo ve esta bóveda
 //     y lo que hace queda apuntado con su nombre.
-//   · Panel (sesión del staff):     s_listar, s_guardar, s_ver, s_borrar   (con cliente_id / id)
+//   · Panel (sesión del staff):     s_listar, s_guardar, s_ver, s_borrar   (con cliente_id / id); s_listar incluye las personas invitadas
 // Despliegue: Edge Functions > Deploy a new function > Via Editor, nombre "boveda", y DESACTIVA «Verify JWT».
 // Secreto obligatorio: BOVEDA_CLAVE (una frase larga y aleatoria; si la cambias, las contraseñas guardadas dejan de poder leerse).
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
@@ -109,7 +109,11 @@ Deno.serve(async (req) => {
       const { data: { user } } = await db.auth.getUser(token);
       const { data: s } = user?.email ? await db.from("staff").select("usuario").eq("email", user.email.toLowerCase()).maybeSingle() : { data: null };
       if (!s) return responder({ error: "Sesión no válida." }, 401);
-      if (accion === "s_listar") return responder(await listar(db, String(b.cliente_id)));
+      if (accion === "s_listar") {
+        // El equipo ve también a quién ha dado acceso el cliente y a qué secciones (nunca su contraseña)
+        const { data: invitados } = await db.from("boveda_invitados").select("id,nombre,email,permisos,creado_en,ultimo_acceso").eq("cliente_id", String(b.cliente_id)).order("creado_en");
+        return responder({ ...(await listar(db, String(b.cliente_id))), invitados: invitados || [] });
+      }
       if (accion === "s_guardar") return await guardar(db, String(b.cliente_id), b, s.usuario, "staff");
       if (accion === "s_ver") return await ver(db, null, Number(b.id), s.usuario, "staff");
       if (accion === "s_borrar") return await borrar(db, null, Number(b.id), s.usuario, "staff");

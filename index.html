@@ -3639,10 +3639,11 @@ function informeAhora() {
 
 // Bóveda de accesos del cliente (función «boveda»; cada vez que alguien ve una contraseña queda apuntado)
 const BOVS = new Map();
+const PERMISOS_INV = { chat: "💬 Chat y soporte", web: "🌐 Mi web y SEO", servicios: "🛒 Servicios y pedidos", facturacion: "💳 Facturación y pagos", accesos: "🔑 Bóveda" };
 async function cargarBovedaStaff(id) {
   BOVS.set(id, { cargando: true, lista: [], accesos: [], visto: {} });
-  try { const d = await invocar("boveda", { accion: "s_listar", cliente_id: id }); BOVS.set(id, { lista: d.credenciales, accesos: d.accesos, visto: {} }); }
-  catch (e) { BOVS.set(id, { error: e.message, lista: [], accesos: [], visto: {} }); }
+  try { const d = await invocar("boveda", { accion: "s_listar", cliente_id: id }); BOVS.set(id, { lista: d.credenciales, accesos: d.accesos, invitados: d.invitados || [], visto: {} }); }
+  catch (e) { BOVS.set(id, { error: e.message, lista: [], accesos: [], invitados: [], visto: {} }); }
   if (clienteAbierto === id) pintarCliente();
 }
 function bovedaStaffHTML(id) {
@@ -3665,7 +3666,13 @@ function bovedaStaffHTML(id) {
       <input id="bov-c" type="password" maxlength="500" placeholder="Contraseña" autocomplete="new-password" class="campo text-sm" style="padding:.45rem .6rem"></div>
       <button type="button" data-bov-add class="mt-2 rounded-md bg-fx hover:bg-fx2 text-[#1a1005] text-sm font-semibold px-3.5 py-1.5">Guardar cifrado</button></details>
     ${b.accesos.length ? `<p class="mt-3 text-xs font-semibold text-slate-300">Registro</p><ul class="mt-1 space-y-0.5 text-xs text-slate-400">${b.accesos.slice(0, 8).map(a =>
-      `<li>${a.quien_tipo === "cliente" ? "El cliente" : esc(bonito(a.quien))} ${acc[a.accion] || a.accion} «${esc(a.servicio || "")}» · ${esc(fechaCorta(a.creado_en))}</li>`).join("")}</ul>` : ""}`;
+      `<li>${a.quien_tipo === "cliente" ? (a.quien === "cliente" ? "El cliente" : esc(a.quien)) : esc(bonito(a.quien))} ${acc[a.accion] || a.accion} «${esc(a.servicio || "")}» · ${esc(fechaCorta(a.creado_en))}</li>`).join("")}</ul>` : ""}
+    <p class="mt-3 text-xs font-semibold text-slate-300">👥 Personas a las que el cliente ha dado acceso</p>
+    ${(b.invitados || []).length ? `<ul class="mt-1 divide-y divide-line/70">${b.invitados.map(i => `<li class="py-2">
+      <span class="block text-sm text-slate-100">${esc(i.nombre)} · <span class="text-slate-400 break-all">${esc(i.email)}</span></span>
+      <span class="mt-1 flex flex-wrap gap-1">${(i.permisos || []).map(k => `<span class="rounded bg-fx/10 px-2 py-0.5 text-[11px] text-fx">${PERMISOS_INV[k] || esc(k)}</span>`).join("")}</span>
+      <span class="block text-xs text-slate-500 mt-1">Creado ${esc(fechaCorta(i.creado_en))} · ${i.ultimo_acceso ? "último acceso " + esc(fechaCorta(i.ultimo_acceso)) : "todavía no ha entrado"}</span></li>`).join("")}</ul>`
+      : '<p class="mt-1 text-sm text-slate-500">El cliente no ha dado acceso a nadie.</p>'}`;
 }
 document.addEventListener("click", async e => {
   const t = e.target, id = clienteAbierto;
@@ -3685,14 +3692,14 @@ document.addEventListener("click", async e => {
   }
   const del = t.closest("[data-bov-borrar]");
   if (del && b && confirm("¿Borrar este acceso? El cliente verá que lo has borrado.")) {
-    try { const d = await invocar("boveda", { accion: "s_borrar", id: Number(del.dataset.bovBorrar) }); BOVS.set(id, { lista: d.credenciales, accesos: d.accesos, visto: {} }); pintarCliente(); }
+    try { const d = await invocar("boveda", { accion: "s_borrar", id: Number(del.dataset.bovBorrar) }); BOVS.set(id, { ...b, lista: d.credenciales, accesos: d.accesos, visto: {} }); pintarCliente(); }
     catch (err) { toast(err.message, 6000); }
     return;
   }
   if (t.closest("[data-bov-add]")) {
     const v = k => $(k).value.trim(), cuerpo = { accion: "s_guardar", cliente_id: id, servicio: v("bov-s"), url: v("bov-url"), usuario: v("bov-u"), clave: $("bov-c").value };
     if (!cuerpo.servicio || !cuerpo.clave) { toast("Indica de qué es el acceso y su contraseña."); return; }
-    try { const d = await invocar("boveda", cuerpo); BOVS.set(id, { lista: d.credenciales, accesos: d.accesos, visto: {} }); pintarCliente(); toast("Acceso guardado y cifrado"); }
+    try { const d = await invocar("boveda", cuerpo); BOVS.set(id, { ...b, lista: d.credenciales, accesos: d.accesos, visto: {} }); pintarCliente(); toast("Acceso guardado y cifrado"); }
     catch (err) { toast(err.message, 6000); }
   }
 });
