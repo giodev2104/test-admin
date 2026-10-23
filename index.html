@@ -2818,8 +2818,6 @@ document.addEventListener("keydown", e => {
 // «Solo con correo» (opcional): Google no da correos, así que al marcarlo solo quedan los que tienen uno apuntado
 let prosSoloCorreo = (() => { try { return localStorage.getItem("pros-solo-correo2") === "1"; } catch (_) { return false; } })();
 let prospectos = null, prosFiltro = "nuevo", prosBusca = "", prosSel = null, prosBuscando = false, prosEnviando = false, prosUltima = null, prosAutoHecho = false;
-// Búsqueda automática de correos (función «prospectos», accion "correos", con Brave Search)
-let prosCorreos = { buscando: false, encontrados: 0, sinClave: false, uso: 0, limite: 0, agotado: false, error: "" };
 const prosForm = { negocio: "", zona: "", paginas: "1" }, prosBorrador = {};
 const ESTADOS_PROS = { nuevo: "Por contactar", contactado: "Propuesta enviada", respondido: "Ha respondido", cliente: "Ya es cliente", descartado: "Descartado" };
 const prospectoDe = email => (prospectos || []).find(p => p.email && p.email.toLowerCase() === String(email || "").toLowerCase());
@@ -2876,7 +2874,7 @@ function tarjetaPros(p) {
       ${tel ? `<a href="tel:${esc(tel)}" class="rounded-md border border-line px-2 py-1 text-slate-300 hover:border-fx">📞 ${esc(p.telefono)}</a><a href="https://wa.me/${esc(wa)}" target="_blank" rel="noopener" class="rounded-md border border-line px-2 py-1 text-slate-300 hover:border-fx">WhatsApp</a>` : ""}
       ${p.maps_url ? `<a href="${esc(p.maps_url)}" target="_blank" rel="noopener" class="rounded-md border border-line px-2 py-1 text-slate-300 hover:border-fx">📍 Google Maps</a>` : ""}
       ${p.web_social ? `<a href="${esc(p.web_social)}" target="_blank" rel="noopener" class="rounded-md border border-line px-2 py-1 text-slate-300 hover:border-fx" title="Su red social (no tiene web propia)">🔗 ${esc((() => { try { return new URL(p.web_social).hostname.replace(/^www\./, ""); } catch (_) { return "Perfil"; } })())}</a>` : `<span class="rounded-md border border-line px-2 py-1 text-slate-500">Sin web</span>`}
-      ${p.email || (!p.correo_buscado_en && est !== "nuevo") ? "" : `<span class="rounded-md border border-line px-2 py-1 text-slate-500">${p.correo_buscado_en ? "Correo no encontrado" : prosCorreos.buscando ? "Buscando correo…" : "Correo pendiente de buscar"}</span>`}
+      ${p.email ? "" : `<a href="https://www.google.com/search?q=${encodeURIComponent('"' + p.nombre + '" ' + (p.ciudad || "") + " correo OR email OR instagram")}" target="_blank" rel="noopener" class="rounded-md border border-line px-2 py-1 text-slate-300 hover:border-fx">🔎 Buscar su contacto</a>`}
     </div>
     <div class="mt-2 flex flex-wrap items-center gap-2">
       <input id="pros-email-${p.id}" data-pros-email="${p.id}" type="email" value="${esc(p.email || "")}" placeholder="Correo del negocio (de su Instagram, Facebook…)" aria-label="Correo de ${esc(p.nombre)}" class="campo text-sm min-w-0 basis-full sm:basis-0 flex-1" style="padding:.4rem .6rem">
@@ -2885,7 +2883,6 @@ function tarjetaPros(p) {
         : `<button type="button" data-pros-estado="${p.id}:descartado" class="rounded-lg border border-line px-2.5 py-1.5 text-xs text-slate-400 hover:border-red-500/60 hover:text-red-300">Descartar</button>`}
       ${est === "respondido" ? `<button type="button" data-pros-estado="${p.id}:cliente" class="rounded-lg border border-emerald-500/40 px-2.5 py-1.5 text-xs text-emerald-300 hover:bg-emerald-500/15">✓ Ya es cliente</button>` : ""}
     </div>
-    ${p.email && p.correo_fuente ? `<p class="mt-1 text-[11px] text-emerald-300/80">✓ Correo encontrado en <a href="${esc(p.correo_fuente)}" target="_blank" rel="noopener" class="underline hover:text-white">${esc((() => { try { return new URL(p.correo_fuente).hostname.replace(/^www\./, ""); } catch (_) { return "internet"; } })())}</a></p>` : ""}
     ${ult ? `<p class="mt-2 text-xs text-fx">✉️ Propuesta enviada el ${esc(fechaCorreo(ult.creado_en))}${ult.enviado_por ? " por " + esc(bonito(ult.enviado_por)) : ""}${env.length > 1 ? ` · ${env.length} correos` : ""}${recibidosDe(p.email).length ? ` · <b class="text-emerald-300">ha respondido</b>` : ""} · <button type="button" data-pros-hilo="${esc(p.email)}" class="underline hover:text-white">ver conversación</button></p>`
       : p.contactado_en ? `<p class="mt-2 text-xs text-fx">Marcado como contactado el ${esc(fechaCorreo(p.contactado_en))}${p.contactado_por ? " por " + esc(bonito(p.contactado_por)) : ""}</p>` : ""}
     <textarea data-pros-notas="${p.id}" id="pros-notas-${p.id}" rows="1" maxlength="2000" placeholder="Notas (p. ej. «llamé, volver el lunes»)" class="campo mt-2 text-xs" style="padding:.35rem .6rem;resize:vertical">${esc(p.notas || "")}</textarea>
@@ -2930,10 +2927,6 @@ function renderProspectos(el) {
     <button type="submit" ${prosBuscando ? "disabled" : ""} class="rounded-lg border border-fx/50 text-fx hover:bg-fx/10 disabled:opacity-60 text-sm font-bold px-4 py-2">🔎 Buscar aquí</button>
     <button type="button" data-pros-auto ${prosBuscando ? "disabled" : ""} class="rounded-lg bg-fx hover:bg-fx2 disabled:opacity-60 text-[#1a1005] text-sm font-bold px-4 py-2">${prosBuscando ? "Buscando… (hasta 1 min)" : "⚡ Traer más negocios"}</button>
     <datalist id="pros-tipos">${["Peluquería", "Barbería", "Centro de estética", "Taller mecánico", "Fisioterapia", "Clínica dental", "Restaurante", "Cafetería", "Panadería", "Floristería", "Fontanero", "Electricista", "Academia", "Gimnasio", "Tienda de ropa", "Inmobiliaria", "Veterinario", "Autoescuela"].map(x => `<option value="${x}">`).join("")}</datalist>
-    <p class="sm:col-span-4 text-xs ${prosCorreos.error ? "text-amber-300" : "text-slate-400"}">${prosCorreos.buscando ? `🔎 Buscando el correo de cada negocio en internet (Facebook, Instagram, directorios…)${prosCorreos.encontrados ? ` · ${prosCorreos.encontrados} encontrados` : ""}…`
-      : prosCorreos.sinClave ? "✉ Para que el panel encuentre solo el correo de cada negocio falta el secreto BRAVE_SEARCH_KEY en Supabase."
-      : prosCorreos.error ? "No se pudieron buscar los correos: " + esc(prosCorreos.error)
-      : prosCorreos.limite ? `✉ Correos encontrados automáticamente: ${prosCorreos.encontrados} en esta sesión · Brave este mes: ${prosCorreos.uso} de ${prosCorreos.limite} búsquedas${prosCorreos.agotado ? " (límite alcanzado: se reanuda el día 1)" : ""}` : ""}</p>
     ${prosUltima && !prosUltima.saltado ? `<p class="sm:col-span-4 text-xs text-slate-400">«${esc(prosUltima.consulta)}» (${esc(prosUltima.fuente || "")}): <b class="text-white">${prosUltima.sin_web} sin web</b>${prosUltima.con_contacto !== undefined ? `, ${prosUltima.con_contacto} con teléfono o correo` : ""} → ${prosUltima.nuevos} nuevos${prosUltima.repetidos ? `, ${prosUltima.repetidos} ya estaban en la lista` : ""}.${prosUltima.uso_google ? ` <span class="${prosUltima.uso_google >= prosUltima.limite_google * 0.9 ? "text-amber-300" : "text-slate-500"}">· Google Maps este mes: ${prosUltima.uso_google} de ${prosUltima.limite_google} búsquedas gratuitas (al llegar se para sola)</span>` : ""}</p>` : ""}
   </form>
   <div class="mb-3 flex flex-wrap items-center gap-2">
@@ -2961,28 +2954,12 @@ async function buscarProspectos(modo) {
     if (r.saltado) return;
     prosUltima = r; prosFiltro = "nuevo";
     await cargarProspectos(true);
-    if (r.nuevos) setTimeout(buscarCorreosPros, 0);
     toast(r.nuevos ? "🎯 " + r.nuevos + (r.nuevos === 1 ? " negocio nuevo sin web" : " negocios nuevos sin web") + " en " + r.consulta.replace(/^.* en /, "")
       : "No hay negocios nuevos sin web en «" + r.consulta + "». " + (modo ? "Pulsa otra vez para probar la siguiente ciudad." : "Prueba otra ciudad."), 6000);
   } catch (e) { if (modo !== "auto") toast(e.message + (/Failed to send|non-2xx|fetch/i.test(e.message) ? " (¿has desplegado la función «prospectos»?)" : ""), 9000); }
   finally { prosBuscando = false; renderCorreo(); }
 }
-function autoProspectos() { if (prosAutoHecho) return; prosAutoHecho = true; buscarProspectos("auto").then(() => buscarCorreosPros()); }
-// Busca solo el correo de los negocios que no lo tienen, de 8 en 8, mientras quede alguno (como mucho 6 tandas seguidas)
-async function buscarCorreosPros() {
-  if (prosCorreos.buscando) return;
-  prosCorreos.buscando = true; prosCorreos.error = ""; renderCorreo();
-  try {
-    for (let i = 0; i < 6; i++) {
-      const r = await invocar("prospectos", { accion: "correos" });
-      if (r.sin_clave) { prosCorreos.sinClave = true; break; }
-      prosCorreos.sinClave = false; prosCorreos.encontrados += r.encontrados || 0; prosCorreos.uso = r.uso_brave || prosCorreos.uso; prosCorreos.limite = r.limite_brave; prosCorreos.agotado = r.agotado;
-      if (r.encontrados) await cargarProspectos(true);
-      if (r.agotado || !r.pendientes || !r.buscados) break;
-    }
-  } catch (e) { prosCorreos.error = e.message; }
-  finally { prosCorreos.buscando = false; await cargarProspectos(true); renderCorreo(); }
-}
+function autoProspectos() { if (prosAutoHecho) return; prosAutoHecho = true; buscarProspectos("auto"); }
 async function guardarProspecto(id, cambios, silencio) {
   const p = (prospectos || []).find(x => x.id === id);
   if (!p) return false;
