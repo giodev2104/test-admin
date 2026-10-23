@@ -1,7 +1,7 @@
 // Edge Function "buzon": el buzón de la dirección de contacto (contact-velority@velority.es) dentro del panel.
 //   · POST ?k=CLAVE        (Brevo, «inbound parsing»)  → guarda en «correos» los correos que llegan
 //   · accion "responder"   (panel, sesión del staff)    → envía la respuesta con Brevo y la guarda
-//     Con plantilla "propuesta" (correos a clientes potenciales): aspecto de correo personal con «prueba gratuita» en negrita.
+//     Con plantilla "propuesta" (correos a clientes potenciales) va con diseño: «PRUEBA GRATIS» destacada y botón a la web.
 //   · accion "vista"       (panel, sesión del staff)    → devuelve el HTML de la propuesta sin enviarla (vista previa)
 //   · accion "adjunto"     (panel, sesión del staff)    → descarga un archivo adjunto de un correo recibido
 //   · accion "estado"      (panel, sesión del staff)    → si la recepción está conectada en Brevo
@@ -33,17 +33,46 @@ async function claveWebhook() {
 }
 const urlWebhook = async () => env("SUPABASE_URL") + "/functions/v1/buzon?k=" + (await claveWebhook());
 
-// Propuesta a un negocio sin web: el texto lo escribe el equipo en el panel. Va con aspecto de correo personal (sin imágenes,
-// colores, botones ni texto oculto) para que Gmail lo deje en «Principal» y no en «Promociones» o spam.
-// Solo se resalta «prueba gratuita» (negrita con fondo de rotulador); desde la línea «—» es la letra pequeña (baja).
-const enlaces = (h: string) => h.replace(/https?:\/\/[^\s<]+/g, (u) => `<a href="${u}">${u}</a>`);
+// Propuesta a un negocio sin web: el texto lo escribe el equipo en el panel; aquí se le da diseño.
+// La línea con el enlace a la demo se convierte en un botón grande; las líneas que empiezan por 🎁 se destacan;
+// desde «—» es la letra pequeña (baja). Ojo: este diseño puede hacer que Gmail lo deje en «Promociones».
+const DEMO = "https://velority.es/?demo=1", LOGO = "https://velority.es/logo-correo.png";
+const enlaces = (h: string) => h.replace(/https?:\/\/[^\s<]+/g, (u) => `<a href="${u}" style="color:#e8590c;font-weight:bold">${u.replace(/^https?:\/\//, "")}</a>`);
+const boton = (texto: string, url: string) => `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px auto"><tr><td align="center" style="border-radius:999px;background:#ff6a2b;background-image:linear-gradient(90deg,#ff8a3d,#ff4f8b)">
+  <a href="${url}" style="display:inline-block;padding:16px 34px;font-size:18px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:999px">${texto}</a></td></tr></table>`;
 function htmlPropuesta(texto: string) {
   const lineas = texto.split("\n"), corte = lineas.findIndex((l) => l.trim().startsWith("—"));
   const cuerpo = corte >= 0 ? lineas.slice(0, corte) : lineas, pie = corte >= 0 ? lineas.slice(corte + 1).join(" ").trim() : "";
-  const parrafos = cuerpo.join("\n").split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean)
-    .map((b) => `<p style="margin:0 0 14px">${enlaces(esc(b)).replace(/prueba gratuita/gi, (m) => `<b style="background:#fff1b8;padding:1px 4px;border-radius:3px">${m}</b>`).replace(/\n/g, "<br>")}</p>`).join("");
-  return `<!doctype html><html lang="es"><body style="margin:0;padding:8px 4px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#222">
-<div style="max-width:620px">${parrafos}${pie ? `<p style="margin:18px 0 0;font-size:12px;color:#888">${esc(pie)}</p>` : ""}</div></body></html>`;
+  let conBoton = false;
+  const bloques = cuerpo.join("\n").split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean).map((b) => {
+    if (b.includes("velority.es/?demo")) {
+      conBoton = true;
+      const resto = b.split("\n").map((l) => l.replace(/👉?\s*[^:\n]*:\s*https?:\/\/\S*velority\.es\/\?demo\S*/, "").trim()).filter(Boolean);
+      return boton("🎁 Entrar y pedir mi prueba gratis", DEMO) + resto.map((l) => `<p style="margin:0 0 18px;text-align:center;font-size:14px;color:#5b6170">${enlaces(esc(l))}</p>`).join("");
+    }
+    const h = enlaces(esc(b)).replace(/\n/g, "<br>");
+    if (b.startsWith("🎁")) return `<div style="margin:0 0 16px;padding:14px 16px;border-radius:12px;background:#fff4ec;border:2px solid #ff8a3d;font-size:16px;line-height:1.5;color:#1f2433">${h.replace(/^🎁\s*([^:<]+:)/, '🎁 <strong style="color:#e8590c">$1</strong>')}</div>`;
+    return `<p style="margin:0 0 14px;font-size:16px;line-height:1.55;color:#1f2433">${h}</p>`;
+  }).join("");
+  return `<!doctype html><html lang="es"><head><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"></head>
+<body style="margin:0;padding:0;background:#f1f2f6;font-family:Arial,Helvetica,sans-serif">
+<div style="display:none;max-height:0;overflow:hidden">Prueba gratis: os hacemos una demo de vuestra web y solo pagáis si os encanta.</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f2f6"><tr><td align="center" style="padding:24px 12px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:16px;overflow:hidden">
+  <tr><td style="background:#0d1020;padding:18px 24px"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td><img src="${LOGO}" alt="" height="34" style="display:block;height:34px;border:0"></td><td style="padding-left:10px;font-size:20px;font-weight:bold;color:#ffffff">Velority</td></tr></table></td></tr>
+  <tr><td align="center" style="background:#ff6a2b;background-image:linear-gradient(135deg,#ff8a3d 0%,#ff4f8b 60%,#a855f7 100%);padding:30px 24px 32px;color:#ffffff">
+    <div style="display:inline-block;background:#ffffff;color:#e8590c;font-weight:bold;font-size:14px;letter-spacing:2px;padding:7px 16px;border-radius:999px">🎁 PRUEBA GRATIS</div>
+    <h1 style="margin:16px 0 8px;font-size:30px;line-height:1.15;color:#ffffff">Vuestra web, gratis para probar</h1>
+    <p style="margin:0;font-size:17px;line-height:1.45;color:#ffffff">Os la preparamos sin compromiso.<br><strong>Solo pagáis si os encanta.</strong></p>
+  </td></tr>
+  <tr><td style="padding:26px 26px 10px">${bloques}${conBoton ? "" : boton("🎁 Entrar y pedir mi prueba gratis", DEMO)}</td></tr>
+  <tr><td style="padding:0 26px 24px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f7f7fb;border-radius:12px"><tr>
+    <td align="center" style="padding:14px 6px;font-size:13px;color:#1f2433;width:33%"><div style="font-size:22px">✅</div><strong>Demo gratis</strong><br>con vuestro negocio</td>
+    <td align="center" style="padding:14px 6px;font-size:13px;color:#1f2433;width:34%"><div style="font-size:22px">🤝</div><strong>Sin compromiso</strong><br>ni permanencia</td>
+    <td align="center" style="padding:14px 6px;font-size:13px;color:#1f2433;width:33%"><div style="font-size:22px">💶</div><strong>Desde 100 €</strong><br>pago único</td></tr></table></td></tr>
+</table>
+${pie ? `<p style="max-width:560px;margin:14px auto 0;font-size:11px;line-height:1.5;color:#8a8fa0">${enlaces(esc(pie))}</p>` : ""}
+</td></tr></table></body></html>`;
 }
 
 // Texto legible de un correo: el mensaje que extrae Brevo (sin la cita del correo anterior) o el texto completo
