@@ -1701,9 +1701,27 @@ function demoCasoHTML(r, borrado) {
     </div>
     <label class="block text-xs text-slate-400 mt-2">Mensaje para el cliente (opcional)<textarea id="demo-nota" rows="2" maxlength="1500" class="campo text-sm w-full mt-1" ${dis}>${esc(r.demo_nota || "")}</textarea></label>
     <p class="text-[11px] text-slate-500 mt-1">Las imágenes o el PDF de la demo, adjúntalos en el chat de este caso: el cliente los ve también en su apartado «Demo».</p>
-    ${fin ? "" : `<button type="button" data-demo-enviar="${r.id}" ${borrado ? "disabled" : ""} class="mt-2 rounded-md bg-fx hover:bg-fx2 px-3 py-1.5 text-xs font-semibold text-[#1a1005]">${r.demo_enviada_en ? "Actualizar y avisar al cliente" : "Enviar demo al cliente"}</button>`}
+    ${fin ? "" : `<div class="mt-2 flex flex-wrap items-center gap-2"><button type="button" data-demo-enviar="${r.id}" ${borrado ? "disabled" : ""} class="rounded-md bg-fx hover:bg-fx2 px-3 py-1.5 text-xs font-semibold text-[#1a1005]">${r.demo_enviada_en ? "Actualizar y avisar al cliente" : "Enviar demo al cliente"}</button>
+      ${r.demo_enviada_en ? `<button type="button" data-demo-guardar="${r.id}" ${borrado ? "disabled" : ""} class="rounded-md border border-line hover:border-fx px-3 py-1.5 text-xs text-slate-200" title="Corrige el mensaje, el precio o el enlace sin mensaje en el chat ni correo">Guardar sin avisar</button>` : ""}</div>`}
   </section>`;
 }
+// Corregir la demo ya enviada (mensaje, precio o enlace) sin escribir en el chat ni mandar correo
+document.addEventListener("click", async e => {
+  const t = e.target.closest?.("[data-demo-guardar]");
+  if (!t || t.disabled) return;
+  const id = Number(t.dataset.demoGuardar);
+  const url = document.getElementById("demo-url").value.trim(), nota = document.getElementById("demo-nota").value.trim();
+  const v = Math.round(Number(document.getElementById("demo-imp").value) * 100) / 100;
+  if (url && !/^https?:\/\/\S+\.\S+/.test(url)) return toast("Escribe la dirección completa de la demo (https://…).");
+  if (!(v > 0)) return toast("Pon el precio cerrado de la web, en euros (precio final).");
+  t.disabled = true;
+  const { data, error } = await db.from("reportes").update({ demo_url: url || null, demo_importe: v, demo_nota: nota || null }).eq("id", id).select();
+  t.disabled = false;
+  if (error) return toast("No se pudo guardar: " + error.message, 8000);
+  if (data && data[0]) reportes = reportes.map(x => x.id === id ? data[0] : x);
+  toast("Guardado. El cliente verá los cambios en su apartado «Demo», sin aviso.", 5000);
+  render(); if (detalleId) pintarDetalle();
+});
 document.addEventListener("click", async e => {
   const t = e.target.closest?.("[data-demo-enviar]");
   if (!t || t.disabled) return;
