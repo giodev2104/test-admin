@@ -34,10 +34,10 @@ async function claveWebhook() {
 const urlWebhook = async () => env("SUPABASE_URL") + "/functions/v1/buzon?k=" + (await claveWebhook());
 
 // Propuesta a un negocio sin web: el texto lo escribe el equipo en el panel; aquí se le da diseño.
-// La línea con el enlace a la demo se convierte en un botón grande; las líneas que empiezan por 🎁 se destacan;
+// La línea con el enlace a la web (👉 … https://velority.es/) se destaca y lleva debajo un botón grande; las líneas que empiezan por 🎁 se destacan;
 // desde «—» es la letra pequeña (baja). Ojo: este diseño puede hacer que Gmail lo deje en «Promociones».
-const DEMO = "https://velority.es/?demo=1", LOGO = "https://velority.es/logo-correo.png";
-const enlaces = (h: string) => h.replace(/https?:\/\/[^\s<]+/g, (u) => `<a href="${u}" style="color:#e8590c;font-weight:bold">${u.replace(/^https?:\/\//, "")}</a>`);
+const DEMO = "https://velority.es/", LOGO = "https://velority.es/logo-correo.png";
+const enlaces = (h: string) => h.replace(/https?:\/\/[^\s<]+/g, (u) => `<a href="${u}" style="color:#e8590c;font-weight:bold">${u}</a>`);
 const boton = (texto: string, url: string) => `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px auto"><tr><td align="center" style="border-radius:999px;background:#ff6a2b;background-image:linear-gradient(90deg,#ff8a3d,#ff4f8b)">
   <a href="${url}" style="display:inline-block;padding:16px 34px;font-size:18px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:999px">${texto}</a></td></tr></table>`;
 function htmlPropuesta(texto: string) {
@@ -45,10 +45,10 @@ function htmlPropuesta(texto: string) {
   const cuerpo = corte >= 0 ? lineas.slice(0, corte) : lineas, pie = corte >= 0 ? lineas.slice(corte + 1).join(" ").trim() : "";
   let conBoton = false;
   const bloques = cuerpo.join("\n").split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean).map((b) => {
-    if (b.includes("velority.es/?demo")) {
+    if (/https?:\/\/(www\.)?velority\.es\//.test(b) && /👉|prueba gratis/i.test(b)) {
       conBoton = true;
-      const resto = b.split("\n").map((l) => l.replace(/👉?\s*[^:\n]*:\s*https?:\/\/\S*velority\.es\/\?demo\S*/, "").trim()).filter(Boolean);
-      return boton("🎁 Entrar y pedir mi prueba gratis", DEMO) + resto.map((l) => `<p style="margin:0 0 18px;text-align:center;font-size:14px;color:#5b6170">${enlaces(esc(l))}</p>`).join("");
+      const [linea, ...resto] = b.split("\n").map((l) => l.trim()).filter(Boolean);
+      return `<p style="margin:0;text-align:center;font-size:17px;font-weight:bold;color:#1f2433">${enlaces(esc(linea))}</p>` + boton("🎁 Entrar y pedir mi prueba gratis", DEMO) + resto.map((l) => `<p style="margin:0 0 18px;text-align:center;font-size:14px;color:#5b6170">${enlaces(esc(l))}</p>`).join("");
     }
     const h = enlaces(esc(b)).replace(/\n/g, "<br>");
     if (b.startsWith("🎁")) return `<div style="margin:0 0 16px;padding:14px 16px;border-radius:12px;background:#fff4ec;border:2px solid #ff8a3d;font-size:16px;line-height:1.5;color:#1f2433">${h.replace(/^🎁\s*([^:<]+:)/, '🎁 <strong style="color:#e8590c">$1</strong>')}</div>`;
