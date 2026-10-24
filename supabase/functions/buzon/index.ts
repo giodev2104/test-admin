@@ -11,6 +11,7 @@
 // Usa los mismos secretos que «correo»: BREVO_API_KEY, CORREO_REMITENTE y opcional NOMBRE_REMITENTE.
 // Despliegue: nombre "buzon" y DESACTIVA «Verify JWT» (Brevo llama sin sesión; la clave va en la URL).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { firmaHTML, firmaTexto } from "../_shared/firma.ts";   // firma de quien envía + aviso legal (RGPD/LSSI-CE)
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -40,7 +41,7 @@ const DEMO = "https://velority.es/", LOGO = "https://velority.es/logo-correo.png
 const enlaces = (h: string) => h.replace(/https?:\/\/[^\s<]+/g, (u) => `<a href="${u}" style="color:#e8590c;font-weight:bold">${u}</a>`);
 const boton = (texto: string, url: string) => `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px auto"><tr><td align="center" style="border-radius:999px;background:#ff6a2b;background-image:linear-gradient(90deg,#ff8a3d,#ff4f8b)">
   <a href="${url}" style="display:inline-block;padding:16px 34px;font-size:18px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:999px">${texto}</a></td></tr></table>`;
-function htmlPropuesta(texto: string) {
+function htmlPropuesta(texto: string, usuario?: string | null) {
   const lineas = texto.split("\n"), corte = lineas.findIndex((l) => l.trim().startsWith("—"));
   const cuerpo = corte >= 0 ? lineas.slice(0, corte) : lineas, pie = corte >= 0 ? lineas.slice(corte + 1).join(" ").trim() : "";
   let conBoton = false;
@@ -71,6 +72,7 @@ function htmlPropuesta(texto: string) {
     <td align="center" style="padding:14px 6px;font-size:13px;color:#1f2433;width:34%"><div style="font-size:22px">🤝</div><strong>Sin compromiso</strong><br>ni permanencia</td>
     <td align="center" style="padding:14px 6px;font-size:13px;color:#1f2433;width:33%"><div style="font-size:22px">💶</div><strong>Desde 100 €</strong><br>pago único</td></tr></table></td></tr>
 </table>
+${firmaHTML(usuario, true)}
 ${pie ? `<p style="max-width:560px;margin:14px auto 0;font-size:11px;line-height:1.5;color:#8a8fa0">${enlaces(esc(pie))}</p>` : ""}
 </td></tr></table></body></html>`;
 }
@@ -134,7 +136,7 @@ Deno.serve(async (req) => {
     const cuerpo = await req.json().catch(() => ({}));
     const { accion } = cuerpo;
 
-    if (accion === "vista") return responder({ html: htmlPropuesta(String(cuerpo.texto || "").slice(0, 20000)) });
+    if (accion === "vista") return responder({ html: htmlPropuesta(String(cuerpo.texto || "").slice(0, 20000), yo.usuario) });
 
     if (accion === "responder") {
       const de = env("CORREO_REMITENTE"), contacto = String(cuerpo.contacto || "").trim().toLowerCase();
@@ -145,13 +147,13 @@ Deno.serve(async (req) => {
       if (!texto || texto.length > 20000) return responder({ error: "Escribe el mensaje (máximo 20.000 caracteres)." }, 400);
       const ref = cuerpo.en_respuesta_a ? String(cuerpo.en_respuesta_a).slice(0, 500) : "";
       const nombre = env("NOMBRE_REMITENTE") || "Velority";
-      const html = cuerpo.plantilla === "propuesta" ? htmlPropuesta(texto) : `<!doctype html><html lang="es"><body style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#1f2433">
-        <div style="max-width:620px;padding:8px 4px">${esc(texto).replace(/\n/g, "<br>")}</div></body></html>`;
+      const html = cuerpo.plantilla === "propuesta" ? htmlPropuesta(texto, yo.usuario) : `<!doctype html><html lang="es"><body style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#1f2433">
+        <div style="max-width:620px;padding:8px 4px">${esc(texto).replace(/\n/g, "<br>")}</div>${firmaHTML(yo.usuario)}</body></html>`;
       const r = await brevo("/smtp/email", {
         method: "POST",
         body: JSON.stringify({
           sender: { email: de, name: nombre }, replyTo: { email: de, name: nombre },
-          to: [{ email: contacto }], subject: asunto, htmlContent: html, textContent: texto,
+          to: [{ email: contacto }], subject: asunto, htmlContent: html, textContent: texto + firmaTexto(yo.usuario),
           ...(ref ? { headers: { "In-Reply-To": ref, References: ref } } : {}),
         }),
       });

@@ -6,6 +6,7 @@
 // Despliegue: Edge Functions > Deploy a new function > Via Editor, nombre "informe", y DESACTIVA «Verify JWT».
 // Usa los mismos secretos que «correo»: BREVO_API_KEY, CORREO_REMITENTE y opcionales NOMBRE_REMITENTE, URL_PORTAL.
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { firmaHTML } from "../_shared/firma.ts";   // firma + aviso legal (RGPD/LSSI-CE)
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -46,7 +47,7 @@ function cifra(titulo: string, valor: string, nota = "") {
 }
 
 // El correo del informe
-function html(nombre: string, dominio: string, mesTxt: string, d: Datos, casos: { titulo: string; tipo: string }[], rotos: number | null) {
+function html(nombre: string, dominio: string, mesTxt: string, d: Datos, casos: { titulo: string; tipo: string }[], rotos: number | null, firma: string | null) {
   const celdas: string[] = [];
   if (hay(d.disponibilidad)) celdas.push(cifra("Tu web estuvo online", num(d.disponibilidad, 2) + " %", "del tiempo"));
   if (hay(d.velocidad)) celdas.push(cifra("Velocidad de carga", num(d.velocidad, 1) + " s", Number(d.velocidad) <= 2 ? "Buena" : "Mejorable"));
@@ -77,7 +78,7 @@ function html(nombre: string, dominio: string, mesTxt: string, d: Datos, casos: 
       <p style="font-size:13px;color:#6b7186;margin:12px 0 0">En tu portal puedes descargarlo en PDF desde «Mi web» › «Meses anteriores».</p>
     </div>
     <p style="font-size:12px;color:#7b8194;margin:16px 4px">Recibes este informe por tu plan de mantenimiento en Velority. Si prefieres no recibirlo, contesta a este correo o escríbenos desde tu portal.</p>
-  </div></body></html>`;
+  ${firmaHTML(firma)}</div></body></html>`;
 }
 
 async function informeDe(db: SupabaseClient, clienteId: string, mes: string, quien: string, forzar: boolean) {
@@ -99,7 +100,7 @@ async function informeDe(db: SupabaseClient, clienteId: string, mes: string, qui
   const mesTxt = new Date(mes + "T12:00:00Z").toLocaleDateString("es-ES", { month: "long", year: "numeric" });
   const Mes = mesTxt.charAt(0).toUpperCase() + mesTxt.slice(1);
   await enviar(c.email, c.nombre, `Informe de tu web · ${Mes}`, html(String(c.nombre).split(" ")[0], c.dominio || "tu web", Mes, d,
-    (casos || []).map((x) => ({ titulo: x.titulo, tipo: x.tipo_reporte })), rotos));
+    (casos || []).map((x) => ({ titulo: x.titulo, tipo: x.tipo_reporte })), rotos, quien === "automático" ? null : quien));
   await db.from("informes_enviados").upsert({ cliente_id: clienteId, mes, enviado_en: new Date().toISOString(), enviado_por: quien });
   return { ok: true };
 }

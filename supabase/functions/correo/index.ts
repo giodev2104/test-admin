@@ -10,6 +10,7 @@
 // Secretos (Edge Functions > Secrets): BREVO_API_KEY, CORREO_REMITENTE (el correo verificado en Brevo)
 // y opcionales NOMBRE_REMITENTE, URL_PORTAL, URL_PANEL, TURNSTILE_SECRET (protege «recuperar» y «enlace» de robots).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { firmaHTML } from "../_shared/firma.ts";   // firma + aviso legal (RGPD/LSSI-CE) en los correos a clientes
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -44,7 +45,8 @@ async function turnstileValido(token: unknown, ip: string) {
 }
 const NO_ROBOT = "No hemos podido comprobar que no eres un robot. Recarga la página e inténtalo de nuevo.";
 
-function plantilla(titulo: string, parrafos: string[], boton?: { texto: string; url: string }) {
+// firma: usuario del equipo que firma (o null = firma de la empresa); false = aviso interno al equipo, sin aviso legal
+function plantilla(titulo: string, parrafos: string[], boton?: { texto: string; url: string }, firma: string | null | false = null) {
   return `<!doctype html><html lang="es"><body style="margin:0;background:#f4f5f8;font-family:Arial,Helvetica,sans-serif;color:#1f2433">
   <div style="max-width:560px;margin:0 auto;padding:28px 16px">
     <p style="font-size:20px;font-weight:bold;margin:0 0 18px"><img src="${LOGO}" width="39" height="30" alt="" style="vertical-align:middle;border:0;margin-right:8px">Velority</p>
@@ -53,7 +55,7 @@ function plantilla(titulo: string, parrafos: string[], boton?: { texto: string; 
       ${parrafos.map((p) => `<p style="font-size:15px;line-height:1.55;margin:0 0 12px">${p}</p>`).join("")}
       ${boton ? `<p style="margin:22px 0 4px"><a href="${esc(boton.url)}" style="background:#5b6cff;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:bold;display:inline-block">${esc(boton.texto)}</a></p>` : ""}
     </div>
-    <p style="font-size:12px;color:#7b8194;margin:16px 4px">Recibes este correo por tu cuenta en Velority. Si no esperabas este mensaje, puedes ignorarlo.</p>
+    ${firma === false ? `<p style="font-size:12px;color:#7b8194;margin:16px 4px">Aviso interno del panel de Velority.</p>` : `<p style="font-size:12px;color:#7b8194;margin:16px 4px">Recibes este correo por tu cuenta en Velority. Si no esperabas este mensaje, puedes ignorarlo.</p>${firmaHTML(firma)}`}
   </div></body></html>`;
 }
 
@@ -148,11 +150,11 @@ Deno.serve(async (req) => {
         ? plantilla(`Tu solicitud #${r.id} está: ${estadoCliente(r.estado)}`, [
             `Hola, ${nombre}. Hay novedades en tu solicitud «${esc(r.titulo || "Sin título")}».`,
             `Su estado ahora es <b>${esc(estadoCliente(r.estado))}</b>.`,
-          ], { texto: "Ver mi solicitud", url: URL_PORTAL })
+          ], { texto: "Ver mi solicitud", url: URL_PORTAL }, yo.usuario)
         : plantilla("El equipo te ha respondido", [
             `Hola, ${nombre}. Tienes una respuesta nueva en «${esc(r.titulo || "Sin título")}» (#${r.id}).`,
             "Entra en tu portal para leerla y contestar.",
-          ], { texto: "Leer la respuesta", url: URL_PORTAL });
+          ], { texto: "Leer la respuesta", url: URL_PORTAL }, yo.usuario);
       await enviar(c.email, c.nombre, cuerpo.motivo === "estado" ? `Novedades en tu solicitud #${r.id}` : `Tienes una respuesta del equipo (#${r.id})`, html);
       await admin.from("reportes").update({ aviso_cliente_en: new Date().toISOString() }).eq("id", r.id);
       return responder({ ok: true });
@@ -167,7 +169,7 @@ Deno.serve(async (req) => {
       if (!s) return responder({ ok: true, omitido: "Responsable no encontrado." });
       await enviar(s.email, s.usuario, `Te han asignado el caso #${r.id}`, plantilla(`Te han asignado el caso #${r.id}`, [
         `${esc(yo.usuario)} te ha asignado «${esc(r.titulo || "Sin título")}» de ${esc(r.usuario_discord || "un cliente")}.`,
-      ], { texto: "Abrir el panel", url: URL_PANEL }));
+      ], { texto: "Abrir el panel", url: URL_PANEL }, false));
       return responder({ ok: true });
     }
 
@@ -184,7 +186,7 @@ Deno.serve(async (req) => {
       for (const s of destinos || []) {
         await enviar(s.email, s.usuario, `Nuevo mensaje del cliente en el caso #${r.id}`, plantilla(`${r.usuario_discord || "Un cliente"} ha escrito`, [
           `Hay un mensaje nuevo en «${esc(r.titulo || "Sin título")}» (#${r.id})${r.responsable_usuario ? "" : ". El caso no tiene responsable"}.`,
-        ], { texto: "Responder en el panel", url: URL_PANEL }));
+        ], { texto: "Responder en el panel", url: URL_PANEL }, false));
       }
       await admin.from("reportes").update({ aviso_equipo_en: new Date().toISOString() }).eq("id", r.id);
       return responder({ ok: true });
@@ -205,7 +207,7 @@ Deno.serve(async (req) => {
           `Plan: <b>${esc(w?.plan || "sin plan")}</b> · plazo de respuesta: <b>${plazo} h</b>.`,
           `«${esc(r.titulo || "Sin título")}» (#${r.id})`,
           esc(String(extra?.descripcion || "").slice(0, 600)),
-        ], { texto: "Atender en el panel", url: URL_PANEL }));
+        ], { texto: "Atender en el panel", url: URL_PANEL }, false));
       }
       await admin.from("reportes").update({ aviso_equipo_en: new Date().toISOString() }).eq("id", r.id);
       return responder({ ok: true });
