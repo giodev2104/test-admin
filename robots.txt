@@ -1,2 +1,5 @@
+# Panel privado del equipo: no debe salir en Google.
+# No se bloquea el rastreo a propósito: así Google puede leer el <meta name="robots" content="noindex"> de la página
+# y quitarla de los resultados (con «Disallow: /» la dirección sale igual, sin descripción).
 User-agent: *
-Disallow: /
+Allow: /
