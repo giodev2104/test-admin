@@ -3201,6 +3201,7 @@ function pintarCliente() {
         <div class="mt-2 flex justify-end"><button type="button" data-ncli-add class="rounded-md bg-fx hover:bg-fx2 text-[#1a1005] text-sm font-semibold px-3.5 py-1.5">Añadir nota</button></div>`, ns.length ? `<span class="text-xs text-fx">(${ns.length})</span>` : "")}
       ${bloque("Servicios contratados", serviciosStaffHTML(c.id))}
       ${bloque("🔒 Bóveda de accesos", bovedaStaffHTML(c.id))}
+      ${bloque("🛍️ Catálogo de productos", catalogoStaffHTML(c))}
       ${bloque("Casos", casos.length ? `<ul class="divide-y divide-line/70">${casos.map(r => { const v = valDe(r.id); return `<li><button type="button" data-detalle="${r.id}" class="w-full flex items-center gap-2 py-2 text-left hover:bg-raised/50 rounded-md px-1">
         <span class="w-2 h-2 rounded-full shrink-0 ${TIPOS[tipoDe(r)].dot}"></span><span class="min-w-0 flex-1"><span class="block text-sm text-slate-200 truncate">#${r.id} · ${esc(r.titulo || "Sin título")}</span>
         <span class="block text-[11px] text-slate-500">${esc(tipoDe(r))} · ${esc(fechaDia(r.created_at))}${r.responsable_usuario ? " · " + esc(bonito(r.responsable_usuario)) : ""}</span></span>
@@ -3309,6 +3310,10 @@ const GUIA = [
   { i: "🔒", t: "Bóveda de accesos", k: "boveda contraseña acceso clave credenciales wordpress hosting", h: `
       <p>En la ficha del cliente, <b>🔒 Bóveda de accesos</b> guarda cifradas las contraseñas de su web, hosting, correo…</p>
       <ul class="mt-2 space-y-1"><li>• Pulsa «Ver contraseña» para mostrarla. <b>Queda registrado quién la ha visto y cuándo.</b></li><li>• No copies contraseñas en el chat ni en notas.</li></ul>` },
+  { i: "🛍️", t: "Catálogo de productos", k: "catalogo productos tienda fotos joyas web script codigo activar", h: `
+      <p>En la ficha del cliente, <b>🛍️ Catálogo de productos</b> → <b>Activar catálogo</b>. El cliente verá la pestaña «Catálogo» en su portal y podrá subir productos con fotos, precio y categoría (hasta el máximo que pongas).</p>
+      <ul class="mt-2 space-y-1"><li>• Pega el <b>código para su web</b> en la sección donde quieras los productos. Funciona igual en velority.cloud y en su dominio propio.</li>
+      <li>• Lo que el cliente guarda sale en su web al momento. Desde aquí puedes ocultar un producto.</li><li>• Desactivar no borra nada: solo deja de verse en el portal y en la web.</li></ul>` },
   { i: "⭐", t: "Valoraciones y opiniones", k: "valoracion opinion estrellas reseña web portada ocultar", h: `
       <p>Al cerrar un caso o descargar una entrega, el cliente puede valorar de 1 a 5 estrellas. Si lo autoriza, su opinión aparece en la <b>página principal del portal</b>.</p>
       <p class="mt-2">En <b>Negocio → Últimas valoraciones</b> puedes <b>Ocultar</b> una opinión pública si no debe salir en la web.</p>` },
@@ -3671,7 +3676,7 @@ function informeAhora() {
 
 // Bóveda de accesos del cliente (función «boveda»; cada vez que alguien ve una contraseña queda apuntado)
 const BOVS = new Map();
-const PERMISOS_INV = { chat: "💬 Chat y soporte", web: "🌐 Mi web y SEO", servicios: "🛒 Servicios y pedidos", facturacion: "💳 Facturación y pagos", accesos: "🔑 Bóveda" };
+const PERMISOS_INV = { chat: "💬 Chat y soporte", web: "🌐 Mi web y SEO", servicios: "🛒 Servicios y pedidos", facturacion: "💳 Facturación y pagos", accesos: "🔑 Bóveda", catalogo: "🛍️ Catálogo" };
 async function cargarBovedaStaff(id) {
   BOVS.set(id, { cargando: true, lista: [], accesos: [], visto: {} });
   try { const d = await invocar("boveda", { accion: "s_listar", cliente_id: id }); BOVS.set(id, { lista: d.credenciales, accesos: d.accesos, invitados: d.invitados || [], visto: {} }); }
@@ -3733,6 +3738,79 @@ document.addEventListener("click", async e => {
     if (!cuerpo.servicio || !cuerpo.clave) { toast("Indica de qué es el acceso y su contraseña."); return; }
     try { const d = await invocar("boveda", cuerpo); BOVS.set(id, { ...b, lista: d.credenciales, accesos: d.accesos, visto: {} }); pintarCliente(); toast("Acceso guardado y cifrado"); }
     catch (err) { toast(err.message, 6000); }
+  }
+});
+
+// ---------- Catálogo de productos (tablas catalogos y productos). Lo activa el equipo; el cliente sube sus productos
+// desde la pestaña «Catálogo» de su portal y su web los enseña con https://velority.es/catalogo.js ----------
+const CATS = new Map();
+const fotoCat = f => SUPABASE_URL + "/storage/v1/object/public/productos/" + f;
+async function cargarCatalogoStaff(id) {
+  CATS.set(id, { cargando: true });
+  const [{ data: k, error: e1 }, { data: l, error: e2 }] = await Promise.all([
+    db.from("catalogos").select("*").eq("cliente_id", id).maybeSingle(),
+    db.from("productos").select("id,nombre,precio,categoria,fotos,visible,destacado").eq("cliente_id", id).order("orden").order("id", { ascending: false })]);
+  CATS.set(id, { k, lista: l || [], error: (e1 || e2) ? (e1 || e2).message : "" });
+  if (clienteAbierto === id) pintarCliente();
+}
+function codigoCatalogo(k, c) {
+  const wa = String(c.telefono || "").replace(/\D/g, "");
+  return `<div data-velority-catalogo="${k.clave}"${wa ? ` data-whatsapp="${wa.length === 9 ? "34" + wa : wa}"` : ""}></div>\n<script src="https://velority.es/catalogo.js" defer><\/script>`;
+}
+function catalogoStaffHTML(c) {
+  const x = CATS.get(c.id);
+  if (!x) { setTimeout(() => cargarCatalogoStaff(c.id), 0); return '<p class="text-sm text-slate-500">Cargando…</p>'; }
+  if (x.cargando) return '<p class="text-sm text-slate-500">Cargando…</p>';
+  const k = x.k, on = k && k.activo, eur = n => n === null ? "Precio bajo consulta" : Number(n).toLocaleString("es-ES", { maximumFractionDigits: 2 }) + " €";
+  return `<p class="text-xs text-slate-500 -mt-1 mb-2">Con el catálogo activo, el cliente ve la pestaña «Catálogo» en su portal y sube sus productos. Su web los enseña al momento si lleva el código de abajo (funciona en velority.cloud y en su dominio).</p>
+    ${x.error ? `<p class="text-sm text-amber-300">${esc(x.error)}</p>` : ""}
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="mini ${on ? "bg-emerald-500/15 text-emerald-300" : "bg-slate-500/15 text-slate-400"}">${on ? "● Activo" : "Desactivado"}</span>
+      ${on ? `<span class="text-sm text-slate-300">${x.lista.length} de ${k.limite} productos</span>` : ""}
+      <label class="ml-auto flex items-center gap-1.5 text-xs text-slate-400">Máximo<input id="cat-limite" type="number" min="1" max="1000" value="${k ? k.limite : 30}" class="campo text-sm w-20" style="padding:.3rem .5rem"></label>
+      ${k ? `<button type="button" data-cat-limite class="rounded-md border border-line px-2.5 py-1 text-xs text-slate-200 hover:border-fx">Guardar máximo</button>` : ""}
+      <button type="button" data-cat-activar="${on ? "0" : "1"}" class="rounded-md ${on ? "border border-line text-slate-200 hover:border-red-400" : "bg-fx hover:bg-fx2 text-[#1a1005] font-semibold"} px-3 py-1 text-xs">${on ? "Desactivar" : "Activar catálogo"}</button>
+    </div>
+    ${k ? `<p class="mt-3 text-xs font-semibold text-slate-300">Código para su web <button type="button" data-cat-copiar class="ml-1 font-normal text-fx hover:underline">Copiar</button></p>
+      <pre class="mt-1 whitespace-pre-wrap break-all rounded-md bg-panel border border-line px-3 py-2 text-[11px] text-slate-300">${esc(codigoCatalogo(k, c))}</pre>` : ""}
+    ${x.lista.length ? `<ul class="mt-3 grid gap-2 sm:grid-cols-2">${x.lista.map(p => `<li class="flex items-center gap-2 rounded-md border border-line bg-panel p-2 ${p.visible ? "" : "opacity-60"}">
+      ${p.fotos && p.fotos.length ? `<img src="${esc(fotoCat(p.fotos[0]))}" alt="" loading="lazy" class="w-11 h-11 rounded object-cover shrink-0">` : '<span class="w-11 h-11 rounded bg-raised grid place-items-center shrink-0">🛍️</span>'}
+      <span class="min-w-0 flex-1"><span class="block text-sm text-slate-100 truncate">${p.destacado ? "★ " : ""}${esc(p.nombre)}</span><span class="block text-xs text-slate-500 truncate">${p.categoria ? esc(p.categoria) + " · " : ""}${eur(p.precio)}${p.visible ? "" : " · oculto"}</span></span>
+      <button type="button" data-cat-ver="${p.id}" class="text-xs text-slate-400 hover:text-fx px-1">${p.visible ? "Ocultar" : "Mostrar"}</button></li>`).join("")}</ul>`
+      : on ? '<p class="mt-2 text-sm text-slate-500">El cliente aún no ha subido productos.</p>' : ""}`;
+}
+document.addEventListener("click", async e => {
+  const t = e.target, id = clienteAbierto;
+  if (!id || !t.closest || !t.closest("#cliente-modal")) return;
+  const x = CATS.get(id);
+  if (!x || x.cargando) return;
+  const act = t.closest("[data-cat-activar]");
+  if (act) {
+    const on = act.dataset.catActivar === "1", limite = Math.min(1000, Math.max(1, parseInt($("cat-limite").value, 10) || 30));
+    if (!confirm(on ? "¿Activar el catálogo? El cliente verá la pestaña «Catálogo» en su portal y podrá subir hasta " + limite + " productos."
+                    : "¿Desactivar el catálogo? El cliente dejará de ver la pestaña y su web dejará de mostrar los productos (no se borran).")) return;
+    const fila = { cliente_id: id, activo: on, limite, activado_por: usuarioActual, actualizado_en: new Date().toISOString() };
+    const { error } = x.k ? await db.from("catalogos").update(fila).eq("cliente_id", id) : await db.from("catalogos").insert(fila);
+    if (error) { toast("No se pudo guardar: " + error.message, 6000); return; }
+    toast(on ? "Catálogo activado" : "Catálogo desactivado"); cargarCatalogoStaff(id); return;
+  }
+  if (t.closest("[data-cat-limite]")) {
+    const limite = Math.min(1000, Math.max(1, parseInt($("cat-limite").value, 10) || 30));
+    const { error } = await db.from("catalogos").update({ limite, actualizado_en: new Date().toISOString() }).eq("cliente_id", id);
+    if (error) { toast("No se pudo guardar: " + error.message, 6000); return; }
+    x.k.limite = limite; pintarCliente(); toast("Máximo guardado"); return;
+  }
+  if (t.closest("[data-cat-copiar]")) {
+    try { await navigator.clipboard.writeText(codigoCatalogo(x.k, clienteDe(id) || {})); toast("Código copiado"); } catch (_) { toast("No se pudo copiar"); }
+    return;
+  }
+  const ver = t.closest("[data-cat-ver]");
+  if (ver) {
+    const p = x.lista.find(q => q.id === Number(ver.dataset.catVer));
+    if (!p) return;
+    const { error } = await db.from("productos").update({ visible: !p.visible, actualizado_en: new Date().toISOString() }).eq("id", p.id);
+    if (error) { toast("No se pudo cambiar: " + error.message, 6000); return; }
+    p.visible = !p.visible; pintarCliente();
   }
 });
 
