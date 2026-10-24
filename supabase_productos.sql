@@ -123,3 +123,6 @@ begin
   end if;
 end
 $$;
+
+-- Quién hizo el último cambio de cada producto: «cliente» (portal) o el usuario del equipo (panel)
+alter table public.productos add column if not exists actualizado_por text;

@@ -98,7 +98,7 @@ Deno.serve(async (req) => {
         nombre, descripcion: texto(p.descripcion, 2000), precio: precio === null ? null : Math.round(precio * 100) / 100,
         precio_oferta: oferta === null ? null : Math.round(oferta * 100) / 100, oferta_hasta: hasta,
         categoria: texto(p.categoria, 60), fotos, visible: p.visible !== false, destacado: p.destacado === true,
-        actualizado_en: new Date().toISOString(),
+        actualizado_en: new Date().toISOString(), actualizado_por: "cliente",
       };
       if (p.id) {
         const { data: antes } = await admin.from("productos").select("fotos").eq("id", Number(p.id)).eq("cliente_id", cid).maybeSingle();

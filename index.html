@@ -3313,7 +3313,7 @@ const GUIA = [
   { i: "🛍️", t: "Catálogo de productos", k: "catalogo productos tienda fotos joyas web script codigo activar", h: `
       <p>En la ficha del cliente, <b>🛍️ Catálogo de productos</b> → <b>Activar catálogo</b>. El cliente verá la pestaña «Catálogo» en su portal y podrá subir productos con fotos, precio y categoría (hasta el máximo que pongas).</p>
       <ul class="mt-2 space-y-1"><li>• Pega el <b>código para su web</b> en la sección donde quieras los productos. Funciona igual en velority.cloud y en su dominio propio.</li>
-      <li>• Lo que el cliente guarda sale en su web al momento. Desde aquí puedes ocultar un producto.</li><li>• El cliente puede poner <b>descuentos</b> (en % o precio rebajado, con fecha de fin opcional): en la web sale el precio anterior tachado y la etiqueta «−X %».</li><li>• Desactivar no borra nada: solo deja de verse en el portal y en la web.</li></ul>` },
+      <li>• Lo que el cliente guarda sale en su web al momento. Desde aquí también puedes <b>añadir, editar, ordenar, ocultar y borrar</b> productos (cada producto muestra quién lo cambió por última vez).</li><li>• El cliente puede poner <b>descuentos</b> (en % o precio rebajado, con fecha de fin opcional): en la web sale el precio anterior tachado y la etiqueta «−X %».</li><li>• Desactivar no borra nada: solo deja de verse en el portal y en la web.</li></ul>` },
   { i: "⭐", t: "Valoraciones y opiniones", k: "valoracion opinion estrellas reseña web portada ocultar", h: `
       <p>Al cerrar un caso o descargar una entrega, el cliente puede valorar de 1 a 5 estrellas. Si lo autoriza, su opinión aparece en la <b>página principal del portal</b>.</p>
       <p class="mt-2">En <b>Negocio → Últimas valoraciones</b> puedes <b>Ocultar</b> una opinión pública si no debe salir en la web.</p>` },
@@ -3742,28 +3742,56 @@ document.addEventListener("click", async e => {
 });
 
 // ---------- Catálogo de productos (tablas catalogos y productos). Lo activa el equipo; el cliente sube sus productos
-// desde la pestaña «Catálogo» de su portal y su web los enseña con https://velority.es/catalogo.js ----------
+// desde la pestaña «Catálogo» de su portal y su web los enseña con https://velority.es/catalogo.js.
+// El equipo también puede añadir, editar, ordenar y borrar productos desde aquí (mismas reglas que el portal). ----------
 const CATS = new Map();
-const ofertaCat = p => p.precio_oferta !== null && p.precio !== null && (!p.oferta_hasta || p.oferta_hasta >= new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Madrid" }));
+const ofertaCat = p => p.precio_oferta !== null && p.precio !== null && (!p.oferta_hasta || p.oferta_hasta >= hoyMadrid());
 const fotoCat = f => SUPABASE_URL + "/storage/v1/object/public/productos/" + f;
+const numCat = t => { t = String(t ?? "").replace(/\s|€|%/g, "").replace(",", "."); return t === "" ? null : Number(t); };
+const txtNum = n => n === null || n === undefined ? "" : (Number(n) % 1 ? Number(n).toFixed(2) : String(Number(n))).replace(".", ",");
 async function cargarCatalogoStaff(id) {
-  CATS.set(id, { cargando: true });
+  const prev = CATS.get(id);
+  CATS.set(id, { cargando: true, edit: prev && prev.edit });
   const [{ data: k, error: e1 }, { data: l, error: e2 }] = await Promise.all([
     db.from("catalogos").select("*").eq("cliente_id", id).maybeSingle(),
-    db.from("productos").select("id,nombre,precio,precio_oferta,oferta_hasta,categoria,fotos,visible,destacado").eq("cliente_id", id).order("orden").order("id", { ascending: false })]);
-  CATS.set(id, { k, lista: l || [], error: (e1 || e2) ? (e1 || e2).message : "" });
+    db.from("productos").select("id,nombre,descripcion,precio,precio_oferta,oferta_hasta,categoria,fotos,visible,destacado,orden,actualizado_en,actualizado_por").eq("cliente_id", id).order("orden").order("id", { ascending: false })]);
+  CATS.set(id, { k, lista: l || [], error: (e1 || e2) ? (e1 || e2).message : "", edit: prev && prev.edit, subiendo: 0 });
   if (clienteAbierto === id) pintarCliente();
 }
 function codigoCatalogo(k, c) {
   const wa = String(c.telefono || "").replace(/\D/g, "");
   return `<div data-velority-catalogo="${k.clave}"${wa ? ` data-whatsapp="${wa.length === 9 ? "34" + wa : wa}"` : ""}></div>\n<script src="https://velority.es/catalogo.js" defer><\/script>`;
 }
+// Formulario de producto: los valores viven en x.edit (se guardan al escribir), así no se pierden si la ficha se repinta
+function formCatHTML(x) {
+  const e = x.edit, cats = [...new Set(x.lista.map(p => p.categoria).filter(Boolean))].sort(), campo = "campo text-sm w-full", pad = "padding:.45rem .6rem";
+  const inp = (f, et, ph, extra = "") => `<label class="block text-xs text-slate-400">${et}<input data-catf="${f}" value="${esc(e[f] ?? "")}" placeholder="${ph}" class="${campo} mt-1" style="${pad}" ${extra}></label>`;
+  return `<div class="mt-3 rounded-lg border border-fx/40 bg-panel p-3 space-y-2">
+    <p class="text-sm font-semibold text-white">${e.id ? "Editar producto" : "Nuevo producto"}</p>
+    ${inp("nombre", "Nombre", "Anillo de oro con zafiro", 'maxlength="120"')}
+    <div class="grid gap-2 sm:grid-cols-2">${inp("categoria", "Categoría (opcional)", "Anillos, colgantes…", 'maxlength="60" list="cat-cats"')}<datalist id="cat-cats">${cats.map(c => `<option value="${esc(c)}">`).join("")}</datalist>
+      ${inp("precio", "Precio € (vacío = bajo consulta)", "120", 'inputmode="decimal" maxlength="12"')}</div>
+    <div class="grid gap-2 grid-cols-2 sm:grid-cols-3">${inp("pct", "Descuento %", "20", 'inputmode="decimal" maxlength="5"')}${inp("oferta", "o precio rebajado €", "96", 'inputmode="decimal" maxlength="12"')}
+      <label class="col-span-2 sm:col-span-1 block text-xs text-slate-400">Oferta hasta (opcional)<input data-catf="hasta" type="date" min="${hoyMadrid()}" value="${esc(e.hasta || "")}" class="${campo} mt-1" style="${pad}"></label></div>
+    <label class="block text-xs text-slate-400">Descripción (opcional)<textarea data-catf="descripcion" maxlength="2000" rows="2" placeholder="Material, medidas, detalles…" class="${campo} resize-y mt-1" style="${pad}">${esc(e.descripcion || "")}</textarea></label>
+    <div class="flex flex-wrap gap-2">${e.fotos.map((f, i) => `<span class="relative"><img src="${esc(fotoCat(f))}" alt="Foto ${i + 1}" class="w-16 h-16 rounded object-cover border border-line">
+      <button type="button" data-catfoto-quitar="${i}" class="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 text-white text-[10px]" aria-label="Quitar foto ${i + 1}">✕</button>
+      ${i ? `<button type="button" data-catfoto-principal="${i}" class="absolute -top-1.5 -left-1.5 w-5 h-5 rounded-full bg-black/80 text-amber-300 text-[10px]" aria-label="Hacer principal">★</button>` : ""}</span>`).join("")}
+      ${x.subiendo ? `<span class="w-16 h-16 grid place-items-center text-[11px] text-slate-400 border border-dashed border-line rounded">Subiendo ${x.subiendo}…</span>` : ""}
+      ${e.fotos.length + (x.subiendo || 0) < 5 ? `<label class="w-16 h-16 grid place-items-center text-2xl text-slate-400 border border-dashed border-line rounded cursor-pointer hover:border-fx">＋<input type="file" accept="image/*" multiple data-catfotos class="hidden"></label>` : ""}</div>
+    <p class="text-[11px] text-slate-500">Hasta 5 fotos; la primera es la principal. Se reducen solas antes de subir.</p>
+    <div class="flex flex-wrap items-center gap-4 text-sm text-slate-300"><label class="flex items-center gap-1.5"><input type="checkbox" data-catf="visible" ${e.visible ? "checked" : ""}>Visible en la web</label>
+      <label class="flex items-center gap-1.5"><input type="checkbox" data-catf="destacado" ${e.destacado ? "checked" : ""}>★ Destacado</label></div>
+    <div class="flex gap-2"><button type="button" data-cat-guardar ${x.subiendo ? "disabled" : ""} class="rounded-md bg-fx hover:bg-fx2 text-[#1a1005] text-sm font-semibold px-3.5 py-1.5 disabled:opacity-50">Guardar</button>
+      <button type="button" data-cat-cancelar class="rounded-md border border-line px-3.5 py-1.5 text-sm text-slate-200 hover:border-fx">Cancelar</button></div></div>`;
+}
 function catalogoStaffHTML(c) {
   const x = CATS.get(c.id);
   if (!x) { setTimeout(() => cargarCatalogoStaff(c.id), 0); return '<p class="text-sm text-slate-500">Cargando…</p>'; }
   if (x.cargando) return '<p class="text-sm text-slate-500">Cargando…</p>';
   const k = x.k, on = k && k.activo, eur = n => n === null ? "Precio bajo consulta" : Number(n).toLocaleString("es-ES", { maximumFractionDigits: 2 }) + " €";
-  return `<p class="text-xs text-slate-500 -mt-1 mb-2">Con el catálogo activo, el cliente ve la pestaña «Catálogo» en su portal y sube sus productos. Su web los enseña al momento si lleva el código de abajo (funciona en velority.cloud y en su dominio).</p>
+  const quien = p => p.actualizado_por ? (p.actualizado_por === "cliente" ? "el cliente" : esc(bonito(p.actualizado_por))) : "";
+  return `<p class="text-xs text-slate-500 -mt-1 mb-2">Con el catálogo activo, el cliente ve la pestaña «Catálogo» en su portal y sube sus productos. Su web los enseña al momento si lleva el código de abajo (funciona en velority.cloud y en su dominio). El equipo también puede añadirlos y editarlos aquí.</p>
     ${x.error ? `<p class="text-sm text-amber-300">${esc(x.error)}</p>` : ""}
     <div class="flex flex-wrap items-center gap-2">
       <span class="mini ${on ? "bg-emerald-500/15 text-emerald-300" : "bg-slate-500/15 text-slate-400"}">${on ? "● Activo" : "Desactivado"}</span>
@@ -3774,12 +3802,56 @@ function catalogoStaffHTML(c) {
     </div>
     ${k ? `<p class="mt-3 text-xs font-semibold text-slate-300">Código para su web <button type="button" data-cat-copiar class="ml-1 font-normal text-fx hover:underline">Copiar</button></p>
       <pre class="mt-1 whitespace-pre-wrap break-all rounded-md bg-panel border border-line px-3 py-2 text-[11px] text-slate-300">${esc(codigoCatalogo(k, c))}</pre>` : ""}
-    ${x.lista.length ? `<ul class="mt-3 grid gap-2 sm:grid-cols-2">${x.lista.map(p => `<li class="flex items-center gap-2 rounded-md border border-line bg-panel p-2 ${p.visible ? "" : "opacity-60"}">
+    ${on ? (x.edit ? formCatHTML(x) : `<button type="button" data-cat-nuevo ${x.lista.length >= k.limite ? "disabled" : ""} class="mt-3 rounded-md bg-fx hover:bg-fx2 text-[#1a1005] text-sm font-semibold px-3.5 py-1.5 disabled:opacity-50">＋ Añadir producto</button>`) : ""}
+    ${x.lista.length ? `<ul class="mt-3 grid gap-2 sm:grid-cols-2">${x.lista.map((p, i) => `<li class="flex items-center gap-2 rounded-md border border-line bg-panel p-2 ${p.visible ? "" : "opacity-60"}">
       ${p.fotos && p.fotos.length ? `<img src="${esc(fotoCat(p.fotos[0]))}" alt="" loading="lazy" class="w-11 h-11 rounded object-cover shrink-0">` : '<span class="w-11 h-11 rounded bg-raised grid place-items-center shrink-0">🛍️</span>'}
-      <span class="min-w-0 flex-1"><span class="block text-sm text-slate-100 truncate">${p.destacado ? "★ " : ""}${esc(p.nombre)}</span><span class="block text-xs text-slate-500 truncate">${p.categoria ? esc(p.categoria) + " · " : ""}${ofertaCat(p) ? `<s>${eur(p.precio)}</s> <span class="text-red-300">${eur(p.precio_oferta)} (−${Math.round((1 - p.precio_oferta / p.precio) * 100)} %${p.oferta_hasta ? " hasta " + esc(fechaDia(p.oferta_hasta + "T12:00")) : ""})</span>` : eur(p.precio)}${p.visible ? "" : " · oculto"}</span></span>
-      <button type="button" data-cat-ver="${p.id}" class="text-xs text-slate-400 hover:text-fx px-1">${p.visible ? "Ocultar" : "Mostrar"}</button></li>`).join("")}</ul>`
-      : on ? '<p class="mt-2 text-sm text-slate-500">El cliente aún no ha subido productos.</p>' : ""}`;
+      <span class="min-w-0 flex-1"><span class="block text-sm text-slate-100 truncate">${p.destacado ? "★ " : ""}${esc(p.nombre)}</span><span class="block text-xs text-slate-500 truncate">${p.categoria ? esc(p.categoria) + " · " : ""}${ofertaCat(p) ? `<s>${eur(p.precio)}</s> <span class="text-red-300">${eur(p.precio_oferta)} (−${Math.round((1 - p.precio_oferta / p.precio) * 100)} %${p.oferta_hasta ? " hasta " + esc(fechaDia(p.oferta_hasta + "T12:00")) : ""})</span>` : eur(p.precio)}${p.visible ? "" : " · oculto"}</span>
+      ${p.actualizado_por ? `<span class="block text-[10px] text-slate-600 truncate">Editado por ${quien(p)} · ${esc(fechaCorta(p.actualizado_en))}</span>` : ""}</span>
+      <span class="flex flex-col items-end gap-0.5 shrink-0 text-xs"><span class="flex gap-2"><button type="button" data-cat-editar="${p.id}" class="text-slate-300 hover:text-fx">Editar</button><button type="button" data-cat-ver="${p.id}" class="text-slate-400 hover:text-fx">${p.visible ? "Ocultar" : "Mostrar"}</button></span>
+      <span class="flex gap-2"><button type="button" data-cat-mover="${i},-1" ${i ? "" : "disabled"} class="text-slate-400 hover:text-fx disabled:opacity-30" aria-label="Subir">↑</button><button type="button" data-cat-mover="${i},1" ${i < x.lista.length - 1 ? "" : "disabled"} class="text-slate-400 hover:text-fx disabled:opacity-30" aria-label="Bajar">↓</button><button type="button" data-cat-borrar="${p.id}" class="text-slate-500 hover:text-red-300">Borrar</button></span></span></li>`).join("")}</ul>`
+      : on ? '<p class="mt-2 text-sm text-slate-500">Todavía no hay productos.</p>' : ""}`;
 }
+// Reduce la foto (máx. 1600 px) y la pasa a WebP (o JPEG si el navegador no sabe hacer WebP)
+async function reducirFotoCat(f) {
+  const img = await new Promise((ok, ko) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ko(new Error("No se pudo leer la foto «" + f.name + "».")); i.src = URL.createObjectURL(f); });
+  const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight)), cv = document.createElement("canvas");
+  cv.width = Math.round(img.naturalWidth * k); cv.height = Math.round(img.naturalHeight * k); cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height); URL.revokeObjectURL(img.src);
+  let b = await new Promise(ok => cv.toBlob(ok, "image/webp", .82));
+  if (!b || b.type !== "image/webp") b = await new Promise(ok => cv.toBlob(ok, "image/jpeg", .85));
+  return b;
+}
+async function quitarFotosCat(clave, rutas) {
+  const r = (rutas || []).filter(f => f.startsWith(clave + "/"));
+  if (r.length) await db.storage.from("productos").remove(r);
+}
+// Lo que se escribe en el formulario se guarda en x.edit; el % y el precio rebajado se calculan el uno del otro
+document.addEventListener("input", e => {
+  const t = e.target, f = t.dataset && t.dataset.catf, x = CATS.get(clienteAbierto);
+  if (!f || !x || !x.edit) return;
+  const ed = x.edit;
+  ed[f] = t.type === "checkbox" ? t.checked : t.value;
+  const otro = n => document.querySelector(`[data-catf="${n}"]`), pr = numCat(ed.precio);
+  if (f === "pct") { const pc = numCat(ed.pct); ed.oferta = pr && pc > 0 && pc < 100 ? txtNum(Math.round(pr * (100 - pc)) / 100) : ""; if (otro("oferta")) otro("oferta").value = ed.oferta; }
+  if (f === "oferta" || f === "precio") { const po = numCat(ed.oferta); ed.pct = pr && po !== null && po >= 0 && po < pr ? String(Math.round((1 - po / pr) * 100)) : ""; if (otro("pct")) otro("pct").value = ed.pct; }
+});
+document.addEventListener("change", async e => {
+  const t = e.target, x = CATS.get(clienteAbierto);
+  if (t.dataset && t.dataset.catf && x && x.edit && t.type === "checkbox") { x.edit[t.dataset.catf] = t.checked; return; }
+  if (!t.matches || !t.matches("[data-catfotos]") || !x || !x.edit || !x.k) return;
+  const id = clienteAbierto, fs = [...t.files].slice(0, 5 - x.edit.fotos.length - (x.subiendo || 0));
+  if (!fs.length) return;
+  x.subiendo = (x.subiendo || 0) + fs.length; pintarCliente();
+  for (const f of fs) {
+    try {
+      if (!/^image\//.test(f.type)) throw new Error("«" + f.name + "» no es una foto.");
+      const b = await reducirFotoCat(f), ruta = `${x.k.clave}/${crypto.randomUUID()}.${b.type === "image/webp" ? "webp" : "jpg"}`;
+      const { error } = await db.storage.from("productos").upload(ruta, b, { contentType: b.type });
+      if (error) throw error;
+      if (x.edit) x.edit.fotos.push(ruta);
+    } catch (err) { toast("No se pudo subir la foto: " + (err.message || err), 6000); }
+    x.subiendo--; if (clienteAbierto === id) pintarCliente();
+  }
+});
 document.addEventListener("click", async e => {
   const t = e.target, id = clienteAbierto;
   if (!id || !t.closest || !t.closest("#cliente-modal")) return;
@@ -3809,9 +3881,62 @@ document.addEventListener("click", async e => {
   if (ver) {
     const p = x.lista.find(q => q.id === Number(ver.dataset.catVer));
     if (!p) return;
-    const { error } = await db.from("productos").update({ visible: !p.visible, actualizado_en: new Date().toISOString() }).eq("id", p.id);
+    const { error } = await db.from("productos").update({ visible: !p.visible, actualizado_en: new Date().toISOString(), actualizado_por: usuarioActual }).eq("id", p.id);
     if (error) { toast("No se pudo cambiar: " + error.message, 6000); return; }
-    p.visible = !p.visible; pintarCliente();
+    p.visible = !p.visible; p.actualizado_por = usuarioActual; p.actualizado_en = new Date().toISOString(); pintarCliente(); return;
+  }
+  // Formulario: nuevo, editar, fotos, guardar, cancelar
+  if (t.closest("[data-cat-nuevo]")) { x.edit = { id: null, nombre: "", categoria: "", precio: "", pct: "", oferta: "", hasta: "", descripcion: "", fotos: [], visible: true, destacado: false, fotosAntes: [] }; pintarCliente(); return; }
+  const edt = t.closest("[data-cat-editar]");
+  if (edt) {
+    const p = x.lista.find(q => q.id === Number(edt.dataset.catEditar));
+    if (!p) return;
+    const of = ofertaCat(p);
+    x.edit = { id: p.id, nombre: p.nombre, categoria: p.categoria || "", precio: txtNum(p.precio), oferta: of ? txtNum(p.precio_oferta) : "", hasta: of ? p.oferta_hasta || "" : "",
+      pct: of ? String(Math.round((1 - p.precio_oferta / p.precio) * 100)) : "", descripcion: p.descripcion || "", fotos: [...(p.fotos || [])], visible: p.visible, destacado: p.destacado, fotosAntes: [...(p.fotos || [])] };
+    pintarCliente(); const n = document.querySelector('[data-catf="nombre"]'); if (n) { n.scrollIntoView({ block: "center" }); n.focus(); } return;
+  }
+  const fq = t.closest("[data-catfoto-quitar]");
+  if (fq && x.edit) { x.edit.fotos.splice(Number(fq.dataset.catfotoQuitar), 1); pintarCliente(); return; }
+  const fp = t.closest("[data-catfoto-principal]");
+  if (fp && x.edit) { const f = x.edit.fotos.splice(Number(fp.dataset.catfotoPrincipal), 1)[0]; x.edit.fotos.unshift(f); pintarCliente(); return; }
+  if (t.closest("[data-cat-cancelar]")) {
+    // Las fotos subidas en este formulario y no guardadas se borran
+    if (x.edit) await quitarFotosCat(x.k.clave, x.edit.fotos.filter(f => !x.edit.fotosAntes.includes(f)));
+    x.edit = null; pintarCliente(); return;
+  }
+  if (t.closest("[data-cat-guardar]") && x.edit) {
+    const ed = x.edit, nombre = String(ed.nombre || "").trim(), pr = numCat(ed.precio), po = pr === null ? null : numCat(ed.oferta);
+    if (!nombre) { toast("Ponle un nombre al producto."); return; }
+    if (pr !== null && !(pr >= 0 && pr < 1e8)) { toast("Escribe el precio solo con números, por ejemplo 120 o 49,90.", 5000); return; }
+    if (numCat(ed.oferta) !== null && pr === null) { toast("Para poner un descuento, el producto tiene que tener precio.", 5000); return; }
+    if (po !== null && !(po >= 0 && po < pr)) { toast("El precio rebajado tiene que ser menor que el precio normal.", 5000); return; }
+    if (po !== null && ed.hasta && ed.hasta < hoyMadrid()) { toast("La fecha de fin de la oferta ya ha pasado.", 5000); return; }
+    if (!ed.id && x.lista.length >= x.k.limite) { toast("Ha llegado al máximo de " + x.k.limite + " productos. Súbelo con «Guardar máximo».", 6000); return; }
+    const fila = { nombre: nombre.slice(0, 120), categoria: String(ed.categoria || "").trim().slice(0, 60) || null, descripcion: String(ed.descripcion || "").trim().slice(0, 2000) || null,
+      precio: pr === null ? null : Math.round(pr * 100) / 100, precio_oferta: po === null ? null : Math.round(po * 100) / 100, oferta_hasta: po !== null && ed.hasta ? ed.hasta : null,
+      fotos: ed.fotos.slice(0, 5), visible: ed.visible !== false, destacado: !!ed.destacado, actualizado_en: new Date().toISOString(), actualizado_por: usuarioActual };
+    const orden = x.lista.length ? Math.min(...x.lista.map(p => p.orden || 0)) - 1 : 0;
+    const { error } = ed.id ? await db.from("productos").update(fila).eq("id", ed.id).eq("cliente_id", id) : await db.from("productos").insert({ ...fila, cliente_id: id, orden });
+    if (error) { toast("No se pudo guardar: " + error.message, 6000); return; }
+    await quitarFotosCat(x.k.clave, ed.fotosAntes.filter(f => !ed.fotos.includes(f)));
+    x.edit = null; toast(ed.id ? "Producto guardado. Ya está actualizado en su web." : "Producto añadido a su web."); cargarCatalogoStaff(id); return;
+  }
+  const bor = t.closest("[data-cat-borrar]");
+  if (bor) {
+    const p = x.lista.find(q => q.id === Number(bor.dataset.catBorrar));
+    if (!p || !confirm("¿Borrar «" + p.nombre + "» y sus fotos? Desaparecerá de su web y de su portal.")) return;
+    const { error } = await db.from("productos").delete().eq("id", p.id);
+    if (error) { toast("No se pudo borrar: " + error.message, 6000); return; }
+    await quitarFotosCat(x.k.clave, p.fotos); x.lista = x.lista.filter(q => q.id !== p.id); pintarCliente(); toast("Producto borrado"); return;
+  }
+  const mov = t.closest("[data-cat-mover]");
+  if (mov) {
+    const [i, d] = mov.dataset.catMover.split(",").map(Number), j = i + d, L = x.lista;
+    if (j < 0 || j >= L.length) return;
+    [L[i], L[j]] = [L[j], L[i]]; L.forEach((p, n) => p.orden = n); pintarCliente();
+    const r = await Promise.all(L.map((p, n) => db.from("productos").update({ orden: n }).eq("id", p.id)));
+    if (r.some(q => q.error)) toast("No se pudo guardar el orden", 6000);
   }
 });
 
