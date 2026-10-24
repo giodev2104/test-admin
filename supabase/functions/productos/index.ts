@@ -2,10 +2,12 @@
 // Portal (POST, con el token de la sesión del titular o de una persona invitada con permiso «catalogo»):
 //   · listar  {token}                     → {limite, clave, base, productos}
 //   · subir   {token, tipo, tamano}       → URL firmada para subir una foto (5 min) a la carpeta del catálogo
-//   · guardar {token, producto}           → crea o modifica un producto (borra las fotos que se hayan quitado)
+//   · guardar {token, producto}           → crea o modifica un producto (borra las fotos que se hayan quitado).
+//                                           Descuento: precio_oferta (menor que el precio) y oferta_hasta (opcional, incluido)
 //   · borrar  {token, id}                 → borra el producto y sus fotos
 //   · ordenar {token, ids}                → guarda el orden
 // Web del cliente (GET ?c=CLAVE, sin sesión): productos visibles de un catálogo activo. Lo usa https://velority.es/catalogo.js
+// Con una oferta vigente, «precio» es el rebajado y «precio_antes» el original.
 // El catálogo solo funciona si el equipo lo ha activado en el panel (tabla «catalogos»).
 // Despliegue: nombre "productos" y DESACTIVA «Verify JWT» (la función comprueba ella misma el token del cliente).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
@@ -20,7 +22,8 @@ const responder = (cuerpo: unknown, status = 200, extra: Record<string, string> 
 
 const BUCKET = "productos", MAX_BYTES = 3 * 1024 * 1024, MAX_FOTOS = 5;
 const EXT: Record<string, string> = { "image/jpeg": "jpg", "image/webp": "webp", "image/png": "png" };
-const COLUMNAS = "id,nombre,descripcion,precio,categoria,fotos,visible,destacado,orden";
+const COLUMNAS = "id,nombre,descripcion,precio,precio_oferta,oferta_hasta,categoria,fotos,visible,destacado,orden";
+const hoy = () => new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Madrid" });   // AAAA-MM-DD en España
 const texto = (v: unknown, max: number) => { const t = String(v ?? "").trim().slice(0, max); return t || null; };
 
 Deno.serve(async (req) => {
@@ -35,10 +38,15 @@ Deno.serve(async (req) => {
       if (!/^[0-9a-f]{16}$/.test(clave)) return responder({ error: "Catálogo no válido." }, 400);
       const { data: k } = await admin.from("catalogos").select("cliente_id").eq("clave", clave).eq("activo", true).maybeSingle();
       if (!k) return responder({ error: "Catálogo no disponible." }, 404, { "Cache-Control": "public, max-age=60" });
-      const { data: l, error } = await admin.from("productos").select("id,nombre,descripcion,precio,categoria,fotos,destacado")
+      const { data: l, error } = await admin.from("productos").select("id,nombre,descripcion,precio,precio_oferta,oferta_hasta,categoria,fotos,destacado")
         .eq("cliente_id", k.cliente_id).eq("visible", true).order("orden").order("id", { ascending: false });
       if (error) throw error;
-      const productos = (l || []).map((p) => ({ ...p, precio: p.precio === null ? null : Number(p.precio), fotos: (p.fotos || []).map((f: string) => base + f) }));
+      const h = hoy();
+      const productos = (l || []).map(({ precio_oferta, oferta_hasta, ...p }) => {
+        const oferta = precio_oferta !== null && p.precio !== null && (!oferta_hasta || oferta_hasta >= h);
+        return { ...p, precio: p.precio === null ? null : Number(oferta ? precio_oferta : p.precio), precio_antes: oferta ? Number(p.precio) : null,
+          oferta_hasta: oferta ? oferta_hasta : null, fotos: (p.fotos || []).map((f: string) => base + f) };
+      });
       return responder({ productos }, 200, { "Cache-Control": "public, max-age=60" });
     }
 
@@ -79,10 +87,16 @@ Deno.serve(async (req) => {
       if (!nombre) return responder({ error: "Ponle un nombre al producto." }, 400);
       const precio = p.precio === null || p.precio === undefined || p.precio === "" ? null : Number(String(p.precio).replace(",", "."));
       if (precio !== null && !(precio >= 0 && precio < 1e8)) return responder({ error: "El precio no es válido." }, 400);
+      let oferta = precio === null || p.precio_oferta === null || p.precio_oferta === undefined || p.precio_oferta === "" ? null
+        : Number(String(p.precio_oferta).replace(",", "."));
+      if (oferta !== null && !(oferta >= 0 && oferta < (precio as number))) return responder({ error: "El precio con descuento tiene que ser menor que el precio normal." }, 400);
+      let hasta = oferta !== null && /^\d{4}-\d{2}-\d{2}$/.test(String(p.oferta_hasta || "")) ? String(p.oferta_hasta) : null;
+      if (hasta && hasta < hoy()) { oferta = null; hasta = null; }   // oferta ya terminada: se quita
       const patron = new RegExp(`^${k.clave}/[0-9a-f-]{36}\\.(jpg|webp|png)$`);
       const fotos = (Array.isArray(p.fotos) ? p.fotos : []).map(String).filter((f: string) => patron.test(f)).slice(0, MAX_FOTOS);
       const fila = {
         nombre, descripcion: texto(p.descripcion, 2000), precio: precio === null ? null : Math.round(precio * 100) / 100,
+        precio_oferta: oferta === null ? null : Math.round(oferta * 100) / 100, oferta_hasta: hasta,
         categoria: texto(p.categoria, 60), fotos, visible: p.visible !== false, destacado: p.destacado === true,
         actualizado_en: new Date().toISOString(),
       };

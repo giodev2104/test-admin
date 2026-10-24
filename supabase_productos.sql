@@ -111,3 +111,15 @@ returns json language sql stable security definer set search_path = public, exte
 $$;
 revoke all on function public.servidor_catalogo_de_token(text) from public, anon, authenticated;
 grant execute on function public.servidor_catalogo_de_token(text) to service_role;
+
+-- Descuentos por producto: precio rebajado y, si se quiere, hasta qué día (incluido) dura la oferta
+alter table public.productos add column if not exists precio_oferta numeric(10,2);
+alter table public.productos add column if not exists oferta_hasta date;
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'productos_oferta_check') then
+    alter table public.productos add constraint productos_oferta_check
+      check (precio_oferta is null or (precio_oferta >= 0 and precio is not null and precio_oferta < precio));
+  end if;
+end
+$$;
