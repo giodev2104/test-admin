@@ -4276,18 +4276,27 @@ $("avisos-abrir").addEventListener("click", async () => {
   } catch (e) { toast(e.message, 9000); }
   finally { b.disabled = false; pintarAvisos(); }
 });
-// Al tocar un aviso: abre ese caso (con el panel ya abierto, o al cargarlo desde el enlace #caso=ID)
+// Al tocar un aviso: abre lo que corresponda (#caso=ID, #cliente=UUID o #correo), con el panel ya abierto o al cargarlo
+async function abrirAviso(h) {
+  let m;
+  if ((m = /caso=(\d+)/.exec(h))) {
+    const id = Number(m[1]);
+    if (!reportes.some(r => r.id === id)) await cargar();
+    if (reportes.some(r => r.id === id)) abrirDetalle(id); else toast("Ese caso ya no está en el panel.");
+  } else if ((m = /cliente=([0-9a-f-]{36})/.exec(h))) {
+    irA("clientes");
+    await recargarClientes().catch(() => {});
+    if (clienteDe(m[1])) abrirCliente(m[1]); else toast("No se encontró ese cliente.");
+  } else if (/correo/.test(h)) irA("correo");
+}
 function abrirCasoDeEnlace() {
-  const m = /#caso=(\d+)/.exec(location.hash);
-  if (!m) return;
+  const h = location.hash;
+  if (!/^#(caso=|cliente=|correo)/.test(h)) return;
   history.replaceState(null, "", location.pathname + location.search);
-  const id = Number(m[1]);
-  if (reportes.some(r => r.id === id)) abrirDetalle(id); else toast("Ese caso ya no está en el panel.");
+  abrirAviso(h);
 }
 if (AVISOS_OK) navigator.serviceWorker.addEventListener("message", e => {
-  const id = e.data && e.data.abrirCaso;
-  if (!id) return;
-  if (reportes.some(r => r.id === id)) abrirDetalle(id); else cargar().then(() => { if (reportes.some(r => r.id === id)) abrirDetalle(id); });
+  if (e.data && typeof e.data.abrir === "string") abrirAviso(e.data.abrir);
 });
 
 // ---------- Administradores ----------

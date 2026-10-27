@@ -4,6 +4,7 @@
 //   · estado              (panel, sesión del staff)   → si este móvil está registrado
 //   · probar              (panel, sesión del staff)   → aviso de prueba a mis móviles
 //   · caso / mensaje      (base de datos, x-secreto)  → lo lanzan los disparadores de «reportes» y «mensajes_caso»
+//   · evento              (base de datos, x-secreto)  → todo lo demás que hace un cliente (supabase_push_todo.sql)
 // Despliegue: nombre "push" y DESACTIVA «Verify JWT» (la función comprueba ella misma quién llama).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { avisarStaff, clavesVapid, enviarPush } from "../_shared/push.ts";
@@ -30,9 +31,20 @@ Deno.serve(async (req) => {
     if (accion === "clave") return responder({ clave: (await clavesVapid(admin)).publica });
 
     // ---------- Avisos que lanza la base de datos ----------
-    if (accion === "caso" || accion === "mensaje") {
+    if (accion === "caso" || accion === "mensaje" || accion === "evento") {
       const { data: aj } = await admin.from("ajustes").select("valor").eq("clave", "secreto_cron").maybeSingle();
       if (!aj?.valor || req.headers.get("x-secreto") !== aj.valor) return responder({ error: "No autorizado." }, 401);
+      // Resto de cosas que hace un cliente (pedidos, pagos, catálogo, bóveda, correos, web caída…): el texto ya viene hecho
+      if (accion === "evento") {
+        const { data: equipo } = await admin.from("staff").select("usuario,es_dueno");
+        const destinos = (equipo || []).filter((s: { es_dueno: boolean }) => cuerpo.todos || s.es_dueno).map((s: { usuario: string }) => s.usuario);
+        const enlace = /^(caso=\d+|cliente=[0-9a-f-]{36}|correo)$/.test(String(cuerpo.enlace || "")) ? "#" + cuerpo.enlace : "";
+        const enviados = await avisarStaff(admin, destinos, {
+          titulo: corta(cuerpo.titulo, 120) || "Velority", texto: corta(cuerpo.texto, 200), url: URL_PANEL + enlace,
+          etiqueta: cuerpo.etiqueta ? corta(cuerpo.etiqueta, 80) : undefined,
+        });
+        return responder({ ok: true, enviados });
+      }
       const { data: r } = await admin.from("reportes")
         .select("id,titulo,descripcion,usuario_discord,responsable_usuario,origen,eliminado_en,aviso_push_en")
         .eq("id", Number(cuerpo.id)).maybeSingle();
@@ -89,7 +101,7 @@ Deno.serve(async (req) => {
       const q = admin.from("push_suscripciones").select("id,endpoint,p256dh,auth").eq("usuario", yo.usuario);
       const { data } = endpoint ? await q.eq("endpoint", endpoint) : await q;
       const enviados = await enviarPush(admin, data || [], {
-        titulo: "🔔 Avisos activados", texto: "Así te avisaremos cuando un cliente cree un caso o te responda.", url: URL_PANEL, etiqueta: "prueba",
+        titulo: "🔔 Avisos activados", texto: "Te avisaremos de todo lo que hagan los clientes: casos, mensajes, pedidos, pagos, catálogo…", url: URL_PANEL, etiqueta: "prueba",
       });
       if (!enviados) return responder({ error: "No se ha podido enviar el aviso a este móvil. Vuelve a activarlos." }, 400);
       return responder({ ok: true, enviados });

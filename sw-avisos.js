@@ -1,4 +1,4 @@
-// Service worker del panel: solo muestra los avisos push (nuevo caso / respuesta de un cliente) y abre el caso al tocarlos.
+// Service worker del panel: solo muestra los avisos push (nuevo caso / respuesta de un cliente) y abre el caso, el cliente o el correo al tocarlos.
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));
 
@@ -18,13 +18,13 @@ self.addEventListener("push", e => {
 self.addEventListener("notificationclick", e => {
   e.notification.close();
   const url = (e.notification.data && e.notification.data.url) || self.registration.scope;
-  const m = /#caso=(\d+)/.exec(url);
+  const destino = (/#.*$/.exec(url) || [""])[0];
   e.waitUntil((async () => {
     const abiertas = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
     const panel = abiertas.find(c => c.url.startsWith(self.registration.scope));
     if (panel) {
       await panel.focus();
-      if (m) panel.postMessage({ abrirCaso: Number(m[1]) });
+      if (destino) panel.postMessage({ abrir: destino });
       return;
     }
     await self.clients.openWindow(url);
