@@ -134,7 +134,11 @@
     <button id="tema-abrir" type="button" class="rail-btn hidden" title="Tema de temporada (Halloween…) de velority.es" aria-label="Tema de temporada">
       <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7c-1-2-1-3.5.5-5"/><path d="M12 7c-5 0-8 3-8 7s3 7 8 7 8-3 8-7-3-7-8-7z"/><path d="M9 7.6C7.6 9.6 7.6 18.4 9 20.4M15 7.6c1.4 2 1.4 10.8 0 12.8"/></svg>
     </button>
-    <button id="guia-abrir" type="button" class="rail-btn mt-auto" title="Guía del panel" aria-label="Guía del panel">
+    <button id="avisos-abrir" type="button" class="rail-btn relative mt-auto hidden" title="Avisos en este móvil: desactivados" aria-label="Avisos en este móvil">
+      <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+      <span id="avisos-punto" class="hidden absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-400"></span>
+    </button>
+    <button id="guia-abrir" type="button" class="rail-btn" title="Guía del panel" aria-label="Guía del panel">
       <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14"/><path d="M12 17h.01"/></svg>
     </button>
     <button id="salir" type="button" class="rail-btn" title="Cerrar sesión" aria-label="Cerrar sesión">
@@ -4158,7 +4162,8 @@ async function entrar(session) {
   $("cerrar-mes").classList.toggle("hidden", !soyDueno);
   $("quien").textContent = bonito(yo.usuario);
   $("login").classList.add("hidden");
-  cargar();
+  cargar().then(abrirCasoDeEnlace);
+  pintarAvisos();
 }
 
 function errorLogin(msg) { $("login-error").textContent = msg; $("login-error").classList.remove("hidden"); }
@@ -4205,7 +4210,85 @@ $("login-form").addEventListener("submit", async e => {
   await entrar(data.session);
 });
 
-$("salir").addEventListener("click", () => { if (db) db.auth.signOut(); });
+$("salir").addEventListener("click", async () => {
+  if (!db) return;
+  await quitarAvisos().catch(() => {});   // este móvil deja de recibir los avisos de quien cierra sesión
+  db.auth.signOut();
+});
+
+// ---------- Avisos push en el móvil (nuevo caso / respuesta de un cliente) ----------
+const AVISOS_OK = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+async function suscripcionAvisos() {
+  const reg = await navigator.serviceWorker.getRegistration("./");
+  return reg ? reg.pushManager.getSubscription() : null;
+}
+async function pintarAvisos() {
+  const b = $("avisos-abrir");
+  b.classList.toggle("hidden", !AVISOS_OK);
+  if (!AVISOS_OK) return;
+  let activo = false;
+  try {
+    const sub = await suscripcionAvisos();
+    if (sub && Notification.permission === "granted") activo = !!(await invocar("push", { accion: "estado", endpoint: sub.endpoint })).activo;
+  } catch (_) {}
+  $("avisos-punto").classList.toggle("hidden", !activo);
+  b.dataset.activo = activo ? "1" : "";
+  b.title = "Avisos en este móvil: " + (activo ? "activados (pulsa para quitarlos)" : "desactivados (pulsa para activarlos)");
+}
+const b64aBytes = s => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4)), c => c.charCodeAt(0));
+async function activarAvisos() {
+  if (Notification.permission === "denied") throw new Error("Las notificaciones están bloqueadas para velority.info. Actívalas en Ajustes del navegador → Configuración de sitios → Notificaciones");
+  if (await Notification.requestPermission() !== "granted") throw new Error("Sin permiso para notificaciones no se pueden activar los avisos");
+  const reg = await navigator.serviceWorker.register("sw-avisos.js");
+  await navigator.serviceWorker.ready;
+  const { clave } = await invocar("push", { accion: "clave" });
+  let sub = await reg.pushManager.getSubscription();
+  if (sub && sub.options && sub.options.applicationServerKey) {
+    const actual = new Uint8Array(sub.options.applicationServerKey), nueva = b64aBytes(clave);
+    if (actual.length !== nueva.length || actual.some((x, i) => x !== nueva[i])) { await sub.unsubscribe(); sub = null; }
+  }
+  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64aBytes(clave) });
+  const j = sub.toJSON();
+  const ua = navigator.userAgent, modelo = (/;\s*([^;)]+)\)\s*AppleWebKit/.exec(ua) || [])[1] || "";
+  await invocar("push", { accion: "alta", endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth,
+    dispositivo: (/Android/.test(ua) ? "Android " : /iPhone|iPad/.test(ua) ? "iPhone " : "Ordenador ") + modelo });
+  await invocar("push", { accion: "probar", endpoint: j.endpoint });
+}
+async function quitarAvisos() {
+  const sub = AVISOS_OK ? await suscripcionAvisos() : null;
+  if (!sub) return;
+  await invocar("push", { accion: "baja", endpoint: sub.endpoint }).catch(() => {});
+  await sub.unsubscribe();
+}
+$("avisos-abrir").addEventListener("click", async () => {
+  const b = $("avisos-abrir");
+  if (b.disabled) return;
+  b.disabled = true;
+  try {
+    if (b.dataset.activo) {
+      if (!confirm("¿Dejar de recibir avisos en este móvil?")) return;
+      await quitarAvisos();
+      toast("Avisos desactivados en este móvil.");
+    } else {
+      await activarAvisos();
+      toast("Avisos activados. Te ha llegado una notificación de prueba.", 6000);
+    }
+  } catch (e) { toast(e.message, 9000); }
+  finally { b.disabled = false; pintarAvisos(); }
+});
+// Al tocar un aviso: abre ese caso (con el panel ya abierto, o al cargarlo desde el enlace #caso=ID)
+function abrirCasoDeEnlace() {
+  const m = /#caso=(\d+)/.exec(location.hash);
+  if (!m) return;
+  history.replaceState(null, "", location.pathname + location.search);
+  const id = Number(m[1]);
+  if (reportes.some(r => r.id === id)) abrirDetalle(id); else toast("Ese caso ya no está en el panel.");
+}
+if (AVISOS_OK) navigator.serviceWorker.addEventListener("message", e => {
+  const id = e.data && e.data.abrirCaso;
+  if (!id) return;
+  if (reportes.some(r => r.id === id)) abrirDetalle(id); else cargar().then(() => { if (reportes.some(r => r.id === id)) abrirDetalle(id); });
+});
 
 // ---------- Administradores ----------
 function pintarAdmins() {
