@@ -1094,7 +1094,7 @@ function tarjeta(r) {
       ${resp ? `<span class="w-5 h-5 rounded-full grid place-items-center text-[10px] font-bold text-[#1a1005] bg-gradient-to-br from-amber-300 to-orange-500" title="${esc(bonito(resp))}">${inicial(resp)}</span>` : ""}
       <span title="Último contacto: ${esc(fechaCorta(ms.length ? ms[ms.length - 1].creado_en : r.created_at))}">💬 ${ms.length}${ns.length ? " · 📝 " + ns.length : ""}</span>
       <span class="ml-auto flex items-center gap-1">
-        ${r.telefono ? `<a href="https://wa.me/${esc(String(r.telefono).replace(/\D/g, ""))}" target="_blank" rel="noopener" class="acc-rapida" title="WhatsApp ${esc(r.telefono)}" aria-label="WhatsApp">🟢</a>` : ""}
+        ${telDe(r) ? `<a href="https://wa.me/${esc(waDe(telDe(r)))}" target="_blank" rel="noopener" class="acc-rapida" title="WhatsApp ${esc(telDe(r))}" aria-label="WhatsApp">🟢</a>` : ""}
         ${r.email ? `<a href="mailto:${esc(r.email)}" class="acc-rapida" title="Correo ${esc(r.email)}" aria-label="Enviar correo">✉️</a>` : ""}
         ${resuelto ? "" : `<span class="h-1.5 w-10 rounded-full bg-base overflow-hidden" title="Temperatura ${Math.round(u * 100)}%"><span class="block h-full rounded-full" style="width:${Math.max(6, u * 100)}%;background:hsl(${Math.round(210 * (1 - u))} 85% 55%)"></span></span>`}
       </span>
@@ -1878,7 +1878,7 @@ function pintarDetalle() {
       <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         ${datoDetalle("Cliente", esc(r.usuario_discord || "Anónimo") + (r.cliente_id ? `<span class="block text-xs text-emerald-300">● Cuenta del portal del cliente</span><span class="mt-1 flex flex-wrap gap-x-3 gap-y-1"><button type="button" data-cliente="${esc(r.cliente_id)}" class="text-xs font-semibold text-fx hover:underline">Ficha del cliente →</button><button type="button" data-ficha="${esc(r.cliente_id)}" class="text-xs font-semibold text-fx hover:underline">Editar su web →</button><button type="button" data-ver-cliente="${esc(r.cliente_id)}" class="text-xs font-semibold text-slate-300 hover:text-white hover:underline">👁 Ver como cliente</button></span>` : ""))}
         ${r.email ? datoDetalle("Correo", `<a class="text-fx hover:underline" href="mailto:${esc(r.email)}">${esc(r.email)}</a>`) : ""}
-        ${r.telefono ? datoDetalle("Teléfono", `<a class="text-fx hover:underline" href="tel:${esc(r.telefono)}">${esc(r.telefono)}</a>`) : ""}
+        ${telDe(r) ? datoDetalle("Teléfono", `<a class="text-fx hover:underline" href="tel:${esc(telDe(r).replace(/\s+/g, ""))}">${esc(telDe(r))}</a> · <a class="text-fx hover:underline" href="https://wa.me/${esc(waDe(telDe(r)))}" target="_blank" rel="noopener">WhatsApp</a>`) : ""}
         ${r.dominio ? datoDetalle("Web", esc(r.dominio)) : ""}
         ${r.plan ? datoDetalle("Plan / servicio", esc(r.plan)) : ""}
         ${r.plan_solicitado === "Cancelar" ? datoDetalle("Baja solicitada", `<span class="text-red-300">Quiere darse de baja de ${esc(r.plan || "su plan")}</span><span class="block text-xs text-slate-500">${r.estado === "Aceptado" ? "Aplicada: ya no tiene plan en el portal. ¿Has cancelado su suscripción en Stripe?" : "Al pasar el caso a «Aceptado» se le quitará el plan. Cancela también su suscripción en Stripe."}</span>`)
@@ -1983,7 +1983,7 @@ let fichaId = null;
 
 function renderClientes() {
   const q = norm($("cli-buscar").value.trim());
-  const lista = clientes.filter(c => !q || norm([c.nombre, c.email, c.dominio].join(" ")).includes(q));
+  const lista = clientes.filter(c => !q || norm([c.nombre, c.email, c.dominio, c.telefono, String(c.telefono || "").replace(/\D/g, "")].join(" ")).includes(q));
   $("cli-lista").innerHTML = lista.length ? lista.map(c => {
     const w = webs.get(c.id), abiertos = activos().filter(r => r.cliente_id === c.id && abierto(r)).length;
     return `
@@ -1992,7 +1992,7 @@ function renderClientes() {
         <span class="w-9 h-9 shrink-0 rounded-full grid place-items-center text-sm font-bold text-[#1a1005] bg-gradient-to-br from-amber-300 to-orange-500">${inicial(c.nombre)}</span>
         <div class="min-w-0">
           <h3 class="text-[15px] font-semibold text-white truncate">${esc(c.nombre)}</h3>
-          <p class="text-xs text-slate-400 truncate">${esc(c.email)}${c.dominio ? " · " + esc(c.dominio) : ""}${c.telefono ? " · " + esc(c.telefono) : ""}</p>
+          <p class="text-xs text-slate-400 truncate">${esc(c.email)}${c.dominio ? " · " + esc(c.dominio) : ""}${c.telefono ? " · 📞 " + esc(c.telefono) : ""}</p>
         </div>
       </div>
       <div class="flex flex-wrap gap-1.5">
@@ -2318,6 +2318,10 @@ function cobrosUnicos() {
 const estrellas = n => "★".repeat(n) + "☆".repeat(5 - n);
 const valDe = id => valoraciones.find(v => v.caso_id === id);
 const clienteDe = id => clientes.find(c => c.id === id);
+// Teléfono de un caso: el que se escribió en el caso o, si no, el de la cuenta del cliente (registro o «Mi cuenta»)
+const telDe = r => String(r.telefono || (r.cliente_id && clienteDe(r.cliente_id) || {}).telefono || "").trim();
+// Número para wa.me: solo dígitos y, si es un móvil o fijo español sin prefijo, con el 34 delante
+const waDe = t => { const d = String(t).replace(/\D/g, "").replace(/^00/, ""); return /^[6789]\d{8}$/.test(d) ? "34" + d : d; };
 const primerMensajeEquipo = r => mensajesDe(r.id).find(m => m.autor_tipo === "staff" && m.autor && m.autor !== "sistema");
 
 // Días que faltan para una fecha (yyyy-mm-dd); negativo si ya pasó
@@ -3173,7 +3177,7 @@ function pintarCliente() {
     <div class="sticky top-0 z-10 bg-panel border-b border-line px-5 sm:px-6 py-4 flex items-start gap-3">
       <span class="w-11 h-11 shrink-0 rounded-full grid place-items-center text-lg font-bold text-[#1a1005] bg-gradient-to-br from-amber-300 to-orange-500">${inicial(c.nombre)}</span>
       <div class="min-w-0"><h2 id="cliente-titulo" class="font-display text-xl font-bold text-white truncate">${esc(c.nombre)}</h2>
-        <p class="text-xs text-slate-400 truncate"><a class="hover:text-fx" href="mailto:${esc(c.email)}">${esc(c.email)}</a>${c.telefono ? ` · <a class="hover:text-fx" href="tel:${esc(c.telefono)}">${esc(c.telefono)}</a>` : ""}${c.dominio ? ` · <a class="hover:text-fx" href="https://${esc(c.dominio)}" target="_blank" rel="noopener">${esc(c.dominio)}</a>` : ""}</p></div>
+        <p class="text-xs text-slate-400 truncate"><a class="hover:text-fx" href="mailto:${esc(c.email)}">${esc(c.email)}</a>${c.telefono ? ` · <a class="hover:text-fx" href="tel:${esc(String(c.telefono).replace(/\s+/g, ""))}">📞 ${esc(c.telefono)}</a> · <a class="hover:text-fx" href="https://wa.me/${esc(waDe(c.telefono))}" target="_blank" rel="noopener">WhatsApp</a>` : ""}${c.dominio ? ` · <a class="hover:text-fx" href="https://${esc(c.dominio)}" target="_blank" rel="noopener">${esc(c.dominio)}</a>` : ""}</p></div>
       <button type="button" data-cliente-cerrar class="ml-auto text-slate-400 hover:text-white p-1" aria-label="Cerrar">✕</button>
     </div>
     <div class="px-5 sm:px-6 py-5 space-y-4">
