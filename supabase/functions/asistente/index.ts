@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
   try {
     if (!env("ANTHROPIC_API_KEY")) return responder({ error: "El asistente todavía no está configurado. Escríbenos por el chat del portal." }, 503);
     const db = createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"));
-    const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim();
+    const ip = (req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "").split(",")[0].trim();
     const { data: excedido } = await db.rpc("servidor_limite_asistente", { p_ip: ip, p_max: 40 });
     if (excedido) return responder({ error: "Has hecho muchas preguntas seguidas. Espera un rato o escríbenos por el chat del portal." }, 429);
 
