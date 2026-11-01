@@ -6,6 +6,7 @@
 //   · Desde el panel (botón «Revisar enlaces ahora»): { cliente_id }.
 // Despliegue: Edge Functions > Deploy a new function > Via Editor, nombre "enlaces", y DESACTIVA «Verify JWT».
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { dominioLimpio, igualSeguro, urlPublica } from "../_shared/red.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -26,7 +27,7 @@ const host = (u: URL) => u.hostname.replace(/^www\./, "").toLowerCase();
 function normal(href: string, base: URL) {
   try {
     const u = new URL(href.trim().replace(/&amp;/g, "&"), base);
-    if (!/^https?:$/.test(u.protocol)) return null;
+    if (!urlPublica(u)) return null;   // nada de IPs, localhost ni direcciones internas
     u.hash = "";
     return u;
   } catch { return null; }
@@ -52,7 +53,9 @@ const roto = (c: number | null) => c === 0 || c === 404 || c === 410 || (c !== n
 
 async function revisar(db: SupabaseClient, c: { id: string; dominio: string }) {
   const inicio = Date.now();
-  const raiz = new URL("https://" + c.dominio.replace(/^https?:\/\//, "").replace(/\/.*$/, "") + "/");
+  const dominio = dominioLimpio(c.dominio);
+  if (!dominio) throw new Error("El dominio de la ficha no es válido (ejemplo correcto: minegocio.es).");
+  const raiz = new URL("https://" + dominio + "/");
   const propio = host(raiz);
   const cola = [raiz.href], vistas = new Set<string>([raiz.href]);
   const enlaces = new Map<string, { pagina: string; tipo: string }>();
@@ -105,7 +108,7 @@ Deno.serve(async (req) => {
     const db = createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"));
     const cuerpo = await req.json().catch(() => ({}));
     const { data: aj } = await db.from("ajustes").select("valor").eq("clave", "secreto_cron").maybeSingle();
-    const esCron = !!aj?.valor && req.headers.get("x-secreto") === aj.valor;
+    const esCron = !!aj?.valor && igualSeguro(req.headers.get("x-secreto"), aj.valor);
     let esStaff = false;
     if (!esCron) {
       const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");

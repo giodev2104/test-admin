@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
 <script>
   tailwind.config = { theme: { extend: {
     fontFamily: { display: ['Inter', 'system-ui', 'sans-serif'], body: ['Inter', 'system-ui', 'sans-serif'] },
@@ -449,6 +449,8 @@ const DIAS_ARCHIVO = 30;   // los casos resueltos hace más de estos días se oc
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+// Enlaces que vienen de fuera (OpenStreetMap, Google…): solo http(s), nunca «javascript:»
+const urlWeb = u => { try { const x = new URL(String(u ?? "")); return /^https?:$/.test(x.protocol) ? x.href : ""; } catch (_) { return ""; } };
 
 let db = null, errorInicial = null;
 try {
@@ -2900,8 +2902,8 @@ function tarjetaPros(p) {
     </div>
     <div class="mt-2 flex flex-wrap gap-1.5 text-xs">
       ${tel ? `<a href="tel:${esc(tel)}" class="rounded-md border border-line px-2 py-1 text-slate-300 hover:border-fx">📞 ${esc(p.telefono)}</a><a href="https://wa.me/${esc(wa)}" target="_blank" rel="noopener" class="rounded-md border border-line px-2 py-1 text-slate-300 hover:border-fx">WhatsApp</a>` : ""}
-      ${p.maps_url ? `<a href="${esc(p.maps_url)}" target="_blank" rel="noopener" class="rounded-md border border-line px-2 py-1 text-slate-300 hover:border-fx">📍 Google Maps</a>` : ""}
-      ${p.web_social ? `<a href="${esc(p.web_social)}" target="_blank" rel="noopener" class="rounded-md border border-line px-2 py-1 text-slate-300 hover:border-fx" title="Su red social (no tiene web propia)">🔗 ${esc((() => { try { return new URL(p.web_social).hostname.replace(/^www\./, ""); } catch (_) { return "Perfil"; } })())}</a>` : `<span class="rounded-md border border-line px-2 py-1 text-slate-500">Sin web</span>`}
+      ${urlWeb(p.maps_url) ? `<a href="${esc(urlWeb(p.maps_url))}" target="_blank" rel="noopener" class="rounded-md border border-line px-2 py-1 text-slate-300 hover:border-fx">📍 Google Maps</a>` : ""}
+      ${urlWeb(p.web_social) ? `<a href="${esc(urlWeb(p.web_social))}" target="_blank" rel="noopener" class="rounded-md border border-line px-2 py-1 text-slate-300 hover:border-fx" title="Su red social (no tiene web propia)">🔗 ${esc((() => { try { return new URL(p.web_social).hostname.replace(/^www\./, ""); } catch (_) { return "Perfil"; } })())}</a>` : `<span class="rounded-md border border-line px-2 py-1 text-slate-500">Sin web</span>`}
       ${p.email ? "" : `<a href="https://www.google.com/search?q=${encodeURIComponent('"' + p.nombre + '" ' + (p.ciudad || "") + " correo OR email OR instagram")}" target="_blank" rel="noopener" class="rounded-md border border-line px-2 py-1 text-slate-300 hover:border-fx">🔎 Buscar su contacto</a>`}
     </div>
     <div class="mt-2 flex flex-wrap items-center gap-2">

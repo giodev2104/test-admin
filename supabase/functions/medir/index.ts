@@ -10,6 +10,7 @@
 // Despliegue: Edge Functions > Deploy a new function > Via Editor, nombre "medir",
 // y DESACTIVA «Verify JWT». Opcional: secreto PAGESPEED_API_KEY (más cupo en Google).
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { dominioLimpio, escHTML, igualSeguro } from "../_shared/red.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -126,7 +127,7 @@ async function correoEquipo(db: SupabaseClient, asunto: string, texto: string) {
       method: "POST",
       headers: { "api-key": clave, "Content-Type": "application/json", accept: "application/json" },
       body: JSON.stringify({ sender: { email: de, name: Deno.env.get("NOMBRE_REMITENTE") || "Velority" }, to: [{ email: s.email }],
-        subject: asunto, htmlContent: `<p style="font-family:Arial,sans-serif;font-size:15px">${texto}</p>` }),
+        subject: asunto.replace(/[\r\n<>]/g, " ").slice(0, 200), htmlContent: `<p style="font-family:Arial,sans-serif;font-size:15px">${texto}</p>` }),
     }).catch(() => {});
   }
 }
@@ -143,13 +144,16 @@ async function vigilarCaida(db: SupabaseClient, c: { id: string; dominio: string
         + " en dos comprobaciones seguidas. El equipo ya lo está revisando.",
       usuario_discord: c.nombre || null, email: c.email || null, dominio: c.dominio, cliente_id: c.id,
     }).select("id").single();
-    await correoEquipo(db, "⚠ Web caída: " + c.dominio, "La web <b>" + c.dominio + "</b> no responde en dos comprobaciones seguidas. Se ha abierto el caso #" + (r ? r.id : "?") + " en el panel.");
+    await correoEquipo(db, "⚠ Web caída: " + c.dominio, "La web <b>" + escHTML(c.dominio) + "</b> no responde en dos comprobaciones seguidas. Se ha abierto el caso #" + (r ? r.id : "?") + " en el panel.");
   } else if (v.ok && anteriorOk === false && abierto) {
     await db.from("mensajes_caso").insert({ caso_id: abierto.id, autor_tipo: "staff", autor: "sistema", texto: "✅ La web vuelve a responder (comprobado automáticamente)." });
   }
 }
 
-async function medirCliente(db: SupabaseClient, c: { id: string; dominio: string; nombre?: string; email?: string }, w: Record<string, unknown> | undefined, conPageSpeed: boolean) {
+async function medirCliente(db: SupabaseClient, cliente: { id: string; dominio: string; nombre?: string; email?: string }, w: Record<string, unknown> | undefined, conPageSpeed: boolean) {
+  const dominio = dominioLimpio(cliente.dominio);
+  if (!dominio) throw new Error("El dominio de la ficha no es válido (ejemplo correcto: minegocio.es).");
+  const c = { ...cliente, dominio };
   const v = await visitar(c.dominio);
   const { data: previa } = await db.from("comprobaciones").select("ok").eq("cliente_id", c.id).order("creado_en", { ascending: false }).limit(1);
   await vigilarCaida(db, c, v, previa && previa.length ? previa[0].ok : null);
@@ -186,7 +190,7 @@ Deno.serve(async (req) => {
 
     // ¿Quién llama? El cron (cabecera x-secreto) o alguien del equipo (botón «Medir ahora»)
     const { data: aj } = await db.from("ajustes").select("valor").eq("clave", "secreto_cron").maybeSingle();
-    const esCron = !!aj?.valor && req.headers.get("x-secreto") === aj.valor;
+    const esCron = !!aj?.valor && igualSeguro(req.headers.get("x-secreto"), aj.valor);
     let esStaff = false;
     if (!esCron) {
       const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");

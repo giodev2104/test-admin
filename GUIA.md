@@ -115,13 +115,23 @@ Los textos legales son una plantilla razonable, **no asesoramiento legal**: rev�
 
 ## 7. Copias de seguridad (GitHub Actions, gratis)
 
-Cada lunes se guarda una copia **cifrada** de la base de datos durante 90 días.
+Cada lunes se guarda una copia **cifrada** de la base de datos en un repositorio **privado** tuyo (se guardan las 12 últimas).
+
+> ⚠️ **No uses la pestaña «Artifacts» de test-admin**: este repositorio es público y cualquiera con cuenta de GitHub
+> puede descargar lo que se suba ahí. Por eso las copias van a un repositorio privado aparte.
 
 1. Supabase > botón **Connect** (arriba) > **Session pooler** > copia la URI y sustituye `[YOUR-PASSWORD]` por la contraseña de tu base de datos (si no la recuerdas: Project Settings > Database > Reset database password).
-2. GitHub > repositorio **test-admin** > **Settings > Secrets and variables > Actions > New repository secret**:
+2. GitHub > **New repository** > nombre `velority-copias`, **Private**, marca «Add a README file».
+3. GitHub > tu foto > **Settings > Developer settings > Personal access tokens > Fine-grained tokens > Generate new token**:
+   - Repository access: **Only select repositories** → `velority-copias`
+   - Permissions › Repository permissions › **Contents: Read and write**
+   - Caducidad: 1 año (apúntate renovarlo).
+4. GitHub > repositorio **test-admin** > **Settings > Secrets and variables > Actions > New repository secret**:
    - `SUPABASE_DB_URL` = la URI del paso 1
-   - `CLAVE_COPIA` = una contraseña larga inventada. **Guárdala bien**: sin ella no se puede abrir ninguna copia.
-3. Pruébalo: pestaña **Actions > Copia de seguridad > Run workflow**. Al terminar, la copia aparece abajo en «Artifacts».
+   - `CLAVE_COPIA` = una contraseña larga (20+ caracteres al azar). **Guárdala bien**: sin ella no se puede abrir ninguna copia.
+   - `COPIAS_TOKEN` = el token del paso 3
+   - `COPIAS_REPO` = `giodev2104/velority-copias`
+5. Pruébalo: pestaña **Actions > Copia de seguridad > Run workflow**. Al terminar, la copia aparece en `velority-copias/copias/`.
 
 > Las copias del workflow solo se ejecutan desde la rama principal: fusiona la rama antes (paso 8).
 > No incluyen los **archivos adjuntos** (Storage); esos se pueden descargar desde Supabase > Storage > adjuntos.

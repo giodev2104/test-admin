@@ -1,10 +1,19 @@
 # Copia de seguridad semanal de la base de datos de Supabase (gratis con GitHub Actions).
-# Guarda un archivo CIFRADO (con tu clave) durante 90 días en la pestaña Actions del repositorio.
+# Guarda un archivo CIFRADO (con tu clave) en un repositorio PRIVADO tuyo (las 12 últimas copias).
+# IMPORTANTE: este repositorio (test-admin) es público y lo que se sube a su pestaña Actions lo puede
+# descargar cualquiera con cuenta de GitHub: por eso las copias NO se guardan aquí.
 #
-# Configuración (una vez), en GitHub: Settings > Secrets and variables > Actions > New repository secret
-#   SUPABASE_DB_URL  → Supabase > botón «Connect» > «Session pooler» > copia la URI y pon tu contraseña
-#                      de la base de datos en lugar de [YOUR-PASSWORD]
-#   CLAVE_COPIA      → una contraseña larga que inventes y guardes bien: sin ella no se puede abrir la copia
+# Configuración (una vez), en GitHub:
+#   1) Crea un repositorio PRIVADO vacío, por ejemplo «velority-copias» (marca «Add a README»).
+#   2) Crea un token: tu foto > Settings > Developer settings > Personal access tokens > Fine-grained tokens >
+#      Generate new token · Repository access: «Only select repositories» → velority-copias ·
+#      Permissions > Repository permissions > Contents: «Read and write» · Caducidad: 1 año (apúntate renovarlo).
+#   3) En ESTE repositorio (test-admin): Settings > Secrets and variables > Actions > New repository secret
+#      SUPABASE_DB_URL  → Supabase > botón «Connect» > «Session pooler» > copia la URI y pon tu contraseña
+#                         de la base de datos en lugar de [YOUR-PASSWORD]
+#      CLAVE_COPIA      → una contraseña larga (20+ caracteres al azar) que guardes bien: sin ella no se abre la copia
+#      COPIAS_TOKEN     → el token del paso 2
+#      COPIAS_REPO      → nombre del repositorio privado, p. ej. giodev2104/velority-copias
 #
 # Para hacer una copia al momento: pestaña Actions > «Copia de seguridad» > Run workflow.
 # Para restaurarla, mira GUIA.md (apartado «Copias de seguridad»).
@@ -27,9 +36,15 @@ jobs:
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           CLAVE_COPIA: ${{ secrets.CLAVE_COPIA }}
+          COPIAS_TOKEN: ${{ secrets.COPIAS_TOKEN }}
+          COPIAS_REPO: ${{ secrets.COPIAS_REPO }}
         run: |
-          if [ -z "$SUPABASE_DB_URL" ] || [ -z "$CLAVE_COPIA" ]; then
-            echo "::error::Faltan los secretos SUPABASE_DB_URL y/o CLAVE_COPIA (Settings > Secrets and variables > Actions)."
+          if [ -z "$SUPABASE_DB_URL" ] || [ -z "$CLAVE_COPIA" ] || [ -z "$COPIAS_TOKEN" ] || [ -z "$COPIAS_REPO" ]; then
+            echo "::error::Faltan secretos: SUPABASE_DB_URL, CLAVE_COPIA, COPIAS_TOKEN y COPIAS_REPO (mira las instrucciones al principio de este archivo)."
+            exit 1
+          fi
+          if [ "${#CLAVE_COPIA}" -lt 20 ]; then
+            echo "::error::CLAVE_COPIA es demasiado corta: usa al menos 20 caracteres al azar."
             exit 1
           fi
 
@@ -59,10 +74,26 @@ jobs:
           ls -lh "$f.tar.gz.gpg"
           echo "ARCHIVO=$f.tar.gz.gpg" >> "$GITHUB_ENV"
 
-      - name: Guardar la copia (90 días)
-        uses: actions/upload-artifact@v4
-        with:
-          name: copia-${{ env.ARCHIVO }}
-          path: ${{ env.ARCHIVO }}
-          retention-days: 90
-          if-no-files-found: error
+      - name: Guardar la copia en el repositorio privado (12 últimas)
+        env:
+          COPIAS_TOKEN: ${{ secrets.COPIAS_TOKEN }}
+          COPIAS_REPO: ${{ secrets.COPIAS_REPO }}
+        run: |
+          set -euo pipefail
+          git clone --quiet --depth 1 "https://x-access-token:${COPIAS_TOKEN}@github.com/${COPIAS_REPO}.git" copias
+          # Por seguridad: solo se sube si ese repositorio es privado
+          privado=$(curl -fsS -H "Authorization: Bearer ${COPIAS_TOKEN}" "https://api.github.com/repos/${COPIAS_REPO}" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("private"))')
+          if [ "$privado" != "True" ]; then
+            echo "::error::${COPIAS_REPO} no es privado: no se sube la copia."
+            exit 1
+          fi
+          mkdir -p copias/copias
+          mv "$ARCHIVO" copias/copias/
+          cd copias
+          ls -1 copias/*.gpg | sort | head -n -12 | xargs -r git rm --quiet
+          git config user.name "copia-seguridad"
+          git config user.email "copia-seguridad@users.noreply.github.com"
+          git add copias
+          git commit --quiet -m "Copia $(date -u +%Y-%m-%d)"
+          git push --quiet
+          echo "Copia guardada en ${COPIAS_REPO}: $ARCHIVO"

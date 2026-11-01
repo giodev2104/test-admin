@@ -93,6 +93,25 @@ async function pedirOSM(zona: string) {
   console.error("OpenStreetMap: " + fallos.join(", "));
   throw new Error("Los servidores gratuitos de OpenStreetMap están saturados ahora mismo. Prueba en unos minutos o añade la clave de Google Maps (GOOGLE_PLACES_KEY).");
 }
+// Solo se guardan enlaces http(s): un dato de OpenStreetMap lo puede editar cualquiera
+// (un «javascript:...» en el panel ejecutaría código con la sesión del equipo).
+function urlSegura(v: unknown): string | null {
+  const s = String(v ?? "").trim();
+  if (!s) return null;
+  try {
+    const u = new URL(s);
+    return (u.protocol === "https:" || u.protocol === "http:") ? u.href.slice(0, 500) : null;
+  } catch (_) { return null; }
+}
+// En OSM las redes sociales a veces vienen como usuario («@joyeria») y no como enlace
+function redSocial(t: Record<string, any>): string | null {
+  const insta = String(t["contact:instagram"] || t.instagram || "").trim();
+  const face = String(t["contact:facebook"] || t.facebook || "").trim();
+  const usuario = /^@?[A-Za-z0-9._]{1,60}$/;
+  if (insta) return urlSegura(insta) || (usuario.test(insta) ? "https://www.instagram.com/" + insta.replace(/^@/, "") : null);
+  if (face) return urlSegura(face) || (usuario.test(face) ? "https://www.facebook.com/" + face.replace(/^@/, "") : null);
+  return null;
+}
 function filaOSM(el: Record<string, any>, zona: string, consulta: string) {
   const t = el.tags || {};
   const clave = t.shop || t.craft || t.amenity || t.office || t.healthcare || t.leisure || "";
@@ -105,7 +124,7 @@ function filaOSM(el: Record<string, any>, zona: string, consulta: string) {
     place_id: "osm:" + el.type + "/" + el.id, nombre: String(t.name).slice(0, 300), categoria, direccion, ciudad,
     telefono: (t.phone || t["contact:phone"] || t["contact:mobile"] || "").split(";")[0].trim() || null,
     email: (t.email || t["contact:email"] || "").split(";")[0].trim().toLowerCase().slice(0, 320) || null,
-    web_social: t["contact:instagram"] || t["contact:facebook"] || t.instagram || t.facebook || null,
+    web_social: redSocial(t),
     maps_url: "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(busca),
     busqueda: consulta,
   };
@@ -146,9 +165,9 @@ async function pedirGoogle(db: any, clave: string, negocio: string, zona: string
       filas.push({
         place_id: p.id, nombre: String(p.displayName?.text || "Sin nombre").slice(0, 300), categoria: p.primaryTypeDisplayName?.text || negocio || "Negocio",
         direccion: p.formattedAddress || null, ciudad: (comp.find((c) => (c.types || []).includes("locality")) || {}).longText || zona,
-        telefono: p.nationalPhoneNumber || null, maps_url: p.googleMapsUri || null,
+        telefono: p.nationalPhoneNumber || null, maps_url: urlSegura(p.googleMapsUri),
         valoracion: typeof p.rating === "number" ? Math.round(p.rating * 10) / 10 : null, n_resenas: p.userRatingCount ?? null,
-        web_social: web || null, busqueda: consulta,
+        web_social: urlSegura(web), busqueda: consulta,
       });
     }
     pageToken = j.nextPageToken || "";
