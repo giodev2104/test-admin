@@ -420,3 +420,12 @@ GitHub Pages publica la rama principal. Fusiona la rama `claude/dreamy-albattani
 | 8 | Urgencias con plazo por plan, aviso a todo el equipo, cuenta atrás y WhatsApp | Portal: Soporte · Panel: Inicio («Urgencias sin responder») y tarjetas |
 | 10 | Bóveda cifrada de accesos con registro de quién los ve | Portal: Mi cuenta · Panel: ficha completa del cliente |
 | 14 | Revisión mensual de enlaces rotos y errores 404 | Portal: Mi web · Panel: ficha y ficha completa del cliente |
+
+## Estilos, fuentes y seguridad del panel
+
+- **Estilos**: el panel ya no usa el Tailwind del CDN; usa `panel.css`, compilado. Cuando cambias `index.html`, el workflow
+  **CSS del panel** (`.github/workflows/panel-css.yml`) lo regenera solo y lo guarda con un commit. A mano:
+  `npx tailwindcss@3.4.17 -c .github/tailwind/tailwind.config.js -i .github/tailwind/entrada.css -o panel.css --minify`
+- **Fuentes y librerías**: Inter (`fuentes/`) y supabase-js (`js/`) se sirven desde la propia web, sin Google ni CDN.
+- **Política de seguridad (CSP)**: la primera línea de `<head>` lista los únicos orígenes permitidos (Supabase y
+  Cloudflare Turnstile). Si algún día el panel necesita cargar algo de otra web, hay que añadirlo ahí o el navegador lo bloqueará.

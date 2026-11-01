@@ -1,0 +1,36 @@
+# Regenera panel.css (Tailwind compilado) cuando cambia index.html, para que ninguna clase nueva se quede sin estilo.
+# Si el CSS cambia, lo guarda con un commit en la misma rama.
+name: CSS del panel
+
+on:
+  push:
+    branches: [main, claude/dreamy-albattani-j8rm9a]
+    paths: [index.html, .github/tailwind/**]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: panel-css-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  css:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Compilar Tailwind
+        run: npx --yes tailwindcss@3.4.17 -c .github/tailwind/tailwind.config.js -i .github/tailwind/entrada.css -o panel.css --minify
+      - name: Guardar si ha cambiado
+        run: |
+          if git diff --quiet -- panel.css; then echo "panel.css ya estaba al día."; exit 0; fi
+          git config user.name "panel-css"
+          git config user.email "panel-css@users.noreply.github.com"
+          git add panel.css
+          git commit -m "chore: regenerar panel.css"
+          git push
