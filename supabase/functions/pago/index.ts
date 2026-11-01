@@ -10,7 +10,9 @@
 //   · Cada pago de pago único genera una factura de Stripe (invoice_creation); se guarda en webs_cliente.facturas
 //     (si un pago antiguo no tiene factura, se guarda su recibo de Stripe). Requiere supabase_facturas_stripe.sql.
 // El registro es idempotente (tabla pagos): un mismo pago nunca crea dos pedidos.
-// Las sesiones desactivan «Managed Payments» de Stripe: el vendedor es Velority (precios finales).
+// Las sesiones desactivan «Managed Payments» de Stripe: el vendedor es Velority.
+// Precios con IVA incluido: cada cobro lleva el tipo «IVA 21 % incluido» de Stripe (no sube el importe; la factura
+// muestra la base imponible y el IVA desglosados). El tipo se crea solo en Stripe la primera vez.
 // Configuración (Supabase > Edge Functions > Secrets):
 //   STRIPE_SECRET_KEY      clave secreta de Stripe (sk_test_… en pruebas, sk_live_… para cobrar de verdad)
 //   STRIPE_WEBHOOK_SECRET  (recomendado) en Stripe > Desarrolladores > Webhooks > Añadir endpoint:
@@ -42,6 +44,21 @@ async function delCatalogo(db: SupabaseClient, nombre: string): Promise<Item | n
   const eur = Math.round(Number(data.precio) * (100 - oferta)) / 100;
   return { tipo: data.tipo, eur, normal: Number(data.precio), cada: data.cada || 0, activo: data.activo !== false, oferta };
 }
+
+// Tipo de IVA del 21 % incluido en el precio (se crea una vez en Stripe y se reutiliza)
+const IVA_PCT = 21;
+let ivaId = "";
+async function ivaIncluido() {
+  if (ivaId) return ivaId;
+  const lista = await stripe("tax_rates?active=true&inclusive=true&limit=100");
+  const t = (lista.data || []).find((x: Record<string, any>) => x.metadata?.velority === "iva" && Number(x.percentage) === IVA_PCT && x.inclusive);
+  ivaId = t ? t.id : (await stripe("tax_rates", {
+    display_name: "IVA", percentage: String(IVA_PCT), inclusive: "true", country: "ES", jurisdiction: "ES",
+    tax_type: "vat", description: "IVA " + IVA_PCT + " % incluido", "metadata[velority]": "iva",
+  })).id;
+  return ivaId;
+}
+const PIE_FACTURA = "Precios con IVA incluido (" + IVA_PCT + " %).";
 
 // Cupón «X% solo el primer cobro» (se crea una vez en Stripe y se reutiliza)
 async function cuponPrimerMes(pct: number) {
@@ -206,6 +223,7 @@ Deno.serve(async (req) => {
             "metadata[acepta_condiciones]": String(b.acepta).slice(0, 60), "metadata[acepta_en]": new Date().toISOString(),
             "invoice_creation[enabled]": "true", "invoice_creation[invoice_data][metadata][cliente_id]": cid,
             "invoice_creation[invoice_data][description]": nombre + (parte === "anticipo" ? " · anticipo del 50 %" : " · pago final del 50 %"),
+            "invoice_creation[invoice_data][footer]": PIE_FACTURA, "line_items[0][tax_rates][0]": await ivaIncluido(),
             success_url: URL_PORTAL + (URL_PORTAL.includes("?") ? "&" : "?") + "pago=ok&sesion={CHECKOUT_SESSION_ID}",
             cancel_url: URL_PORTAL + (URL_PORTAL.includes("?") ? "&" : "?") + "pago=cancelado",
             locale: "es",
@@ -241,7 +259,8 @@ Deno.serve(async (req) => {
       };
       if (servicioId) d["metadata[servicio_id]"] = String(servicioId);
       if (cod && rebaja) { d["metadata[codigo_id]"] = String(cod.id); d["metadata[codigo]"] = cod.codigo; d["metadata[descuento]"] = String(rebaja.descuento); }
-      if (!it.cada) { d["invoice_creation[enabled]"] = "true"; d["invoice_creation[invoice_data][metadata][cliente_id]"] = cid; }
+      d["line_items[0][tax_rates][0]"] = await ivaIncluido();
+      if (!it.cada) { d["invoice_creation[enabled]"] = "true"; d["invoice_creation[invoice_data][metadata][cliente_id]"] = cid; d["invoice_creation[invoice_data][footer]"] = PIE_FACTURA; }
       if (c?.email) d.customer_email = c.email;
       if (it.cada) {
         d["line_items[0][price_data][recurring][interval]"] = "month";
