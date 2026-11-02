@@ -26,14 +26,32 @@ name: Copia de seguridad
 
 on:
   schedule:
-    - cron: "30 3 * * 1"   # lunes a las 03:30 UTC
+    # Lunes a las 8:00 hora de España. GitHub solo entiende UTC: 6:00 UTC en verano y 7:00 UTC en invierno.
+    # Se lanzan las dos y el paso «hora» deja seguir solo la que toca según el horario de ese día.
+    - cron: "0 6 * * 1"
+    - cron: "0 7 * * 1"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  hora:
+    runs-on: ubuntu-latest
+    outputs:
+      seguir: ${{ steps.h.outputs.seguir }}
+    steps:
+      - id: h
+        env:
+          PROGRAMA: ${{ github.event.schedule }}
+        run: |
+          # A mano (Run workflow) siempre se hace. Programada: solo la del horario de verano o de invierno que toca
+          if [ -z "$PROGRAMA" ]; then echo "seguir=si" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [ "$(TZ=Europe/Madrid date +%z)" = "+0200" ]; then toca="0 6 * * 1"; else toca="0 7 * * 1"; fi
+          if [ "$PROGRAMA" = "$toca" ]; then echo "seguir=si" >> "$GITHUB_OUTPUT"; else echo "seguir=no" >> "$GITHUB_OUTPUT"; fi
   copia:
+    needs: hora
+    if: needs.hora.outputs.seguir == 'si'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
