@@ -21,7 +21,7 @@
 # su historial) y los archivos de Supabase Storage (fotos de productos, adjuntos y entregas).
 #
 # Para hacer una copia al momento: pestaña Actions > «Copia de seguridad» > Run workflow.
-# Para restaurarla, mira GUIA.md (apartado «Copias de seguridad»).
+# Para abrirla: gpg -d ARCHIVO.tar.gz.gpg | tar -xz (pide CLAVE_COPIA). Las webs: git clone webs/NOMBRE.bundle CARPETA.
 name: Copia de seguridad
 
 on:
