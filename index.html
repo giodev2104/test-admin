@@ -2255,7 +2255,7 @@ async function guardarFicha() {
   CATS.delete(id);   // el plan puede haber activado el catálogo o los pedidos: se vuelven a leer
   cerrarFicha(true); render();
   toast("Ficha de " + bonito(cliente.nombre) + " guardada. El cliente ya la ve en su portal." +
-    (data.plan === "Plan Negocio" ? " Catálogo activado (lo gestiona el equipo)." : /Ecommerce/.test(data.plan || "") ? " Catálogo y pedidos online activados." : ""), 5000);
+    (data.plan === "Plan Negocio" ? " Catálogo activado: el cliente ya puede subir sus productos." : /Ecommerce/.test(data.plan || "") ? " Catálogo y pedidos online activados." : ""), 5000);
 }
 
 async function recargarClientes() {
@@ -3800,7 +3800,7 @@ function catalogoStaffHTML(c) {
   if (x.cargando) return '<p class="text-sm text-slate-500">Cargando…</p>';
   const k = x.k, on = k && k.activo, eur = n => n === null ? "Precio bajo consulta" : Number(n).toLocaleString("es-ES", { maximumFractionDigits: 2 }) + " €";
   const quien = p => p.actualizado_por ? (p.actualizado_por === "cliente" ? "el cliente" : esc(bonito(p.actualizado_por))) : "";
-  return `<p class="text-xs text-slate-500 -mt-1 mb-2">Se activa solo al poner el Plan Negocio (lo gestiona el equipo) o el Plan Ecommerce (lo gestiona el cliente, con pedidos online) en la ficha. Con el catálogo activo, el cliente ve la pestaña «Catálogo» en su portal y sube sus productos. Su web los enseña al momento si lleva el código de abajo (funciona en velority.cloud y en su dominio). El equipo también puede añadirlos y editarlos aquí.</p>
+  return `<p class="text-xs text-slate-500 -mt-1 mb-2">Se activa solo al poner en la ficha el Plan Negocio (catálogo que gestiona el cliente) o el Plan Ecommerce (catálogo y pedidos online). Con el catálogo activo, el cliente ve la pestaña «Catálogo» en su portal y sube sus productos. Su web los enseña al momento si lleva el código de abajo (funciona en velority.cloud y en su dominio). El equipo también puede añadirlos y editarlos aquí.</p>
     ${x.error ? `<p class="text-sm text-amber-300">${esc(x.error)}</p>` : ""}
     <div class="flex flex-wrap items-center gap-2">
       <span class="mini ${on ? "bg-emerald-500/15 text-emerald-300" : "bg-slate-500/15 text-slate-400"}">${on ? "● Activo" : "Desactivado"}</span>
@@ -3811,7 +3811,7 @@ function catalogoStaffHTML(c) {
     </div>
     ${on ? `<div class="mt-2 flex flex-wrap items-center gap-2">
       <span class="mini ${k.autogestion !== false ? "bg-emerald-500/15 text-emerald-300" : "bg-slate-500/15 text-slate-400"}">${k.autogestion !== false ? "✏️ Lo gestiona el cliente" : "🔒 Lo gestiona el equipo"}</span>
-      <span class="text-xs text-slate-500">${k.autogestion !== false ? "Ve la pestaña «Catálogo» en su portal (EXT-11 o Plan Ecommerce)." : "Plan Negocio: sus productos los subís vosotros desde aquí; él no ve la pestaña «Catálogo»."}</span>
+      <span class="text-xs text-slate-500">${k.autogestion !== false ? "Ve la pestaña «Catálogo» en su portal (Plan Negocio, Plan Ecommerce o EXT-11)." : "Sus productos los subís vosotros desde aquí; él no ve la pestaña «Catálogo»."}</span>
       <button type="button" data-cat-auto="${k.autogestion !== false ? "0" : "1"}" class="ml-auto rounded-md border border-line px-3 py-1 text-xs text-slate-200 hover:border-fx">${k.autogestion !== false ? "Que lo gestione el equipo" : "Dejar que lo gestione el cliente"}</button>
     </div>` : ""}
     ${on ? `<div class="mt-2 flex flex-wrap items-center gap-2">
