@@ -166,6 +166,48 @@ begin
   return json_build_object('servicio_id', s.id, 'caso_id', s.caso_id, 'plazo', n, 'completado', n >= p_total);
 end $$;
 
+
+-- 9) Cuotas automáticas tras un pago (hosting, gestión de pedidos, asistente IA): el servidor crea la suscripción de
+--    Stripe con su periodo gratis y aquí se da de alta como servicio del cliente (sale en su portal, con baja disponible).
+--    Idempotente: una misma suscripción nunca crea dos servicios.
+create or replace function public.servidor_alta_cuota(p_cliente uuid, p_nombre text, p_importe numeric, p_suscripcion text,
+  p_gratis_hasta timestamptz, p_caso bigint default null)
+returns json language plpgsql security definer set search_path to 'public' as $$
+declare s servicios_cliente; precio text;
+begin
+  select * into s from servicios_cliente where stripe_suscripcion = p_suscripcion limit 1;
+  if s.id is not null then return json_build_object('servicio_id', s.id, 'repetido', true); end if;
+  precio := replace(to_char(p_importe, 'FM999990.00'), '.', ',') || ' €/mes';
+  insert into servicios_cliente (cliente_id, tipo, nombre, precio, estado, caso_id, activado_en, pagado_por, stripe_suscripcion, nota)
+  values (p_cliente, 'extra', left(p_nombre, 150), precio, 'activo', p_caso, now(), 'Stripe', p_suscripcion,
+          'Gratis hasta el ' || to_char(p_gratis_hasta at time zone 'Europe/Madrid', 'DD/MM/YYYY') || '; después ' || precio || ' con la tarjeta guardada.')
+  returning * into s;
+  if p_caso is not null then
+    insert into mensajes_caso (caso_id, autor_tipo, autor, texto)
+    values (p_caso, 'staff', 'sistema', '🔁 Activado «' || left(p_nombre, 150) || '»: gratis hasta el '
+            || to_char(p_gratis_hasta at time zone 'Europe/Madrid', 'DD/MM/YYYY') || ' y después ' || precio || '. Puedes darlo de baja cuando quieras desde tu portal.');
+  end if;
+  return json_build_object('servicio_id', s.id);
+end $$;
+
+-- ¿Qué cuotas ya cubre el cliente? (mantenimiento o renting activos, o la misma cuota ya dada de alta)
+create or replace function public.servidor_cuotas_cubiertas(p_cliente uuid)
+returns text[] language sql stable security definer set search_path to 'public' as $$
+  select coalesce(array_agg(distinct x), '{}') from (
+    select 'EXT-28' as x from servicios_cliente where cliente_id = p_cliente and estado in ('activo', 'pendiente')
+       and (nombre like 'Mantenimiento %' or nombre like 'Renting %' or nombre like 'EXT-28 %')
+    union all
+    select 'EXT-26' from servicios_cliente where cliente_id = p_cliente and estado in ('activo', 'pendiente')
+       and (nombre in ('Mantenimiento Tienda', 'Renting Plan Ecommerce') or nombre like 'EXT-26 %')
+    union all
+    select 'EXT-27' from servicios_cliente where cliente_id = p_cliente and estado in ('activo', 'pendiente') and nombre like 'EXT-27 %'
+    union all
+    select 'EXT-28' from webs_cliente where cliente_id = p_cliente and (plan like 'Mantenimiento %' or plan like 'Renting %')
+    union all
+    select 'EXT-26' from webs_cliente where cliente_id = p_cliente and plan in ('Mantenimiento Tienda', 'Renting Plan Ecommerce')
+  ) t;
+$$;
+
 -- Solo el servidor (service_role) puede usar estas funciones
 do $$
 declare f text;
@@ -175,7 +217,8 @@ begin
     'servidor_renovacion(text, uuid, text, text, numeric)',
     'servidor_impago(text, uuid, text, text, numeric, integer, timestamptz)',
     'servidor_baja_programada(text, timestamptz)', 'servidor_fin_suscripcion(text)',
-    'servidor_registrar_plazo(text, uuid, bigint, numeric, integer)'] loop
+    'servidor_registrar_plazo(text, uuid, bigint, numeric, integer)',
+    'servidor_alta_cuota(uuid, text, numeric, text, timestamptz, bigint)', 'servidor_cuotas_cubiertas(uuid)'] loop
     execute 'revoke all on function public.' || f || ' from public, anon, authenticated';
     execute 'grant execute on function public.' || f || ' to service_role';
   end loop;

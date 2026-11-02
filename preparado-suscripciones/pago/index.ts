@@ -9,6 +9,10 @@
 //     baja y deja la suscripción de Stripe cancelada al final del periodo pagado (no se cobra nada más)
 //   · financiar {token, servicio_id, plazos, acepta} → pago a plazos de un pedido: suscripción de Stripe de N cuotas
 //     mensuales que se termina sola tras la última
+//   · Cuotas automáticas: al pagar el 50 % final de una web (o un extra que las lleve), Stripe guarda la tarjeta y se
+//     crean solas las suscripciones con su periodo gratis: hosting EXT-28 (1 mes gratis), gestión de pedidos EXT-26
+//     (Plan Ecommerce, EXT-12, Pack Tienda Lista; 3 meses) y asistente IA EXT-27 (EXT-09, Pack Citas; 3 meses).
+//     No se crean si ya las cubre su mantenimiento o renting, o si ya las tiene. Solo con SUSCRIPCIONES_ACTIVAS=1.
 //   · Avisos de Stripe (webhook), todos idempotentes:
 //       checkout.session.completed / async_payment_succeeded → registra el pedido (o vincula el pago a plazos)
 //       invoice.paid                 → renovación mensual o cuota de un pago a plazos (+ su factura en el portal)
@@ -78,12 +82,14 @@ async function cuponPrimerMes(pct: number) {
   return id;
 }
 
-async function stripe(ruta: string, datos?: Record<string, string>) {
+async function stripe(ruta: string, datos?: Record<string, string>, idem?: string) {
   const clave = env("STRIPE_SECRET_KEY");
   if (!clave) throw new Error("SIN_CONFIGURAR");
+  const h: Record<string, string> = { Authorization: "Bearer " + clave, "Content-Type": "application/x-www-form-urlencoded" };
+  if (idem) h["Idempotency-Key"] = idem;   // un mismo pago nunca crea dos suscripciones aunque el aviso llegue dos veces
   const r = await fetch("https://api.stripe.com/v1/" + ruta, {
     method: datos ? "POST" : "GET",
-    headers: { Authorization: "Bearer " + clave, "Content-Type": "application/x-www-form-urlencoded" },
+    headers: h,
     body: datos ? new URLSearchParams(datos) : undefined,
   });
   const j = await r.json();
@@ -160,6 +166,86 @@ async function avisarEquipo(db: SupabaseClient, titulo: string, texto: string, e
   } catch (e) { console.error("Aviso al equipo: " + (e as Error).message); }
 }
 
+// ---------- Cuotas automáticas (hosting, gestión de pedidos y asistente IA) ----------
+// código del catálogo → días gratis antes del primer cobro
+const CUOTAS: Record<string, { dias: number; corto: string }> = {
+  "EXT-28": { dias: 30, corto: "Hosting" },
+  "EXT-26": { dias: 90, corto: "Gestión de pedidos" },
+  "EXT-27": { dias: 90, corto: "Asistente IA" },
+};
+type Cuota = { codigo: string; nombre: string; eur: number; dias: number; corto: string };
+// Qué cuotas lleva lo que se paga: la web al pagar su 50 % final; los extras y packs que las incluyen, al pagarlos
+function cuotasDe(nombre: string, webFinal: boolean) {
+  const l: string[] = [];
+  if (webFinal) { l.push("EXT-28"); if (/^Plan Ecommerce/.test(nombre)) l.push("EXT-26"); }
+  if (/^EXT-12 ·/.test(nombre) || nombre === "Pack Tienda Lista") l.push("EXT-26");
+  if (/^EXT-09 ·/.test(nombre) || nombre === "Pack Citas") l.push("EXT-27");
+  return l;
+}
+// Quita las que ya cubre su mantenimiento o renting (o que ya tiene) y saca nombre y precio del catálogo
+async function cuotasPendientes(db: SupabaseClient, cliente: string, codigos: string[]): Promise<Cuota[]> {
+  if (!codigos.length || !suscripcionesActivas()) return [];
+  const { data: cub } = await db.rpc("servidor_cuotas_cubiertas", { p_cliente: cliente });
+  const l: Cuota[] = [];
+  for (const codigo of [...new Set(codigos)]) {
+    if ((cub || []).includes(codigo) || !CUOTAS[codigo]) continue;
+    const { data: c } = await db.from("catalogo").select("nombre,precio,activo").like("nombre", codigo + " %").eq("activo", true).maybeSingle();
+    if (c) l.push({ codigo, nombre: c.nombre, eur: Number(c.precio), ...CUOTAS[codigo] });
+  }
+  return l;
+}
+const eurTxt = (n: number) => n.toLocaleString("es-ES", { maximumFractionDigits: 2 }) + " €";
+const textoCuotas = (l: Cuota[]) => "Al pagar guardamos tu tarjeta para activar: " +
+  l.map((c) => `${c.corto}, gratis ${c.dias === 30 ? "el primer mes" : "los 3 primeros meses"} y después ${eurTxt(c.eur)}/mes`).join("; ") +
+  ". Sin permanencia: puedes darlo de baja cuando quieras desde tu portal.";
+// Prepara la sesión de Checkout para guardar la tarjeta y anota qué cuotas se activarán al pagar
+function conCuotas(d: Record<string, string>, l: Cuota[]) {
+  if (!l.length) return;
+  d["customer_creation"] = "always";
+  d["payment_intent_data[setup_future_usage]"] = "off_session";
+  d["metadata[cuotas]"] = l.map((c) => c.codigo).join(",");
+  d["custom_text[submit][message]"] = textoCuotas(l);
+}
+// Producto fijo de Stripe para cada cuota (se crea la primera vez)
+async function productoDe(c: Cuota) {
+  const id = "velority-" + c.codigo.toLowerCase();
+  try { return (await stripe("products/" + id)).id; }
+  catch { return (await stripe("products", { id, name: c.nombre, "metadata[velority]": c.codigo })).id; }
+}
+// Tras el pago: crea cada suscripción con su periodo gratis y la da de alta como servicio del cliente
+async function altaCuotas(db: SupabaseClient, sesion: Record<string, any>, caso: number | null) {
+  const m = sesion.metadata || {}, cliente = m.cliente_id;
+  const l = await cuotasPendientes(db, cliente, String(m.cuotas || "").split(",").filter(Boolean));
+  if (!l.length) return;
+  const s = await stripe("checkout/sessions/" + encodeURIComponent(sesion.id) + "?expand[]=payment_intent");
+  const customer = idDe(s.customer), pm = idDe(s.payment_intent?.payment_method);
+  if (!customer || !pm) throw new Error("El pago no guardó la tarjeta: no se han podido activar las cuotas.");
+  for (const c of l) {
+    const sub = await stripe("subscriptions", {
+      customer, default_payment_method: pm, description: c.nombre,
+      "items[0][price_data][currency]": "eur", "items[0][price_data][product]": await productoDe(c),
+      "items[0][price_data][unit_amount]": String(Math.round(c.eur * 100)), "items[0][price_data][recurring][interval]": "month",
+      "items[0][tax_rates][0]": await ivaIncluido(),
+      trial_period_days: String(c.dias), "trial_settings[end_behavior][missing_payment_method]": "cancel",
+      "metadata[cliente_id]": cliente, "metadata[nombre]": c.nombre, "metadata[tipo]": "extra", "metadata[cuota]": c.codigo,
+    }, "cuota-" + sesion.id + "-" + c.codigo);
+    const { error } = await db.rpc("servidor_alta_cuota", {
+      p_cliente: cliente, p_nombre: c.nombre, p_importe: c.eur, p_suscripcion: sub.id,
+      p_gratis_hasta: isoDe(Number(sub.trial_end || 0)), p_caso: caso,
+    });
+    if (error) throw error;
+  }
+}
+// Las cuotas nunca bloquean el registro del pago: si algo falla, se avisa al equipo para activarlas a mano
+async function altaCuotasSegura(db: SupabaseClient, sesion: Record<string, any>, caso: number | null) {
+  if (!sesion.metadata?.cuotas) return;
+  try { await altaCuotas(db, sesion, caso); }
+  catch (e) {
+    console.error("Cuotas: " + (e as Error).message);
+    await avisarEquipo(db, "⚠️ Cuotas sin activar", "Pago " + sesion.id + ": " + (e as Error).message, "cliente=" + (sesion.metadata?.cliente_id || ""));
+  }
+}
+
 // Registra un pago completado de Checkout (una sola vez por sesión de Stripe)
 async function registrar(db: SupabaseClient, s: Record<string, any>) {
   const pagado = s.payment_status === "paid" || s.payment_status === "no_payment_required";
@@ -182,6 +268,7 @@ async function registrar(db: SupabaseClient, s: Record<string, any>) {
     if (m.codigo_id && !m.codigo_fijado) await db.rpc("servidor_usar_codigo", { p_codigo: Number(m.codigo_id), p_cliente: m.cliente_id, p_sesion: s.id, p_descuento: Number(m.descuento || 0), p_servicio: m.servicio_id ? Number(m.servicio_id) : null });
     await metodoPago(db, s.id, m.cliente_id).catch(() => {});
     await guardarFactura(db, s.id, m.cliente_id).catch((e) => console.error("Factura: " + e.message));
+    if (m.parte === "final") await altaCuotasSegura(db, s, data?.caso_id ?? null);
     return data;
   }
   const { data, error } = await db.rpc("servidor_registrar_pago", {
@@ -196,6 +283,7 @@ async function registrar(db: SupabaseClient, s: Record<string, any>) {
   if (m.codigo_id) await db.rpc("servidor_usar_codigo", { p_codigo: Number(m.codigo_id), p_cliente: m.cliente_id, p_sesion: s.id, p_descuento: Number(m.descuento || 0), p_servicio: null });
   await metodoPago(db, s.id, m.cliente_id).catch(() => {});
   await guardarFactura(db, s.id, m.cliente_id).catch((e) => console.error("Factura: " + e.message));
+  if (s.mode === "payment") await altaCuotasSegura(db, s, data?.caso_id ?? null);
   return data;
 }
 
@@ -354,6 +442,7 @@ Deno.serve(async (req) => {
           };
           if (c?.email) d.customer_email = c.email;
           if (cod && rebaja) { d["metadata[codigo_id]"] = String(cod.id); d["metadata[codigo]"] = cod.codigo; d["metadata[descuento]"] = String(rebaja.descuento); if (fijado) d["metadata[codigo_fijado]"] = "1"; }
+          if (parte === "final") conCuotas(d, await cuotasPendientes(db, cid, cuotasDe(nombre, true)));
           const ses = await stripe("checkout/sessions", d);
           return responder({ url: ses.url });
         }
@@ -386,6 +475,7 @@ Deno.serve(async (req) => {
       d["line_items[0][tax_rates][0]"] = await ivaIncluido();
       if (!it.cada) { d["invoice_creation[enabled]"] = "true"; d["invoice_creation[invoice_data][metadata][cliente_id]"] = cid; d["invoice_creation[invoice_data][footer]"] = PIE_FACTURA; }
       if (c?.email) d.customer_email = c.email;
+      if (!it.cada) conCuotas(d, await cuotasPendientes(db, cid, cuotasDe(nombre, false)));
       if (it.cada) {
         d["line_items[0][price_data][recurring][interval]"] = "month";
         d["line_items[0][price_data][recurring][interval_count]"] = String(it.cada);
