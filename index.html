@@ -2252,8 +2252,10 @@ async function guardarFicha() {
   fin();
   if (error) { err.textContent = "No se pudo guardar la ficha: " + error.message; err.classList.remove("hidden"); return; }
   webs.set(id, data);
+  CATS.delete(id);   // el plan puede haber activado el catálogo o los pedidos: se vuelven a leer
   cerrarFicha(true); render();
-  toast("Ficha de " + bonito(cliente.nombre) + " guardada. El cliente ya la ve en su portal.");
+  toast("Ficha de " + bonito(cliente.nombre) + " guardada. El cliente ya la ve en su portal." +
+    (data.plan === "Plan Negocio" ? " Catálogo activado (lo gestiona el equipo)." : /Ecommerce/.test(data.plan || "") ? " Catálogo y pedidos online activados." : ""), 5000);
 }
 
 async function recargarClientes() {
@@ -3798,7 +3800,7 @@ function catalogoStaffHTML(c) {
   if (x.cargando) return '<p class="text-sm text-slate-500">Cargando…</p>';
   const k = x.k, on = k && k.activo, eur = n => n === null ? "Precio bajo consulta" : Number(n).toLocaleString("es-ES", { maximumFractionDigits: 2 }) + " €";
   const quien = p => p.actualizado_por ? (p.actualizado_por === "cliente" ? "el cliente" : esc(bonito(p.actualizado_por))) : "";
-  return `<p class="text-xs text-slate-500 -mt-1 mb-2">Con el catálogo activo, el cliente ve la pestaña «Catálogo» en su portal y sube sus productos. Su web los enseña al momento si lleva el código de abajo (funciona en velority.cloud y en su dominio). El equipo también puede añadirlos y editarlos aquí.</p>
+  return `<p class="text-xs text-slate-500 -mt-1 mb-2">Se activa solo al poner el Plan Negocio (lo gestiona el equipo) o el Plan Ecommerce (lo gestiona el cliente, con pedidos online) en la ficha. Con el catálogo activo, el cliente ve la pestaña «Catálogo» en su portal y sube sus productos. Su web los enseña al momento si lleva el código de abajo (funciona en velority.cloud y en su dominio). El equipo también puede añadirlos y editarlos aquí.</p>
     ${x.error ? `<p class="text-sm text-amber-300">${esc(x.error)}</p>` : ""}
     <div class="flex flex-wrap items-center gap-2">
       <span class="mini ${on ? "bg-emerald-500/15 text-emerald-300" : "bg-slate-500/15 text-slate-400"}">${on ? "● Activo" : "Desactivado"}</span>
@@ -3807,6 +3809,11 @@ function catalogoStaffHTML(c) {
       ${k ? `<button type="button" data-cat-limite class="rounded-md border border-line px-2.5 py-1 text-xs text-slate-200 hover:border-fx">Guardar máximo</button>` : ""}
       <button type="button" data-cat-activar="${on ? "0" : "1"}" class="rounded-md ${on ? "border border-line text-slate-200 hover:border-red-400" : "bg-fx hover:bg-fx2 text-[#1a1005] font-semibold"} px-3 py-1 text-xs">${on ? "Desactivar" : "Activar catálogo"}</button>
     </div>
+    ${on ? `<div class="mt-2 flex flex-wrap items-center gap-2">
+      <span class="mini ${k.autogestion !== false ? "bg-emerald-500/15 text-emerald-300" : "bg-slate-500/15 text-slate-400"}">${k.autogestion !== false ? "✏️ Lo gestiona el cliente" : "🔒 Lo gestiona el equipo"}</span>
+      <span class="text-xs text-slate-500">${k.autogestion !== false ? "Ve la pestaña «Catálogo» en su portal (EXT-11 o Plan Ecommerce)." : "Plan Negocio: sus productos los subís vosotros desde aquí; él no ve la pestaña «Catálogo»."}</span>
+      <button type="button" data-cat-auto="${k.autogestion !== false ? "0" : "1"}" class="ml-auto rounded-md border border-line px-3 py-1 text-xs text-slate-200 hover:border-fx">${k.autogestion !== false ? "Que lo gestione el equipo" : "Dejar que lo gestione el cliente"}</button>
+    </div>` : ""}
     ${on ? `<div class="mt-2 flex flex-wrap items-center gap-2">
       <span class="mini ${k.pedidos_activo ? "bg-emerald-500/15 text-emerald-300" : "bg-slate-500/15 text-slate-400"}">${k.pedidos_activo ? "🛒 Pedidos online activos" : "Pedidos online desactivados"}</span>
       ${k.pedidos_activo ? `<span class="text-sm text-slate-300">${(x.ventas || []).length} pedidos${(x.ventas || []).filter(v => v.estado === "nuevo").length ? " · " + (x.ventas || []).filter(v => v.estado === "nuevo").length + " nuevos" : ""}</span>` : `<span class="text-xs text-slate-500">Con EXT-12 o el Plan Ecommerce: su web acepta pedidos y los gestiona en «Ventas» de su portal.</span>`}
@@ -3878,6 +3885,13 @@ document.addEventListener("click", async e => {
     const { error } = x.k ? await db.from("catalogos").update(fila).eq("cliente_id", id) : await db.from("catalogos").insert(fila);
     if (error) { toast("No se pudo guardar: " + error.message, 6000); return; }
     toast(on ? "Catálogo activado" : "Catálogo desactivado"); cargarCatalogoStaff(id); return;
+  }
+  const auto = t.closest("[data-cat-auto]");
+  if (auto) {
+    const on = auto.dataset.catAuto === "1";
+    const { error } = await db.from("catalogos").update({ autogestion: on, actualizado_en: new Date().toISOString() }).eq("cliente_id", id);
+    if (error) { toast("No se pudo guardar: " + error.message, 6000); return; }
+    toast(on ? "Ahora el cliente gestiona su catálogo" : "Ahora el catálogo lo gestiona el equipo"); cargarCatalogoStaff(id); return;
   }
   const ped = t.closest("[data-cat-pedidos]");
   if (ped) {
