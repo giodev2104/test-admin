@@ -115,7 +115,7 @@ Los textos legales son una plantilla razonable, **no asesoramiento legal**: rev�
 
 ## 7. Copias de seguridad (GitHub Actions, gratis)
 
-Cada lunes se guarda una copia **cifrada** de la base de datos en un repositorio **privado** tuyo (se guardan las 12 últimas).
+Cada lunes se guarda una copia **cifrada** en un repositorio **privado** tuyo (se guardan las 12 últimas). Cada copia incluye la **base de datos**, las **3 webs completas** (test-admin, test-cliente y wclientes, con todas las ramas e historial) y los **archivos subidos** a Supabase Storage (fotos de productos, adjuntos y entregas).
 
 > ⚠️ **No uses la pestaña «Artifacts» de test-admin**: este repositorio es público y cualquiera con cuenta de GitHub
 > puede descargar lo que se suba ahí. Por eso las copias van a un repositorio privado aparte.
@@ -131,17 +131,19 @@ Cada lunes se guarda una copia **cifrada** de la base de datos en un repositorio
    - `CLAVE_COPIA` = una contraseña larga (20+ caracteres al azar). **Guárdala bien**: sin ella no se puede abrir ninguna copia.
    - `COPIAS_TOKEN` = el token del paso 3
    - `COPIAS_REPO` = `giodev2104/velority-copias`
+   - `SUPABASE_SERVICE_KEY` = Supabase > **Project Settings > API Keys** > clave **service_role** (o la «secret»). Sirve para copiar las fotos y archivos; sin ella la copia se hace igual pero sin esos archivos.
 5. Pruébalo: pestaña **Actions > Copia de seguridad > Run workflow**. Al terminar, la copia aparece en `velority-copias/copias/`.
 
 > Las copias del workflow solo se ejecutan desde la rama principal: fusiona la rama antes (paso 8).
-> No incluyen los **archivos adjuntos** (Storage); esos se pueden descargar desde Supabase > Storage > adjuntos.
 
 **Restaurar una copia** (en un ordenador con `gpg` y `psql`):
 ```bash
 gpg -d velority-AAAA-MM-DD.sql.tar.gz.gpg | tar -xz          # pide CLAVE_COPIA
 psql "URI_DE_LA_BASE" -f velority-AAAA-MM-DD.sql             # tablas y datos (en un proyecto vacío)
 psql "URI_DE_LA_BASE" -f auth-velority-AAAA-MM-DD.sql        # cuentas del equipo
+git clone webs/test-cliente.bundle test-cliente              # cada web (igual con test-admin y wclientes)
 ```
+Las fotos y archivos quedan en la carpeta `archivos/` (una subcarpeta por bucket: `productos`, `adjuntos`, `entregas`); se vuelven a subir desde Supabase > Storage.
 
 ---
 

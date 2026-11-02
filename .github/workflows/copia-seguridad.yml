@@ -14,6 +14,11 @@
 #      CLAVE_COPIA      → una contraseña larga (20+ caracteres al azar) que guardes bien: sin ella no se abre la copia
 #      COPIAS_TOKEN     → el token del paso 2
 #      COPIAS_REPO      → nombre del repositorio privado, p. ej. giodev2104/velority-copias
+#      SUPABASE_SERVICE_KEY → (para copiar también las fotos y archivos subidos) Supabase > Project Settings >
+#                         API Keys > clave «service_role» o «secret». Sin ella la copia sale igual, pero sin esos archivos.
+#
+# Cada copia incluye: la base de datos, las 3 webs completas (test-admin, test-cliente y wclientes, con todo
+# su historial) y los archivos de Supabase Storage (fotos de productos, adjuntos y entregas).
 #
 # Para hacer una copia al momento: pestaña Actions > «Copia de seguridad» > Run workflow.
 # Para restaurarla, mira GUIA.md (apartado «Copias de seguridad»).
@@ -61,6 +66,8 @@ jobs:
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           CLAVE_COPIA: ${{ secrets.CLAVE_COPIA }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_URL: https://ufwuvbjrgvphbggkfkuh.supabase.co
         run: |
           set -euo pipefail
           PGBIN=/usr/lib/postgresql/17/bin
@@ -68,9 +75,37 @@ jobs:
           # Tablas de la aplicación (estructura + datos) y cuentas del equipo (solo datos)
           $PGBIN/pg_dump "$SUPABASE_DB_URL" --schema=public --no-owner --no-privileges > "$f"
           $PGBIN/pg_dump "$SUPABASE_DB_URL" --data-only --table=auth.users --table=auth.identities --no-owner --no-privileges > "auth-$f"
-          tar -czf "$f.tar.gz" "$f" "auth-$f"
+
+          # Las 3 webs completas (todas las ramas e historial): se restauran con «git clone webs/NOMBRE.bundle»
+          mkdir -p webs
+          for r in test-admin test-cliente wclientes; do
+            git clone --quiet --mirror "https://github.com/giodev2104/$r.git" "espejo-$r"
+            git -C "espejo-$r" bundle create "../webs/$r.bundle" --all
+            rm -rf "espejo-$r"
+          done
+
+          # Archivos subidos a Supabase Storage (fotos de productos, adjuntos y entregas)
+          mkdir -p archivos
+          if [ -n "$SUPABASE_SERVICE_KEY" ]; then
+            $PGBIN/psql "$SUPABASE_DB_URL" -At -F $'\t' -c "select bucket_id, name from storage.objects where name not like '%/.emptyFolderPlaceholder'" |
+            while IFS=$'\t' read -r bucket nombre; do
+              mkdir -p "archivos/$bucket/$(dirname "$nombre")"
+              ruta=$(python3 -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.argv[1]))' "$nombre")
+              curl -fsS -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" -H "apikey: $SUPABASE_SERVICE_KEY" \
+                "$SUPABASE_URL/storage/v1/object/authenticated/$bucket/$ruta" -o "archivos/$bucket/$nombre" \
+                || echo "::warning::No se pudo descargar $bucket/$nombre"
+            done
+          else
+            echo "::warning::Falta el secreto SUPABASE_SERVICE_KEY: esta copia no incluye las fotos ni los archivos subidos."
+          fi
+
+          tar -czf "$f.tar.gz" "$f" "auth-$f" webs archivos
           gpg --batch --yes --pinentry-mode loopback --passphrase "$CLAVE_COPIA" --symmetric --cipher-algo AES256 -o "$f.tar.gz.gpg" "$f.tar.gz"
-          rm -f "$f" "auth-$f" "$f.tar.gz"
+          rm -rf "$f" "auth-$f" "$f.tar.gz" webs archivos
+          if [ "$(stat -c%s "$f.tar.gz.gpg")" -gt 95000000 ]; then
+            echo "::error::La copia pasa de 95 MB (límite de GitHub por archivo: 100 MB). Hay que repartirla en varios archivos."
+            exit 1
+          fi
           ls -lh "$f.tar.gz.gpg"
           echo "ARCHIVO=$f.tar.gz.gpg" >> "$GITHUB_ENV"
 
