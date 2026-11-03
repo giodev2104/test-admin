@@ -27,7 +27,8 @@ Todo está preparado y probado, pero **nada está activo**: el código está en 
   suscripciones con su periodo gratis: **hosting** 5 €/mes (1.er mes gratis) y, en el Plan Ecommerce, **gestión de
   pedidos** 9 €/mes (3 meses gratis). Al pagar el extra EXT-12 o el Pack Tienda Lista se activa la de pedidos, y con
   EXT-09 o el Pack Citas la del **asistente IA** 19 €/mes (3 meses gratis). No se crean si ya las cubre su
-  mantenimiento o renting (o si ya las tiene). El cliente lo ve antes de pagar, en la ventana «Antes de pagar» y en la
+  mantenimiento o renting (o si ya las tiene). El hosting tampoco se crea si su web se aloja fuera de Velority
+  (`webs_cliente.hosting_externo`, ya marcado para Fernando García). El cliente lo ve antes de pagar, en la ventana «Antes de pagar» y en la
   página de Stripe, y lo acepta. Cada cuota sale en su portal como servicio con baja disponible; si se da de baja
   durante el periodo gratis no se le cobra nada. Si algo fallara al crearlas, el pago se registra igual y te llega
   un aviso al móvil («Cuotas sin activar») para activarlas a mano.

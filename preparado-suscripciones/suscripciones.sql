@@ -190,7 +190,7 @@ begin
   return json_build_object('servicio_id', s.id);
 end $$;
 
--- ¿Qué cuotas ya cubre el cliente? (mantenimiento o renting activos, o la misma cuota ya dada de alta)
+-- ¿Qué cuotas ya cubre el cliente? (mantenimiento o renting activos, la misma cuota ya dada de alta o hosting fuera de Velority)
 create or replace function public.servidor_cuotas_cubiertas(p_cliente uuid)
 returns text[] language sql stable security definer set search_path to 'public' as $$
   select coalesce(array_agg(distinct x), '{}') from (
@@ -205,6 +205,8 @@ returns text[] language sql stable security definer set search_path to 'public' 
     select 'EXT-28' from webs_cliente where cliente_id = p_cliente and (plan like 'Mantenimiento %' or plan like 'Renting %')
     union all
     select 'EXT-26' from webs_cliente where cliente_id = p_cliente and plan in ('Mantenimiento Tienda', 'Renting Plan Ecommerce')
+    union all   -- su web se aloja fuera de Velority (columna webs_cliente.hosting_externo): nunca se le cobra hosting
+    select 'EXT-28' from webs_cliente where cliente_id = p_cliente and hosting_externo
   ) t;
 $$;
 
