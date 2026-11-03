@@ -11,7 +11,7 @@
 //     mensuales que se termina sola tras la última
 //   · Cuotas automáticas: al pagar el 50 % final de una web (o un extra que las lleve), Stripe guarda la tarjeta y se
 //     crean solas las suscripciones con su periodo gratis: hosting EXT-28 (1 mes gratis), gestión de pedidos EXT-26
-//     (Plan Ecommerce, EXT-12, Pack Tienda Lista; 3 meses) y asistente IA EXT-27 (EXT-09, Pack Citas; 3 meses).
+//     (Plan Ecommerce, EXT-12, Pack Tienda Lista; 3 meses) y asistente IA EXT-27 (EXT-09, Pack Citas; 1 mes).
 //     No se crean si ya las cubre su mantenimiento o renting, o si ya las tiene. Solo con SUSCRIPCIONES_ACTIVAS=1.
 //   · Avisos de Stripe (webhook), todos idempotentes:
 //       checkout.session.completed / async_payment_succeeded → registra el pedido (o vincula el pago a plazos)
@@ -171,7 +171,7 @@ async function avisarEquipo(db: SupabaseClient, titulo: string, texto: string, e
 const CUOTAS: Record<string, { dias: number; corto: string }> = {
   "EXT-28": { dias: 30, corto: "Hosting" },
   "EXT-26": { dias: 90, corto: "Gestión de pedidos" },
-  "EXT-27": { dias: 90, corto: "Asistente IA" },
+  "EXT-27": { dias: 30, corto: "Asistente IA" },
 };
 type Cuota = { codigo: string; nombre: string; eur: number; dias: number; corto: string };
 // Qué cuotas lleva lo que se paga: la web al pagar su 50 % final; los extras y packs que las incluyen, al pagarlos
