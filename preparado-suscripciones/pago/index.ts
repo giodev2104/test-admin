@@ -42,7 +42,7 @@ const URL_PORTAL = env("URL_PORTAL") || "https://velority.es/";
 const suscripcionesActivas = () => env("SUSCRIPCIONES_ACTIVAS") === "1";
 
 // Pago a plazos: número de cuotas → recargo sobre el precio (igual que FINANCIACION en el portal)
-const PLAZOS: Record<number, number> = { 3: 0, 6: 0.03, 12: 0.06 };
+const PLAZOS: Record<number, number> = { 3: 0, 6: 0, 12: 0 };   // sin recargo
 const FINANCIACION_MINIMO = 150;
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
