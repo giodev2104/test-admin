@@ -2046,7 +2046,8 @@ function abrirFicha(id) {
       <button type="button" data-ficha-cerrar class="ml-auto text-slate-400 hover:text-white p-1" aria-label="Cerrar">✕</button>
     </div>
     <form id="ficha-form" class="px-5 sm:px-6 py-5 space-y-4" novalidate>
-      ${bloqueF("Cliente", "", `<div class="${g2}">${campoF("nombre", "Nombre", c.nombre, "text", 'maxlength="100"')}${campoF("dominio", "Dominio de su web", c.dominio, "text", 'placeholder="mitienda.com"')}</div>`)}
+      ${bloqueF("Cliente", "", `<div class="${g2}">${campoF("nombre", "Nombre", c.nombre, "text", 'maxlength="100"')}${campoF("dominio", "Dominio de su web", c.dominio, "text", 'placeholder="mitienda.com"')}</div>
+        <label class="mt-3 flex items-start gap-2 text-sm text-slate-200"><input id="f-hosting_externo" type="checkbox" class="mt-1" ${w.hosting_externo ? "checked" : ""}><span>Hosting externo (sin cuota)<span class="block text-xs text-slate-400">Su web se aloja fuera de Velority: no se le cobra el hosting de 5 €/mes, ni ahora ni cuando se activen las cuotas.</span></span></label>`)}
       ${bloqueF("Resumen de «Mi web»", "La cabecera del portal.", `<div class="${g2}">
         <label class="block"><span class="block text-xs text-slate-400 mb-1">Plan contratado<span class="ml-1 text-[10px] font-semibold text-emerald-300" title="Se pone solo cuando un servicio de mantenimiento pasa a activo. Asigna el plan de su web para que el cliente vea el portal completo">⚡ auto</span></span>
           <select id="f-plan" class="campo text-sm" style="padding:.5rem .7rem"><option value="">Sin plan</option>${planes.map(p => `<option ${p === w.plan ? "selected" : ""}>${esc(p)}</option>`).join("")}</select></label>
@@ -2229,7 +2230,7 @@ function leerFicha() {
     seo_palabras: palabras, seo_acciones: filas("seo_acciones").map(a => ({ texto: a.texto })), seo_informe_url: informe,
     metodo_pago: texto("metodo_pago"), facturas, medir_auto: $("f-medir_auto").checked,
     resumen_auto: $("f-resumen_auto").checked, recomendacion_auto: $("f-recomendacion_auto").checked,
-    gsc_propiedad: texto("gsc_propiedad"), ga4_propiedad: v("ga4_propiedad").replace(/\D/g, "") || null, informe_auto: $("f-informe_auto").checked
+    hosting_externo: $("f-hosting_externo").checked, gsc_propiedad: texto("gsc_propiedad"), ga4_propiedad: v("ga4_propiedad").replace(/\D/g, "") || null, informe_auto: $("f-informe_auto").checked
   };
   return { errores, datos, cliente: { nombre, dominio: v("dominio").replace(/^https?:\/\//i, "").replace(/\/.*$/, "") || null } };
 }
