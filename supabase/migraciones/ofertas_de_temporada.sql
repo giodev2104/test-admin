@@ -55,3 +55,14 @@ update public.catalogo set oferta_temporada = 25 where nombre in (
   'EXT-17 · Píxeles Meta (FB/IG) y TikTok', 'EXT-11 · Panel de gestión de productos', 'EXT-06 · Pasarela de Pago Adicional',
   'EXT-10 · Carga Masiva de Productos', 'EXT-07 · Web Multidioma',
   'Pack Presencia Local', 'Pack Hostelería', 'Pack Tienda Lista');
+
+-- tema_publico también dice si hay descuentos y el máximo (para la tira «Hasta −X %» de la web)
+create or replace function public.tema_publico()
+returns json language sql stable security definer set search_path to 'public' as $$
+  select json_build_object('tema', valor->>'tema', 'desde', valor->>'desde', 'hasta', valor->>'hasta',
+                           'franja', valor->>'franja', 'franja_activa', coalesce((valor->>'franja_activa')::boolean, false),
+                           'franja_demo', coalesce((valor->>'franja_demo')::boolean, false),
+                           'descuentos', coalesce((valor->>'descuentos')::boolean, false),
+                           'descuento_max', (select max(oferta_temporada) from catalogo where activo))
+  from ajustes_web where clave = 'tema';
+$$;
