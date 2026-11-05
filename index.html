@@ -282,6 +282,7 @@
       <input id="tema-franja" maxlength="140" placeholder="🎃 ¡Feliz Halloween! Pide tu demo gratuita y sin compromiso" class="campo text-sm">
       <label class="flex items-center gap-2 text-sm text-slate-300"><input id="tema-franja-demo" type="checkbox" class="accent-[#f6a01a]"> Con el botón «Pedir mi demo»</label>
     </fieldset>
+    <label class="flex items-start gap-2 text-sm text-slate-200"><input id="tema-descuentos" type="checkbox" class="accent-[#f6a01a] mt-1"> <span>Aplicar los descuentos de temporada <span class="block text-xs text-slate-400">Los servicios con «% temporada» en Precios se ven tachados y se cobran rebajados mientras dure el tema.</span></span></label>
     <label class="flex items-center gap-2 text-sm text-slate-200"><input id="tema-panel" type="checkbox" class="accent-[#f6a01a]"> También en el panel (solo lo veis el equipo)</label>
     <p id="tema-error" class="hidden text-sm text-red-300"></p>
     <div class="flex flex-wrap items-center gap-2 pt-1">
@@ -3436,6 +3437,7 @@ function abrirPrecios() {
         ${t === "mantenimiento" ? `<span class="flex items-center gap-1.5 text-xs text-slate-400">o al año ${num(c.nombre, "precio_anual", c.precio_anual, "—")} €</span>` : ""}
         ${t === "mantenimiento" ? `<span class="flex items-center gap-1.5 text-xs text-slate-400" title="Tokens incluidos al mes">${num(c.nombre, "tokens_mes", c.tokens_mes, "0")} tokens/mes</span>` : ""}
         ${t === "extra" && !c.cada ? `<span class="flex items-center gap-1.5 text-xs text-slate-400" title="Vacío = solo se paga con tarjeta">o ${num(c.nombre, "precio_tokens", c.precio_tokens, "—").replace('step="0.01"', 'step="0.5"').replace("w-24", "w-16")} tokens</span>` : ""}
+        ${t !== "web" && !c.cada ? `<span class="flex items-center gap-1.5 text-xs text-slate-400" title="Descuento que se aplica solo mientras el «Tema de temporada» (Black Friday…) esté activo con los descuentos marcados. Vacío = sin descuento">🖤 ${num(c.nombre, "oferta_temporada", c.oferta_temporada, "—").replace('step="0.01"', 'step="1" max="90"').replace("w-24", "w-14")} % temporada</span>` : ""}
         <label class="flex items-center gap-1.5 text-xs text-slate-300"><input type="checkbox" data-cat="${esc(c.nombre)}" data-campo="activo" ${c.activo ? "checked" : ""} ${ro}> A la venta</label>
         ${ofertaHTML(c, ro)}
       </li>`).join("")}</ul></section>`;
@@ -3527,6 +3529,10 @@ async function guardarPrecios() {
     if (k === "activo") v = el.checked;
     else if (k === "oferta_hasta") v = el.value || null;
     else if (k === "oferta_pct") v = el.value === "" ? null : Number(el.value);
+    else if (k === "oferta_temporada") {
+      v = el.value.trim() === "" ? null : Math.round(Number(el.value));
+      if (v !== null && (!isFinite(v) || v < 1 || v > 90)) { el.focus(); $("precios-estado").textContent = "El % de temporada de «" + c.nombre + "» tiene que estar entre 1 y 90."; return; }
+    }
     else {
       v = el.value.trim() === "" ? null : Math.round(Number(el.value) * 100) / 100;
       if (v !== null && (!isFinite(v) || v < 0)) { el.focus(); $("precios-estado").textContent = "Revisa el precio de «" + c.nombre + "»."; return; }
@@ -4415,7 +4421,7 @@ function aplicarTemaPanel() {
 }
 function estadoTema(t) {
   if (!t || !t.tema) return "⚪ Ahora mismo velority.es se ve con su aspecto normal.";
-  if (temaVigente(t)) return "🟢 Se está viendo ahora en velority.es" + (t.hasta ? " hasta el " + fechaTema(t.hasta) + ". Después se quita solo." : " (sin fecha de fin).");
+  if (temaVigente(t)) return (t.descuentos ? "🏷 Descuentos de temporada aplicados. " : "") + "🟢 Se está viendo ahora en velority.es" + (t.hasta ? " hasta el " + fechaTema(t.hasta) + ". Después se quita solo." : " (sin fecha de fin).");
   if (t.desde && Date.now() < Date.parse(t.desde)) return "🕒 Programado: empieza el " + fechaTema(t.desde) + ".";
   return "⚪ Terminado: la fecha de fin ya ha pasado y la web se ve normal.";
 }
@@ -4425,7 +4431,7 @@ function abrirTema() {
   $("tema-tipo").value = t.tema || "";
   $("tema-desde").value = aInputFecha(t.desde); $("tema-hasta").value = aInputFecha(t.hasta);
   $("tema-franja-on").checked = !!t.franja_activa; $("tema-franja").value = t.franja || ""; $("tema-franja-demo").checked = !!t.franja_demo;
-  $("tema-panel").checked = !!t.en_panel;
+  $("tema-panel").checked = !!t.en_panel; $("tema-descuentos").checked = !!t.descuentos;
   $("tema-ver").href = URL_PORTAL + "?tema=" + (t.tema || "halloween");
   $("tema-estado").textContent = estadoTema(temaWeb);
   $("tema-error").classList.add("hidden");
@@ -4451,6 +4457,7 @@ $("tema-tipo").addEventListener("change", () => {
   const f = (a, m, d, h = 0, mi = 0) => aInputFecha(new Date(a, m, d, h, mi).toISOString());
   if (v === "halloween") { const a = hoy.getMonth() > 10 ? y + 1 : y; $("tema-desde").value = f(a, 9, 15); $("tema-hasta").value = f(a, 10, 1, 23, 59); }
   if (v === "navidad") { const a = hoy.getMonth() === 0 && hoy.getDate() <= 6 ? y - 1 : y; $("tema-desde").value = f(a, 11, 1); $("tema-hasta").value = f(a + 1, 0, 6, 23, 59); }
+  $("tema-descuentos").checked = v === "blackfriday";
   if (v === "blackfriday") {
     // Black Friday: el último viernes de noviembre. Se propone de su lunes al Cyber Monday (lunes siguiente)
     const a = hoy.getMonth() === 11 || (hoy.getMonth() === 10 && hoy.getDate() > 30) ? y + 1 : y, d = new Date(a, 10, 30); d.setDate(30 - ((d.getDay() + 2) % 7));
@@ -4466,7 +4473,7 @@ $("tema-form").addEventListener("submit", e => {
   e.preventDefault();
   guardarTema({ tema: $("tema-tipo").value, desde: deInputFecha($("tema-desde").value), hasta: deInputFecha($("tema-hasta").value),
     franja: $("tema-franja").value.trim().slice(0, 140), franja_activa: $("tema-franja-on").checked, franja_demo: $("tema-franja-demo").checked,
-    en_panel: $("tema-panel").checked });
+    en_panel: $("tema-panel").checked, descuentos: $("tema-descuentos").checked });
 });
 $("tema-quitar").addEventListener("click", () => { if (confirm("¿Quitar el tema ya? velority.es volverá a su aspecto normal.")) guardarTema({ ...(temaWeb || {}), tema: "" }); });
 $("admin-abrir").addEventListener("click", abrirAdmin);
