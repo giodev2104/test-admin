@@ -79,7 +79,10 @@
   /* Tema de temporada (Halloween…) en el panel: solo si en «Tema de temporada» se marca «También en el panel» */
   html.th-hw .rail-logo { position: relative; }
   html.th-hw .rail-logo { width: 40px; height: 40px; background: url(logo-halloween.svg) center/cover no-repeat; border-radius: 9px; box-shadow: 0 0 16px rgba(255,122,26,.45); }
-  html.th-hw .rail-logo svg, html.th-nv .rail-logo svg { visibility: hidden; }
+  html.th-hw .rail-logo svg, html.th-nv .rail-logo svg, html.th-bf .rail-logo svg { visibility: hidden; }
+  html.th-bf .rail-logo { width: 40px; height: 40px; background: url(logo-blackfriday.svg) center/cover no-repeat; border-radius: 10px; box-shadow: 0 0 16px rgba(245,197,66,.45); }
+  #th-deco .bfc { position: absolute; top: -10px; width: 5px; height: 8px; border-radius: 1px; background: #F5C542; opacity: .45; animation: thConf linear infinite; }
+  @keyframes thConf { from { transform: translate(0,0) rotate(0); } to { transform: translate(var(--dx,20px),105vh) rotate(540deg); } }
   html.th-nv .rail-logo { width: 40px; height: 40px; background: url(logo-navidad.webp) center/cover no-repeat; border-radius: 10px; box-shadow: 0 0 16px rgba(139,92,246,.5); }
   #th-deco .copo { position: absolute; top: -10px; border-radius: 50%; background: #fff; opacity: .55; animation: thNieve linear infinite; }
   @keyframes thNieve { from { transform: translate(0,0); } to { transform: translate(var(--dx,20px),105vh); } }
@@ -269,7 +272,7 @@
     </div>
     <p id="tema-estado" class="rounded-lg border border-line bg-base px-3 py-2 text-sm text-slate-300"></p>
     <label class="block"><span class="block text-xs font-medium text-slate-400 mb-1">Tema</span>
-      <select id="tema-tipo" class="campo text-sm"><option value="">Sin tema (aspecto normal)</option><option value="halloween">🎃 Halloween</option><option value="navidad">🎄 Navidad</option></select></label>
+      <select id="tema-tipo" class="campo text-sm"><option value="">Sin tema (aspecto normal)</option><option value="halloween">🎃 Halloween</option><option value="navidad">🎄 Navidad</option><option value="blackfriday">🖤 Black Friday</option></select></label>
     <div class="grid gap-3 sm:grid-cols-2">
       <label class="block"><span class="block text-xs font-medium text-slate-400 mb-1">Desde</span><input id="tema-desde" type="datetime-local" class="campo text-sm"></label>
       <label class="block"><span class="block text-xs font-medium text-slate-400 mb-1">Hasta (se quita solo)</span><input id="tema-hasta" type="datetime-local" class="campo text-sm"></label>
@@ -4387,7 +4390,7 @@ function generarClave(n = 20) {
 
 // ---------- Tema de temporada (Halloween…): se guarda en ajustes_web («tema») y velority.es lo lee con tema_publico() ----------
 let temaWeb = null;
-const TEMAS_WEB = { halloween: "th-hw", navidad: "th-nv" };
+const TEMAS_WEB = { halloween: "th-hw", navidad: "th-nv", blackfriday: "th-bf" };
 const temaVigente = t => !!t && !!TEMAS_WEB[t.tema] && (!t.desde || Date.now() >= Date.parse(t.desde)) && (!t.hasta || Date.now() <= Date.parse(t.hasta));
 const aInputFecha = iso => { if (!iso) return ""; const d = new Date(iso), z = n => String(n).padStart(2, "0"); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`; };
 const deInputFecha = v => v ? new Date(v).toISOString() : null;
@@ -4405,6 +4408,7 @@ function aplicarTemaPanel() {
   if (cls && !deco) {
     deco = document.createElement("div"); deco.id = "th-deco"; deco.dataset.cls = cls; deco.setAttribute("aria-hidden", "true");
     deco.innerHTML = cls === "th-hw" ? '<i class="th-web"></i><i class="th-bat b1"></i><i class="th-bat b2"></i>'
+      : cls === "th-bf" ? Array.from({ length: 14 }, (_, i) => `<i class="bfc" style="left:${(i * 41 + 5) % 100}%;animation-duration:${12 + (i * 5) % 9}s;animation-delay:-${(i * 7) % 15}s;--dx:${((i * 31) % 60) - 30}px"></i>`).join("")
       : Array.from({ length: 16 }, (_, i) => `<i class="copo" style="left:${(i * 41 + 9) % 100}%;width:${2 + i % 3}px;height:${2 + i % 3}px;animation-duration:${12 + (i * 5) % 9}s;animation-delay:-${(i * 7) % 15}s;--dx:${((i * 23) % 50) - 25}px"></i>`).join("");
     document.body.appendChild(deco);
   }
@@ -4435,7 +4439,7 @@ async function guardarTema(valor) {
   b.disabled = false; b.textContent = "Guardar";
   if (error) { $("tema-error").textContent = "No se pudo guardar: " + error.message + (/policy|permission/i.test(error.message) ? " (¿has ejecutado supabase_tema.sql? Solo los propietarios pueden cambiarlo.)" : ""); $("tema-error").classList.remove("hidden"); return; }
   temaWeb = valor; aplicarTemaPanel(); $("tema-estado").textContent = estadoTema(temaWeb);
-  toast(valor.tema ? "🎃 Tema guardado. Los visitantes lo verán al cargar velority.es." : "Tema quitado: velority.es vuelve a su aspecto normal.", 6000);
+  toast(valor.tema ? ({ navidad: "🎄", blackfriday: "🖤" }[valor.tema] || "🎃") + " Tema guardado. Los visitantes lo verán al cargar velority.es." : "Tema quitado: velority.es vuelve a su aspecto normal.", 6000);
   cerrarTema();
 }
 $("tema-abrir").addEventListener("click", abrirTema);
@@ -4447,8 +4451,13 @@ $("tema-tipo").addEventListener("change", () => {
   const f = (a, m, d, h = 0, mi = 0) => aInputFecha(new Date(a, m, d, h, mi).toISOString());
   if (v === "halloween") { const a = hoy.getMonth() > 10 ? y + 1 : y; $("tema-desde").value = f(a, 9, 15); $("tema-hasta").value = f(a, 10, 1, 23, 59); }
   if (v === "navidad") { const a = hoy.getMonth() === 0 && hoy.getDate() <= 6 ? y - 1 : y; $("tema-desde").value = f(a, 11, 1); $("tema-hasta").value = f(a + 1, 0, 6, 23, 59); }
-  if (!$("tema-franja").value || /halloween|navidad|🎃|🎄/i.test($("tema-franja").value))
-    $("tema-franja").value = v === "navidad" ? "🎄 ¡Feliz Navidad! Pide tu demo gratuita y sin compromiso" : "🎃 ¡Feliz Halloween! Pide tu demo gratuita y sin compromiso";
+  if (v === "blackfriday") {
+    // Black Friday: el último viernes de noviembre. Se propone de su lunes al Cyber Monday (lunes siguiente)
+    const a = hoy.getMonth() === 11 || (hoy.getMonth() === 10 && hoy.getDate() > 30) ? y + 1 : y, d = new Date(a, 10, 30); d.setDate(30 - ((d.getDay() + 2) % 7));
+    $("tema-desde").value = f(a, 10, d.getDate() - 4); $("tema-hasta").value = f(a, 10, d.getDate() + 3, 23, 59);
+  }
+  if (!$("tema-franja").value || /halloween|navidad|black friday|🎃|🎄|🖤/i.test($("tema-franja").value))
+    $("tema-franja").value = v === "navidad" ? "🎄 ¡Feliz Navidad! Pide tu demo gratuita y sin compromiso" : v === "blackfriday" ? "🖤 Black Friday en Velority: pide tu demo gratuita y sin compromiso" : "🎃 ¡Feliz Halloween! Pide tu demo gratuita y sin compromiso";
 });
 $("tema-cerrar").addEventListener("click", cerrarTema);
 $("tema-modal").addEventListener("click", e => { if (e.target === $("tema-modal")) cerrarTema(); });
