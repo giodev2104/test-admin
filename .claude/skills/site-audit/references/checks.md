@@ -15,6 +15,7 @@ Cada comprobación: **PASS** (cumple), **PARTIAL** (cumple a medias) o **FAIL** 
 - FAIL: < 70 %, o logotipo/imágenes con texto sin alt.
 
 **A3 · Estructura de encabezados**
+- Cuenta los encabezados de la página tal como se ve: ignora los que están dentro de `<script>` o de plantillas que no se muestran (en webs con JavaScript, cuéntalos con Playwright solo si son visibles).
 - PASS: un único `<h1>` y sin saltos de nivel (h1 → h2 → h3).
 - PARTIAL: varios `<h1>` o algún salto de nivel.
 - FAIL: sin `<h1>`, o encabezados usados solo como estilo.
@@ -33,6 +34,7 @@ Cada comprobación: **PASS** (cumple), **PARTIAL** (cumple a medias) o **FAIL** 
 ## Usabilidad (U)
 
 **U1 · HTTPS**
+- La redirección se comprueba pidiendo `http://dominio/` sin seguir redirecciones (debe dar 301/308 hacia `https://`). Si el entorno no deja hacer peticiones http, compruébalo desde otro sitio (por ejemplo, una función en la nube) antes de marcarla.
 - PASS: certificado válido y `http://` redirige a `https://`.
 - PARTIAL: HTTPS funciona pero no redirige, o hay contenido mixto (recursos `http://`).
 - FAIL: sin HTTPS o certificado inválido.
