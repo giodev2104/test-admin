@@ -494,7 +494,8 @@ Deno.serve(async (req) => {
 
     // Pago a plazos de un pedido: N cuotas mensuales automáticas (la primera hoy)
     if (b.accion === "financiar") {
-      if (!suscripcionesActivas()) return responder({ error: "El pago a plazos estará disponible muy pronto." }, 400);
+      // El pago a plazos está retirado (para pagar poco a poco se ofrece el renting). PAGO_A_PLAZOS=1 lo vuelve a abrir
+      if (!suscripcionesActivas() || env("PAGO_A_PLAZOS") !== "1") return responder({ error: "El pago a plazos no está disponible. Si quieres pagar tu web poco a poco, tienes el renting web en «Planes mensuales»." }, 400);
       const n = Number(b.plazos), recargo = PLAZOS[n];
       if (recargo === undefined) return responder({ error: "Elige 3, 6 o 12 plazos." }, 400);
       const { data: s } = await db.from("servicios_cliente").select("id,nombre,tipo,importe,pagado_en,anticipo_en,plazos_total,caso_id").eq("id", Number(b.servicio_id)).eq("cliente_id", cid).maybeSingle();
