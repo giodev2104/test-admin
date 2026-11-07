@@ -2853,20 +2853,27 @@ document.addEventListener("keydown", e => {
 // ---------- Correo > Clientes potenciales: negocios de Google Maps sin web (función «prospectos» + tabla «prospectos») ----------
 // Salen solos: al abrir la pestaña la función recorre ciudades de España en OpenStreetMap (datos públicos, sin clave).
 // Si no traen correo, se apunta a mano (de su Instagram, Facebook o su ficha de Google Maps).
+// Contacto legal (LSSI art. 21 y Ley 11/2022 art. 66): primero se LLAMA (guion con presentación y de dónde sale el número).
+// El correo con la propuesta solo se puede enviar si el negocio ha dado permiso (permiso_en) o nos ha escrito él antes;
+// la función «buzon» lo comprueba también. WhatsApp solo con permiso. «No quiere contacto» (oposicion_en) lo bloquea todo para siempre.
 // «Enviar propuesta» abre un correo ya redactado para ese negocio. Se marca como enviada si en «correos» ya hay uno nuestro a esa dirección.
 // «Solo con correo» (opcional): Google no da correos, así que al marcarlo solo quedan los que tienen uno apuntado
 let prosSoloCorreo = (() => { try { return localStorage.getItem("pros-solo-correo2") === "1"; } catch (_) { return false; } })();
 let prospectos = null, prosFiltro = "nuevo", prosBusca = "", prosSel = null, prosBuscando = false, prosEnviando = false, prosUltima = null, prosAutoHecho = false;
 const prosForm = { negocio: "", zona: "", paginas: "1" }, prosBorrador = {};
-const ESTADOS_PROS = { nuevo: "Por contactar", contactado: "Propuesta enviada", respondido: "Ha respondido", cliente: "Ya es cliente", descartado: "Descartado" };
+const ESTADOS_PROS = { nuevo: "Por llamar", permiso: "Con permiso: enviar correo", contactado: "Propuesta enviada", respondido: "Ha respondido", cliente: "Ya es cliente", descartado: "Descartado" };
 const prospectoDe = email => (prospectos || []).find(p => p.email && p.email.toLowerCase() === String(email || "").toLowerCase());
 const enviadosA = email => email ? correos.filter(c => c.contacto === email.toLowerCase() && c.direccion === "salida") : [];
 const recibidosDe = email => email ? correos.filter(c => c.contacto === email.toLowerCase() && c.direccion === "entrada") : [];
 // El estado que se ve: si ya le escribimos o nos ha respondido (según los correos), aunque no se marcara a mano
+// Permiso para escribirle por correo/WhatsApp: lo dio (por teléfono, en persona…) o nos escribió él primero
+const tienePermiso = p => !p.oposicion_en && (!!p.permiso_en || recibidosDe(p.email).length > 0);
 function estadoPros(p) {
+  if (p.oposicion_en) return "descartado";
   if (p.estado === "descartado" || p.estado === "cliente") return p.estado;
   if (recibidosDe(p.email).length) return "respondido";
   if (p.estado === "contactado" || enviadosA(p.email).length) return p.estado === "respondido" ? "respondido" : "contactado";
+  if (p.permiso_en) return "permiso";
   return p.estado;
 }
 async function cargarProspectos(forzar) {
@@ -2877,15 +2884,14 @@ async function cargarProspectos(forzar) {
   if (vista === "correo") renderCorreo();
 }
 function textoPropuesta(p) {
-  const tipo = (p.categoria || "negocio").toLowerCase(), ciudad = p.ciudad || "vuestra zona";
-  const resenas = p.valoracion && p.n_resenas ? ` (con ${String(p.valoracion).replace(".", ",")} de valoración y ${p.n_resenas} reseñas)` : "";
-  const social = p.web_social ? (/instagram/i.test(p.web_social) ? " (solo el perfil de Instagram)" : /facebook|fb\./i.test(p.web_social) ? " (solo la página de Facebook)" : "") : "";
-  // Corto: lo importante es que entren en la web a pedir su prueba gratis (el diseño lo pone la función «buzon»)
+  const via = { telefono: "por teléfono", persona: "en persona", correo: "por correo", otro: "" }[p.permiso_via] ?? "por teléfono";
+  const dia = p.permiso_en ? " el " + new Date(p.permiso_en).toLocaleDateString("es-ES", { day: "numeric", month: "long" }) : "";
+  // Solo se envía a quien nos ha dado permiso: el texto lo recuerda (y dice de dónde sacamos sus datos, RGPD art. 14)
   return {
-    asunto: `${p.nombre}: prueba gratis de vuestra web`,
+    asunto: `${p.nombre}: la demo gratis de vuestra web que os comenté`,
     texto: `Hola, equipo de ${p.nombre}:
 
-Vi vuestro negocio en Google Maps${resenas} y aún no tenéis web propia${social}.
+Gracias por atenderme${via ? " " + via : ""}${dia}. Como os comenté, os escribo con la información que me pedisteis.
 
 🎁 PRUEBA GRATIS: entrad en velority.es y pedid la demo de vuestra web. La hacemos gratis y solo pagáis si os encanta.
 
@@ -2894,13 +2900,13 @@ O respondedme a este correo y os llamo.
 ${usuarioActual ? bonito(usuarioActual) + " · " : ""}Velority
 
 —
-Si no queréis más correos míos, respondedme «BAJA».`,
+Os escribimos porque nos disteis permiso${via ? " " + via : ""}${dia}. Vuestro teléfono lo vimos en vuestra ficha pública de Google Maps. Si no queréis más correos, respondednos «BAJA» y no os escribiremos más.`,
   };
 }
 function tarjetaPros(p) {
   const est = estadoPros(p), env = enviadosA(p.email), ult = env.length ? env.reduce((a, b) => new Date(a.creado_en) > new Date(b.creado_en) ? a : b) : null;
-  const col = { nuevo: "text-sky-300 border-sky-500/40", contactado: "text-fx border-fx/40", respondido: "text-emerald-300 border-emerald-500/40", cliente: "text-emerald-300 border-emerald-500/40", descartado: "text-slate-500 border-line" }[est];
-  const tel = (p.telefono || "").replace(/\s+/g, ""), wa = tel ? "34" + tel.replace(/^\+?34/, "") : "";
+  const col = { nuevo: "text-sky-300 border-sky-500/40", permiso: "text-emerald-300 border-emerald-500/40", contactado: "text-fx border-fx/40", respondido: "text-emerald-300 border-emerald-500/40", cliente: "text-emerald-300 border-emerald-500/40", descartado: "text-slate-500 border-line" }[est];
+  const tel = (p.telefono || "").replace(/\s+/g, ""), wa = tel ? "34" + tel.replace(/^\+?34/, "") : "", perm = tienePermiso(p);
   return `<li class="rounded-xl border ${prosSel === p.id ? "border-fx/60 bg-raised" : "border-line bg-panel"} p-3">
     <div class="flex flex-wrap items-start gap-2">
       <div class="min-w-0 flex-1"><p class="font-semibold text-white break-words">${esc(p.nombre)}</p>
@@ -2909,15 +2915,23 @@ function tarjetaPros(p) {
       <span class="mini shrink-0 border ${col}">${ESTADOS_PROS[est]}</span>
     </div>
     <div class="mt-2 flex flex-wrap gap-1.5 text-xs">
-      ${tel ? `<a href="tel:${esc(tel)}" class="rounded-md border border-line px-2 py-1 text-slate-300 hover:border-fx">📞 ${esc(p.telefono)}</a><a href="https://wa.me/${esc(wa)}" target="_blank" rel="noopener" class="rounded-md border border-line px-2 py-1 text-slate-300 hover:border-fx">WhatsApp</a>` : ""}
+      ${tel && !p.oposicion_en ? `<a href="tel:${esc(tel)}" data-pros-llamar="${p.id}" class="rounded-md bg-fx hover:bg-fx2 px-2.5 py-1 font-bold text-[#1a1005]">📞 Llamar · ${esc(p.telefono)}</a><button type="button" data-pros-guion="${p.id}" class="rounded-md border border-fx/50 px-2 py-1 text-fx hover:bg-fx/10">📋 Guion</button>${perm ? `<a href="https://wa.me/${esc(wa)}" target="_blank" rel="noopener" class="rounded-md border border-line px-2 py-1 text-slate-300 hover:border-fx">WhatsApp</a>` : ""}` : ""}
       ${urlWeb(p.maps_url) ? `<a href="${esc(urlWeb(p.maps_url))}" target="_blank" rel="noopener" class="rounded-md border border-line px-2 py-1 text-slate-300 hover:border-fx">📍 Google Maps</a>` : ""}
       ${urlWeb(p.web_social) ? `<a href="${esc(urlWeb(p.web_social))}" target="_blank" rel="noopener" class="rounded-md border border-line px-2 py-1 text-slate-300 hover:border-fx" title="Su red social (no tiene web propia)">🔗 ${esc((() => { try { return new URL(p.web_social).hostname.replace(/^www\./, ""); } catch (_) { return "Perfil"; } })())}</a>` : `<span class="rounded-md border border-line px-2 py-1 text-slate-500">Sin web</span>`}
       ${p.email ? "" : `<a href="https://www.google.com/search?q=${encodeURIComponent('"' + p.nombre + '" ' + (p.ciudad || "") + " correo OR email OR instagram")}" target="_blank" rel="noopener" class="rounded-md border border-line px-2 py-1 text-slate-300 hover:border-fx">🔎 Buscar su contacto</a>`}
     </div>
+    ${prosGuion === p.id && !p.oposicion_en ? guionPros(p) : ""}
+    ${p.oposicion_en ? `<p class="mt-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">🚫 Pidió que no le contactemos (${esc(fechaCorreo(p.oposicion_en))}). No se le puede llamar ni escribir.</p>`
+      : `<div class="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+      ${p.llamado_en ? `<span class="text-slate-400">☎️ Llamado el ${esc(fechaCorreo(p.llamado_en))}${p.llamado_por ? " por " + esc(bonito(p.llamado_por)) : ""}</span>` : ""}
+      ${p.permiso_en ? `<span class="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-emerald-200">✅ Permiso para correo · ${esc({ telefono: "por teléfono", persona: "en persona", correo: "por correo", otro: "otro" }[p.permiso_via] || "")} · ${esc(fechaCorreo(p.permiso_en))}${p.permiso_por ? " · " + esc(bonito(p.permiso_por)) : ""}</span> <button type="button" data-pros-permiso="${p.id}:quitar" class="text-slate-500 underline hover:text-white">quitar</button>`
+        : `<button type="button" data-pros-permiso="${p.id}:telefono" class="rounded-md border border-emerald-500/40 px-2 py-1 text-emerald-300 hover:bg-emerald-500/15">✅ Ha dado permiso para el correo</button>`}
+      <button type="button" data-pros-oposicion="${p.id}" class="rounded-md border border-line px-2 py-1 text-slate-400 hover:border-red-500/60 hover:text-red-300">🚫 No quiere que le contactemos</button></div>`}
     <div class="mt-2 flex flex-wrap items-center gap-2">
-      <input id="pros-email-${p.id}" data-pros-email="${p.id}" type="email" value="${esc(p.email || "")}" placeholder="Correo del negocio (de su Instagram, Facebook…)" aria-label="Correo de ${esc(p.nombre)}" class="campo text-sm min-w-0 basis-full sm:basis-0 flex-1" style="padding:.4rem .6rem">
-      <button type="button" data-pros-enviar="${p.id}" class="rounded-lg ${ult ? "border border-fx/50 text-fx hover:bg-fx/10" : "bg-fx hover:bg-fx2 text-[#1a1005]"} text-sm font-bold px-3 py-1.5">${ult ? "✉ Volver a escribir" : "✉ Enviar propuesta"}</button>
-      ${est === "descartado" ? `<button type="button" data-pros-estado="${p.id}:nuevo" class="rounded-lg border border-line px-2.5 py-1.5 text-xs text-slate-300 hover:border-fx">Recuperar</button>`
+      <input id="pros-email-${p.id}" data-pros-email="${p.id}" type="email" value="${esc(p.email || "")}" placeholder="Correo que te dé por teléfono" aria-label="Correo de ${esc(p.nombre)}" class="campo text-sm min-w-0 basis-full sm:basis-0 flex-1" style="padding:.4rem .6rem">
+      ${perm ? `<button type="button" data-pros-enviar="${p.id}" class="rounded-lg ${ult ? "border border-fx/50 text-fx hover:bg-fx/10" : "bg-fx hover:bg-fx2 text-[#1a1005]"} text-sm font-bold px-3 py-1.5">${ult ? "✉ Volver a escribir" : "✉ Enviar propuesta"}</button>`
+        : `<button type="button" disabled title="${p.oposicion_en ? "Pidió que no le contactemos" : "Llámale primero y marca «Ha dado permiso para el correo»"}" class="rounded-lg border border-line text-slate-500 text-sm font-bold px-3 py-1.5 cursor-not-allowed">✉ ${p.oposicion_en ? "Bloqueado" : "Necesita permiso"}</button>`}
+      ${p.oposicion_en ? "" : est === "descartado" ? `<button type="button" data-pros-estado="${p.id}:nuevo" class="rounded-lg border border-line px-2.5 py-1.5 text-xs text-slate-300 hover:border-fx">Recuperar</button>`
         : `<button type="button" data-pros-estado="${p.id}:descartado" class="rounded-lg border border-line px-2.5 py-1.5 text-xs text-slate-400 hover:border-red-500/60 hover:text-red-300">Descartar</button>`}
       ${est === "respondido" ? `<button type="button" data-pros-estado="${p.id}:cliente" class="rounded-lg border border-emerald-500/40 px-2.5 py-1.5 text-xs text-emerald-300 hover:bg-emerald-500/15">✓ Ya es cliente</button>` : ""}
     </div>
@@ -2926,7 +2940,24 @@ function tarjetaPros(p) {
     <textarea data-pros-notas="${p.id}" id="pros-notas-${p.id}" rows="1" maxlength="2000" placeholder="Notas (p. ej. «llamé, volver el lunes»)" class="campo mt-2 text-xs" style="padding:.35rem .6rem;resize:vertical">${esc(p.notas || "")}</textarea>
   </li>`;
 }
+let prosGuion = null;
+// Guion de la llamada: presentación, de dónde sale el número (RGPD art. 14) y pedir permiso para el correo (LSSI art. 21)
+function guionPros(p) {
+  const yo = usuarioActual ? bonito(usuarioActual) : "[tu nombre]";
+  const ln = (t) => `<li class="py-1">${t}</li>`;
+  return `<div class="mt-2 rounded-lg border border-fx/40 bg-fx/5 p-3 text-xs leading-relaxed text-slate-200">
+    <p class="font-bold text-white">📋 Guion de la llamada</p>
+    <ol class="mt-1 list-decimal pl-4">
+      ${ln(`«Hola, ¿hablo con <b>${esc(p.nombre)}</b>? Soy <b>${esc(yo)}</b>, de <b>Velority</b>. Hacemos páginas web para negocios.»`)}
+      ${ln(`«Os llamo porque he visto vuestra ficha en Google Maps y no tenéis web propia. Os preparamos una <b>demo de vuestra web gratis</b> y solo pagáis si os gusta, desde 100 €.»`)}
+      ${ln(`«¿Os puedo mandar la información por correo?» → <b>Si dice que sí</b>: apunta su correo abajo y pulsa <b>✅ Ha dado permiso para el correo</b>. Luego, «Enviar propuesta».`)}
+      ${ln(`<b>Si no le interesa</b>: «Perfecto, gracias. Vuestro número lo saqué de vuestra ficha pública de Google Maps; si preferís que no os volvamos a llamar, lo apunto ahora.» → si dice que no le llamemos: <b>🚫 No quiere que le contactemos</b>. Si no, «Descartar».`)}
+    </ol>
+    <p class="mt-2 text-slate-400">Llama con tu número visible, en horario de su negocio. Si el teléfono es de un autónomo (una persona, no una empresa), comprueba antes que no esté en la Lista Robinson. Sin permiso no se le escribe ni por correo ni por WhatsApp.</p>
+  </div>`;
+}
 function redactorPros(p) {
+  if (!tienePermiso(p)) return `<section class="rounded-2xl border border-line bg-panel p-4"><p class="text-sm text-slate-300">Para enviar la propuesta a <b>${esc(p.nombre)}</b> antes tiene que darte permiso. Llámale con el 📋 Guion y marca «✅ Ha dado permiso para el correo».</p><button type="button" data-pros-cerrar class="mt-3 rounded-lg border border-line px-3 py-1.5 text-sm text-slate-300">Cerrar</button></section>`;
   const b = prosBorrador[p.id] ||= textoPropuesta(p), env = enviadosA(p.email);
   return `<section class="rounded-2xl border border-fx/40 bg-panel p-4 lg:sticky lg:top-4">
     <div class="flex items-center gap-2"><h2 class="min-w-0 truncate text-base font-semibold text-white">✉ Propuesta para ${esc(p.nombre)}</h2>
@@ -2956,7 +2987,7 @@ function renderProspectos(el) {
   el.innerHTML = `
   <header class="flex flex-wrap items-start justify-between gap-3 mb-4">
     <div><h1 class="font-display text-2xl font-bold text-white leading-tight">Correo</h1>
-      <p class="text-sm text-slate-500 mt-1">Negocios de España sin página web propia. Salen solos de Google Maps (o de OpenStreetMap si no hay clave de Google); compruébalos, apunta su correo y envíales una propuesta.</p></div>
+      <p class="text-sm text-slate-500 mt-1">Negocios de España sin página web propia. Salen solos de Google Maps (o de OpenStreetMap si no hay clave de Google). <b class="text-slate-300">Primero llama</b> con el 📋 Guion; si te dan permiso, márcalo y envíales la propuesta de la demo por correo. Sin permiso, la ley no deja escribirles.</p></div>
   </header>
   ${pestanasCorreo()}
   <form id="pros-buscar" class="mb-4 grid gap-2 rounded-2xl border border-line bg-panel p-3 sm:grid-cols-[1fr_1fr_auto_auto] items-end" novalidate>
@@ -2968,7 +2999,7 @@ function renderProspectos(el) {
     ${prosUltima && !prosUltima.saltado ? `<p class="sm:col-span-4 text-xs text-slate-400">«${esc(prosUltima.consulta)}» (${esc(prosUltima.fuente || "")}): <b class="text-white">${prosUltima.sin_web} sin web</b>${prosUltima.con_contacto !== undefined ? `, ${prosUltima.con_contacto} con teléfono o correo` : ""} → ${prosUltima.nuevos} nuevos${prosUltima.repetidos ? `, ${prosUltima.repetidos} ya estaban en la lista` : ""}.${prosUltima.uso_google ? ` <span class="${prosUltima.uso_google >= prosUltima.limite_google * 0.9 ? "text-amber-300" : "text-slate-500"}">· Google Maps este mes: ${prosUltima.uso_google} de ${prosUltima.limite_google} búsquedas gratuitas (al llegar se para sola)</span>` : ""}</p>` : ""}
   </form>
   <div class="mb-3 flex flex-wrap items-center gap-2">
-    ${filtro("nuevo", "Por contactar")}${filtro("contactado", "Propuesta enviada")}${filtro("respondido", "Han respondido")}${filtro("cliente", "Clientes")}${filtro("descartado", "Descartados")}${filtro("todos", "Todos")}
+    ${filtro("nuevo", "Por llamar")}${filtro("permiso", "Con permiso")}${filtro("contactado", "Propuesta enviada")}${filtro("respondido", "Han respondido")}${filtro("cliente", "Clientes")}${filtro("descartado", "Descartados")}${filtro("todos", "Todos")}
     <label class="inline-flex items-center gap-2 rounded-full border ${prosSoloCorreo ? "border-fx/60 bg-fx/10 text-white" : "border-line text-slate-400"} px-3 py-1 text-xs cursor-pointer"><input id="pros-solo-correo" type="checkbox" ${prosSoloCorreo ? "checked" : ""} class="accent-amber-500"> ✉ Solo con correo${sinCorreo ? ` <span class="text-slate-500">(${sinCorreo} sin correo ocultos)</span>` : ""}</label>
     <input id="pros-busca" type="search" value="${esc(prosBusca)}" placeholder="Filtrar por nombre, ciudad…" aria-label="Filtrar clientes potenciales" class="campo text-sm ml-auto w-full sm:w-60" style="padding:.4rem .7rem">
   </div>
@@ -3022,6 +3053,7 @@ async function verPropuesta() {
 async function enviarPropuesta() {
   const p = (prospectos || []).find(x => x.id === prosSel);
   if (!p || prosEnviando) return;
+  if (!tienePermiso(p)) { toast("Sin permiso no se le puede escribir. Llámale primero y marca «Ha dado permiso para el correo»."); return; }
   const b = prosBorrador[p.id] || {}, para = String(($("pros-para") || {}).value || "").trim().toLowerCase();
   const asunto = String(($("pros-asunto") || {}).value || "").trim(), texto = String(($("pros-texto") || {}).value || "").trim();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(para)) { toast("Escribe el correo del negocio."); return; }
@@ -3031,9 +3063,9 @@ async function enviarPropuesta() {
   if (enviadosA(para).length && !confirm("Ya le enviaste un correo a " + para + ". ¿Enviar otro?")) return;
   prosEnviando = true; renderCorreo();
   try {
-    const fila = await invocar("buzon", { accion: "responder", contacto: para, asunto, texto, plantilla: "propuesta" });
+    const fila = await invocar("buzon", { accion: "responder", contacto: para, asunto, texto, plantilla: "propuesta", prospecto_id: p.id });
     if (fila && fila.id && !correos.some(c => c.id === fila.id)) correos.unshift(fila);
-    await guardarProspecto(p.id, { email: para, estado: p.estado === "nuevo" ? "contactado" : p.estado, contactado_en: new Date().toISOString(), contactado_por: usuarioActual }, true);
+    await guardarProspecto(p.id, { email: para, permiso_en: p.permiso_en || new Date().toISOString(), permiso_via: p.permiso_via || "correo", estado: p.estado === "nuevo" ? "contactado" : p.estado, contactado_en: new Date().toISOString(), contactado_por: usuarioActual }, true);
     delete prosBorrador[p.id]; prosSel = null;
     toast("✉️ Propuesta enviada a " + p.nombre);
   } catch (e) { toast(e.message, 8000); }
@@ -3059,6 +3091,29 @@ document.addEventListener("click", e => {
     return;
   }
   if (t.closest("[data-pros-cerrar]")) { prosSel = null; renderCorreo(); return; }
+  const gu = t.closest("[data-pros-guion]");
+  if (gu) { const id = Number(gu.dataset.prosGuion); prosGuion = prosGuion === id ? null : id; renderCorreo(); return; }
+  const ll = t.closest("[data-pros-llamar]");
+  if (ll) { const id = Number(ll.dataset.prosLlamar); prosGuion = id; guardarProspecto(id, { llamado_en: new Date().toISOString(), llamado_por: usuarioActual }); return; }   // sin preventDefault: abre el teléfono
+  const pe = t.closest("[data-pros-permiso]");
+  if (pe) {
+    const [id, via] = pe.dataset.prosPermiso.split(":"), n = Number(id);
+    if (via === "quitar") { if (confirm("¿Quitar el permiso? Ya no se le podrá enviar correo.")) guardarProspecto(n, { permiso_en: null, permiso_por: null, permiso_via: null }); return; }
+    const r = prompt("¿Cómo te ha dado permiso para escribirle?\n1 = Por teléfono\n2 = En persona\n3 = Otro (lo explicas en notas)", "1");
+    if (r === null) return;
+    const v = { "1": "telefono", "2": "persona", "3": "otro" }[r.trim()];
+    if (!v) { toast("Escribe 1, 2 o 3."); return; }
+    guardarProspecto(n, { permiso_en: new Date().toISOString(), permiso_por: usuarioActual, permiso_via: v }).then(ok => ok && toast("✅ Permiso guardado. Ya puedes enviarle la propuesta."));
+    return;
+  }
+  const op = t.closest("[data-pros-oposicion]");
+  if (op) {
+    const n = Number(op.dataset.prosOposicion), x = prospectos.find(y => y.id === n);
+    if (!confirm("«" + (x ? x.nombre : "") + "» no quiere que le contactemos. No se le podrá volver a llamar ni escribir. ¿Guardar?")) return;
+    guardarProspecto(n, { oposicion_en: new Date().toISOString(), estado: "descartado", permiso_en: null }).then(ok => ok && toast("Guardado. No se le volverá a contactar."));
+    if (prosSel === n) prosSel = null;
+    return;
+  }
   const pl = t.closest("[data-pros-plantilla]");
   if (pl) { const id = Number(pl.dataset.prosPlantilla), p = prospectos.find(x => x.id === id), para = (prosBorrador[id] || {}).para; prosBorrador[id] = { ...textoPropuesta(p), ...(para !== undefined ? { para } : {}) }; renderCorreo(); return; }
   const es = t.closest("[data-pros-estado]");
