@@ -94,6 +94,9 @@
 </style>
 <!-- Estilos de Tailwind ya compilados (se regeneran solos con .github/workflows/panel-css.yml) -->
 <link rel="stylesheet" href="panel.css">
+<!-- Diseño y «Apariencia» (tema y posición del menú, por dispositivo): se aplica antes de pintar para que no parpadee -->
+<link rel="stylesheet" href="apariencia.css">
+<script>(function(){var t="oscuro",m="izq";try{t=localStorage.getItem("vel-tema")||t;m=localStorage.getItem("vel-menu")||m}catch(e){}if(t==="auto")t=matchMedia("(prefers-color-scheme: dark)").matches?"oscuro":"claro";document.documentElement.dataset.tema=t;document.documentElement.dataset.menu=m})();</script>
 </head>
 <body class="text-slate-200 min-h-screen">
 
@@ -4648,5 +4651,6 @@ async function iniciar() {
 iniciar();
 setInterval(render, 60000);
 </script>
+<script src="apariencia.js"></script>
 </body>
 </html>
