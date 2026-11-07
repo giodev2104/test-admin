@@ -66,13 +66,13 @@
     bar.prepend(izq);
     const tit = document.createElement("h2"); tit.id = "fx-titulo"; bar.prepend(tit);
     const der = document.createElement("div"); der.className = "fx-der";
-    der.innerHTML = `<button type="button" class="top-btn" data-fx-abrir aria-label="Apariencia" title="Apariencia">${I.ajustes}</button><span class="fx-av" data-fx-ini></span>`;
+    der.innerHTML = `<button type="button" class="top-btn" data-fx-abrir aria-label="Apariencia" title="Apariencia">${I.ajustes}</button><button type="button" class="fx-av" data-fx-ini data-fx-mas aria-label="Tu cuenta y más opciones"></button>`;
     bar.appendChild(der);
   }
   // ---------- Barra inferior en el móvil ----------
   if (!$("fx-tabbar")) {
     const t = document.createElement("nav"); t.id = "fx-tabbar"; t.setAttribute("aria-label", "Menú");
-    t.innerHTML = [["inicio", "Inicio"], ["casos", "Pipeline"], ["clientes", "Clientes"], ["correo", "Correo"]].map(([v, x]) => `<button type="button" data-ir="${v}" class="rail-btn">${I[v]}<span>${x}</span></button>`).join("") + `<button type="button" data-fx-mas>${I.mas}<span>Más</span></button>`;
+    t.innerHTML = [["inicio", "Hoy"], ["casos", "Pipeline"], ["clientes", "Clientes"], ["correo", "Correo"]].map(([v, x]) => `<button type="button" data-ir="${v}" class="rail-btn">${I[v]}<span>${x}</span>${v === "correo" ? `<em class="fx-tab-n" data-fx-correo-n></em>` : ""}</button>`).join("");
     document.body.appendChild(t);
   }
   // ---------- «Más» en el móvil: el resto de secciones y ajustes ----------
@@ -87,7 +87,7 @@
     document.body.appendChild(m);
     document.addEventListener("click", e => {
       const t = e.target.closest ? e.target : null; if (!t) return;
-      if (t.closest("[data-fx-mas]")) {   // solo se ofrecen los botones que el panel muestra a esta persona
+      if (t.closest("[data-fx-mas]") && matchMedia("(max-width: 760px)").matches) {   // solo se ofrecen los botones que el panel muestra a esta persona
         m.querySelectorAll("[data-fx-clic]").forEach(b => { const o = $(b.dataset.fxClic); b.hidden = !o || o.classList.contains("hidden"); });
         m.hidden = false; return;
       }
@@ -179,6 +179,30 @@
         <span class="fx-pie-d">${resuelto ? `<span class="mini">${estado === "Aceptado" ? "Aceptado" : "Denegado"}</span>` : slaBadge(r)}${!resuelto && siguienteEtapa(r.estado) ? `<button type="button" data-avanzar="${r.id}" class="avanzar" aria-label="Pasar a ${siguienteEtapa(r.estado).t}">→</button>` : ""}</span></div></article>`;
   };
   const TIT = Object.fromEntries(SEC);
+  // ---------- Móvil: pipeline sencillo (lista por etapa en vez de columnas). En PC no se muestra ----------
+  let fxEtapa = null;
+  function pipelineMovil() {
+    const cont = $("vista-casos"); if (!cont) return;
+    let el = $("fx-mcasos"); if (!el) { el = document.createElement("div"); el.id = "fx-mcasos"; cont.appendChild(el); }
+    if (vista !== "casos") return;
+    const todos = activos(), abiertasE = ETAPAS.filter(x => !cerrado(x.e));
+    const de = e => todos.filter(r => columnaDe(r.estado) === e);
+    const cerr = todos.filter(r => cerrado(r.estado)).sort((a, b) => new Date(b.resuelto_en || b.created_at) - new Date(a.resuelto_en || a.created_at)).slice(0, 20);
+    const tabs = abiertasE.map(x => ({ k: x.e, t: x.t, n: de(x.e).length, c: x.c })).concat([{ k: "__cerrados", t: "Cerrados", n: cerr.length, c: "113,113,122" }]);
+    if (!fxEtapa || !tabs.some(t => t.k === fxEtapa)) fxEtapa = (tabs.find(t => t.n && t.k !== "__cerrados") || tabs[0]).k;
+    const prio = (a, b) => (vencido(b) - vencido(a)) || (cambioPrio(b) - cambioPrio(a)) || (sinResponder(b) - sinResponder(a)) || (new Date(a.created_at) - new Date(b.created_at));
+    const lista = fxEtapa === "__cerrados" ? cerr : de(fxEtapa).sort(prio);
+    const fila = r => { const res = cerrado(r.estado), venc = !res && vencido(r), pide = !res && sinResponder(r);
+      return `<li><button type="button" data-detalle="${r.id}" class="fx-mfila ${venc ? "venc" : ""}"><i style="background:rgb(${TIPOS[tipoDe(r)].rgb})"></i>
+        <span class="fx-mfila-t"><b>${esc(r.titulo || "Sin título")}</b><small>${esc(r.usuario_discord || "Anónimo")} · ${esc(tipoDe(r))}${pide ? ' · <em>Te ha escrito</em>' : !r.responsable_usuario && !res ? " · Sin asignar" : ""}</small></span>
+        <span class="fx-mfila-d">${res ? `<span class="mini">${r.estado === "Aceptado" ? "Aceptado" : "Denegado"}</span>` : slaBadge(r)}</span></button></li>`; };
+    el.innerHTML = `<div class="fx-mtabs" role="tablist">${tabs.map(t => `<button type="button" role="tab" data-fx-etapa="${t.k}" aria-selected="${t.k === fxEtapa}"><i style="background:rgb(${t.c})"></i>${t.t}<span>${t.n}</span></button>`).join("")}</div>
+      ${lista.length ? `<ul class="fx-mlista">${lista.map(fila).join("")}</ul>` : `<p class="fx-vacio" style="text-align:center;padding:40px 0">No hay casos aquí.</p>`}`;
+  }
+  document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("[data-fx-etapa]"); if (b) { fxEtapa = b.dataset.fxEtapa; pipelineMovil(); } });
+  const esMovil = matchMedia("(max-width: 760px)");
+  esMovil.addEventListener("change", () => { try { render(); } catch (_) {} });
+
   // Datos de la barra y del menú (usuario, contador del pipeline, título): tras cada render()
   function refrescar() {
     document.querySelectorAll("[data-fx-n]").forEach(e => e.textContent = activos().filter(abierto).length || "");
@@ -187,6 +211,8 @@
     document.querySelectorAll("[data-fx-nombre]").forEach(e => e.textContent = usuarioActual ? bonito(usuarioActual) : "");
     document.querySelectorAll("[data-fx-rol]").forEach(e => e.textContent = usuarioActual ? (soyDueno ? "Propietario" : "Equipo") : "");
     document.querySelectorAll(".rail-btn[data-ir]").forEach(b => b.classList.toggle("on", b.dataset.ir === vista));
+    const cn = $("correo-n"); document.querySelectorAll("[data-fx-correo-n]").forEach(e => e.textContent = cn && !cn.classList.contains("hidden") ? cn.textContent : "");
+    pipelineMovil();
   }
   const renderBase = window.render;
   window.render = function () { const r = renderBase.apply(this, arguments); try { refrescar(); } catch (_) {} return r; };
