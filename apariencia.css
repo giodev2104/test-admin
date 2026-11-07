@@ -261,3 +261,12 @@ html[data-tema="oscuro"] { --hero: #151518; }
 .fx-motivo { color: var(--hero-tx) !important; }
 .fx-sig .fx-btn:not(.s) { background: #f4f4f6 !important; color: #0a0a0c !important; }
 .fx-op[aria-pressed="true"] { border-color: var(--ac) !important; box-shadow: inset 0 0 0 1px var(--ac) !important; }
+
+/* Iconos de línea en lugar de emojis */
+.fe { filter: none !important; opacity: 1 !important; width: auto !important; display: inline-grid; place-items: center; color: var(--mu); }
+.fbtn .fe, .fop .fe { width: 16px !important; }
+.fx-ic { display: block; flex: none; }
+.fx-ic-c { display: inline-grid; place-items: center; margin-right: 6px; vertical-align: -3px; }
+button.inline-flex .fx-ic-c, a.inline-flex .fx-ic-c, button.flex .fx-ic-c { margin-right: 0; }
+#sonido-btn { color: var(--mu) !important; }
+.fx-notif { display: inline-flex !important; align-items: center; gap: 6px; }
