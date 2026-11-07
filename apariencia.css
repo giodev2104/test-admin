@@ -278,3 +278,53 @@ html[data-tema="oscuro"] { --hero: #151518; }
 button.inline-flex .fx-ic-c, a.inline-flex .fx-ic-c, button.flex .fx-ic-c { margin-right: 0; }
 #sonido-btn { color: var(--mu) !important; }
 .fx-notif { display: inline-flex !important; align-items: center; gap: 6px; }
+
+/* ================= Móvil muy simplificado (solo hasta 760 px; el PC no cambia) ================= */
+#fx-mcasos { display: none; }
+.fx-tab-n:empty { display: none; }
+@media (max-width: 760px) {
+  /* Barra de arriba: logo, búsqueda, conexión y tu avatar (que abre el resto de opciones) */
+  #sonido-btn, #notif-btn, div.fx-barra .top-btn, .fx-der [data-fx-abrir] { display: none !important; }
+  .fx-der .fx-av { display: grid !important; width: 34px; height: 34px; border: 0; cursor: pointer; }
+  /* Quitar textos de ayuda y lo secundario de todas las pantallas */
+  main header p.text-sm, main header p.mt-1, #vista-casos > header p, #vista-clientes > header p, #vista-correo > header p { display: none !important; }
+  #vista-casos > header #contador { display: none; }
+  main h1 { font-size: 24px !important; }
+  /* Hoy: solo «Lo siguiente» y la lista de pendientes */
+  .fx-kpis, .fx-tarj, .fx-fecha, .fx-sig-m, .fx-sig .fx-btn.s, .fx-grupo-l .fx-fila-c { display: none !important; }
+  .fx-cab { margin-bottom: 14px; align-items: center; } .fx-cab h1 { font-size: 24px !important; margin: 0 0 2px; }
+  .fx-sub { font-size: 14px; }
+  .fx-sig { padding: 18px; margin-bottom: 18px; } .fx-sig h2 { font-size: 19px; margin: 6px 0 4px; } .fx-sig-b { margin-top: 14px; } .fx-sig .fx-btn { height: 40px; }
+  .fx-grupo-l { margin-bottom: 16px; } .fx-grupo-l h3 { font-size: 14px; }
+  .fx-fila { padding: 12px 14px; }
+  /* Pipeline: lista por etapa con pestañas; se ocultan columnas y filtros */
+  #vista-casos > header + div, #vista-casos #lista { display: none !important; }
+  #fx-mcasos { display: block; }
+  .fx-mtabs { display: flex; gap: 6px; overflow-x: auto; margin: 0 -16px 12px; padding: 0 16px 4px; scrollbar-width: none; }
+  .fx-mtabs::-webkit-scrollbar { display: none; }
+  .fx-mtabs button { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--ln); background: var(--s1); font-size: 13.5px; font-weight: 500; color: var(--mu); }
+  .fx-mtabs button i { width: 7px; height: 7px; border-radius: 50%; }
+  .fx-mtabs button span { font-size: 12px; color: var(--mu2); }
+  .fx-mtabs button[aria-selected="true"] { background: var(--tab-on-bg); color: var(--tab-on-tx); border-color: transparent; }
+  .fx-mtabs button[aria-selected="true"] span { color: inherit; opacity: .7; }
+  .fx-mlista { background: var(--s1); border: 1px solid var(--ln); border-radius: 14px; overflow: hidden; }
+  .fx-mlista li + li { border-top: 1px solid var(--ln); }
+  .fx-mfila { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; align-items: center; gap: 12px; width: 100%; padding: 13px 14px; text-align: left; }
+  .fx-mfila > i { width: 8px; height: 8px; border-radius: 50%; }
+  .fx-mfila.venc { box-shadow: inset 3px 0 0 var(--rojo); }
+  .fx-mfila-t b { display: block; font-size: 14.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fx-mfila-t small { display: block; font-size: 12.5px; color: var(--mu2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fx-mfila-t em { font-style: normal; color: var(--c-ambar); font-weight: 600; }
+  /* Clientes: tarjeta compacta con un solo botón */
+  #cli-lista { gap: 8px !important; }
+  #cli-lista > article { padding: 12px 14px !important; gap: 8px !important; }
+  #cli-lista > article > p, #cli-lista [data-ficha], #cli-lista [data-ver-cliente] { display: none !important; }
+  #cli-lista [data-cliente] { width: 100%; }
+  #cerrar-mes { display: none !important; }
+  /* Correo: sin el aviso de configuración ni textos de ayuda */
+  #vista-correo > nav + p, #vista-correo > nav + section { display: none !important; }
+  #vista-correo [data-correo-nuevo] { padding: 8px 12px !important; }
+  /* Barra de abajo: 4 pestañas */
+  #fx-tabbar button { position: relative; }
+  .fx-tab-n { position: absolute; top: 0; left: calc(50% + 6px); min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--rojo); color: #fff; font: 700 10px/16px Inter, sans-serif; font-style: normal; text-align: center; }
+}
