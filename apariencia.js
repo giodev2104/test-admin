@@ -191,6 +191,77 @@
   const renderBase = window.render;
   window.render = function () { const r = renderBase.apply(this, arguments); try { refrescar(); } catch (_) {} return r; };
   setInterval(() => { try { refrescar(); } catch (_) {} }, 60000);
+
+  // ---------- Iconos: los emojis de botones, filtros y barra pasan a iconos de línea como los del menú ----------
+  const ic = (d, w = 16) => `<svg class="fx-ic" viewBox="0 0 24 24" width="${w}" height="${w}" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+  const P = {
+    usuarios: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/>',
+    usuario: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+    mio: '<circle cx="10" cy="8" r="4"/><path d="M3 21a7 7 0 0 1 12-5M16 18l2 2 4-4"/>',
+    vacio: '<circle cx="12" cy="12" r="8" stroke-dasharray="3 3"/>',
+    piezas: '<path d="M4 4h6v3a2 2 0 1 0 4 0V4h6v6h-3a2 2 0 1 0 0 4h3v6h-6v-3a2 2 0 1 0-4 0v3H4z"/>',
+    web: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+    llave: '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>',
+    brillo: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/>',
+    caja: '<path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/>',
+    estrella: '<path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/>',
+    brote: '<path d="M12 21v-9M12 12C12 7 8 4 4 4c0 5 3 8 8 8zM12 14c0-4 3-7 8-7 0 4-3 7-8 7z"/>',
+    etiqueta: '<path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.3"/>',
+    almohadilla: '<path d="M5 9h14M5 15h14M10 4l-2 16M16 4l-2 16"/>',
+    mas: '<path d="M12 5v14M5 12h14"/>',
+    papelera: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>',
+    rayo: '<path d="M13 2L3 14h8l-1 8 10-12h-8z"/>',
+    reloj: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    campana: '<path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/>',
+    campanaNo: '<path d="M13.7 21a2 2 0 0 1-3.4 0M6.3 6.3A6 6 0 0 0 6 8c0 7-3 9-3 9h14M18 14V8a6 6 0 0 0-9.3-5M2 2l20 20"/>',
+    pantalla: '<rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>',
+    euro: '<path d="M18 7a7 7 0 1 0 0 10M4 10h10M4 14h10"/>',
+    bandeja: '<path d="M22 13h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5h13L22 13v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-6z"/>',
+    diana: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
+    correo: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
+    ojo: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+    lupa: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+    portapapeles: '<rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4h6v3H9z"/>',
+    calendario: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>',
+    clip: '<path d="M21 11l-8.5 8.5a5 5 0 0 1-7-7L14 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L15 7"/>',
+    prohibido: '<circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/>',
+    ok: '<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
+    telefono: '<path d="M5 3h4l2 5-2.5 1.5a11 11 0 0 0 6 6L16 13l5 2v4a2 2 0 0 1-2 2A17 17 0 0 1 3 5a2 2 0 0 1 2-2z"/>',
+    lapiz: '<path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4"/>',
+  };
+  const EMO = { "👥": "usuarios", "👤": "usuario", "🙋": "mio", "◌": "vacio", "🧩": "piezas", "🌐": "web", "🛠": "llave", "✨": "brillo", "📦": "caja",
+    "⭐": "estrella", "★": "estrella", "☆": "estrella", "🌱": "brote", "🏷": "etiqueta", "🏷️": "etiqueta", "#": "almohadilla", "＋": "mas", "🗑": "papelera",
+    "⚡": "rayo", "🕒": "reloj", "🔔": "campana", "🔕": "campanaNo", "🖥": "pantalla", "💶": "euro", "📥": "bandeja", "🎯": "diana", "✉️": "correo", "✉": "correo",
+    "👁": "ojo", "🔎": "lupa", "📋": "portapapeles", "📅": "calendario", "📎": "clip", "🚫": "prohibido", "✅": "ok", "📞": "telefono", "✏️": "lapiz" };
+  try { if (typeof EMOJI_FILTRO === "object") for (const g of Object.values(EMOJI_FILTRO)) for (const k of Object.keys(g)) if (EMO[g[k]]) g[k] = ic(P[EMO[g[k]]], 15); } catch (_) {}
+  window.actualizarSonidoBtn = function () {
+    const b = $("sonido-btn"); if (!b) return;
+    b.innerHTML = ic(P[sonidoOn ? "campana" : "campanaNo"], 17);
+    b.setAttribute("aria-pressed", String(sonidoOn)); b.setAttribute("aria-label", sonidoOn ? "Silenciar sonidos" : "Activar sonidos"); b.title = sonidoOn ? "Silenciar sonidos" : "Activar sonidos";
+  };
+  const notifBase = window.actualizarNotifBtn;
+  window.actualizarNotifBtn = function () {
+    notifBase.apply(this, arguments);
+    const b = $("notif-btn"); if (!b || b.classList.contains("hidden")) return;
+    const activo = b.getAttribute("aria-pressed") === "true";
+    b.innerHTML = ic(P[activo ? "campana" : "pantalla"], 16) + "<span>Avisos</span>"; b.classList.add("fx-notif"); b.style.color = activo ? "var(--tx)" : ""; b.style.borderColor = activo ? "var(--ln2)" : "";
+  };
+  // Emoji al principio del texto de un botón, enlace o pestaña → icono de línea
+  const RE = new RegExp("^\\s*(" + Object.keys(EMO).filter(k => k !== "#").map(k => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).sort((a, b) => b.length - a.length).join("|") + ")\\uFE0F?\\s*");
+  function iconizar(raiz) {
+    (raiz.querySelectorAll ? raiz : document).querySelectorAll("button, a, [role='tab'], label").forEach(el => {
+      if (el.dataset.fxIc) return;
+      const t = [...el.childNodes].find(n => n.nodeType === 3 && n.textContent.trim());
+      if (!t || el.firstElementChild && el.firstChild !== t && el.firstElementChild.compareDocumentPosition(t) & Node.DOCUMENT_POSITION_FOLLOWING && el.firstElementChild.tagName === "svg") return;
+      const m = t.textContent.match(RE); if (!m) return;
+      el.dataset.fxIc = "1"; t.textContent = t.textContent.slice(m[0].length);
+      const sp = document.createElement("span"); sp.className = "fx-ic-c"; sp.innerHTML = ic(P[EMO[m[1]]], 15); el.insertBefore(sp, t);
+    });
+  }
+  let pend = false;
+  new MutationObserver(() => { if (pend) return; pend = true; requestAnimationFrame(() => { pend = false; iconizar(document.body); }); }).observe(document.body, { childList: true, subtree: true });
+  try { actualizarSonidoBtn(); actualizarNotifBtn(); } catch (_) {}
   aplicar();
   render();
+  iconizar(document.body);
 })();
