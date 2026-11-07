@@ -235,3 +235,29 @@ html[data-tema="claro"] .mini[class*="amber"] { background: var(--c-ambar-bg) !i
 html[data-tema="claro"] .mini[class*="emerald"] { background: var(--c-verde-bg) !important; border-color: var(--c-verde-ln) !important; color: var(--c-verde) !important; }
 html[data-tema="claro"] .mini[class*="sky"] { background: var(--c-azul-bg) !important; border-color: var(--c-azul-ln) !important; color: var(--c-azul) !important; }
 html[data-tema="claro"] .mini[class*="violet"] { background: var(--c-violeta-bg) !important; border-color: var(--c-violeta-ln) !important; color: var(--c-violeta) !important; }
+
+/* ---------- Acento neutro (minimalista): el ámbar de marca pasa a blanco en oscuro y a casi negro en claro.
+   El ámbar solo queda como color de aviso (para hoy, te ha escrito…). ---------- */
+html[data-tema="oscuro"] { --ac: #f4f4f6; --ac-tx: #0a0a0c; --ac-suave: rgba(255,255,255,.08); --ac-ln: rgba(255,255,255,.22); }
+html[data-tema="claro"] { --ac: #1b1a17; --ac-tx: #ffffff; --ac-suave: rgba(27,26,23,.06); --ac-ln: rgba(27,26,23,.22); }
+.bg-fx, .hover\:bg-fx2:hover { background-color: var(--ac) !important; color: var(--ac-tx) !important; }
+.bg-fx:hover { filter: brightness(.92); }
+.bg-fx\/5, .bg-fx\/10, .bg-fx\/15, .hover\:bg-fx\/10:hover, .hover\:bg-fx\/20:hover { background-color: var(--ac-suave) !important; }
+.text-fx, .hover\:text-fx:hover, html[data-tema="claro"] .text-fx:not([class*="bg-"]) { color: var(--ac) !important; }
+.border-fx, .border-fx\/25, .border-fx\/30, .border-fx\/40, .border-fx\/50, .border-fx\/60, .hover\:border-fx:hover, .focus\:border-fx:focus { border-color: var(--ac-ln) !important; }
+[class*="from-amber-300"] { background: var(--ac) !important; color: var(--ac-tx) !important; }
+.accent-amber-500 { accent-color: var(--ac) !important; }
+.campo:focus, .sel:focus, #buscar:focus { border-color: var(--ac-ln) !important; box-shadow: 0 0 0 3px var(--ac-suave) !important; }
+:focus-visible { outline-color: var(--ac) !important; }
+section[data-estado].drop-activa { background: var(--ac-suave) !important; box-shadow: 0 0 0 2px var(--ac) !important; }
+.drag-ghost .card { border-color: var(--ac) !important; }
+.marca::before { background: var(--ac) !important; }
+.rail-logo { filter: none !important; }
+/* «Lo siguiente»: tarjeta oscura en los dos temas, sin brillo de color */
+html[data-tema="oscuro"] { --hero: #151518; }
+.fx-sig { border-color: var(--ln2) !important; }
+.fx-sig::after { background: radial-gradient(circle, rgba(255,255,255,.07), transparent 70%) !important; }
+.fx-sig-k { color: var(--hero-mu) !important; }
+.fx-motivo { color: var(--hero-tx) !important; }
+.fx-sig .fx-btn:not(.s) { background: #f4f4f6 !important; color: #0a0a0c !important; }
+.fx-op[aria-pressed="true"] { border-color: var(--ac) !important; box-shadow: inset 0 0 0 1px var(--ac) !important; }
